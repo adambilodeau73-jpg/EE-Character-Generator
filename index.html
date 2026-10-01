@@ -294,7 +294,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.58.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.58.2</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -33106,17 +33106,19 @@ function renderBackupChip() {
     const col = red ? ['#4a1a1a', '#e0a0a0', '#a05050'] : amber ? ['#4a3a12', '#e8d49a', '#a08a40'] : ['#1d3320', '#a8d4ae', '#4a7a52'];
     const label = never ? 'no backup file yet' : days < 1 ? 'backed up today' : `backed up ${Math.floor(days)} day${Math.floor(days) === 1 ? '' : 's'} ago`;
     if (!chip) {
-      // v8.58.1 (Adam): the chip lives under the "Character Roster" heading —
-      // home base for the heroes it guards — not front-and-center in the
-      // global banner. renderRoster() already re-renders it on every visit.
+      // v8.58.2 (Adam's final placement): the chip rides INLINE at the end of
+      // the "Character Roster" heading itself — the title never changes, so
+      // it hosts the live element safely, and a status light about the roster
+      // belongs in the roster's own title line. renderRoster() re-renders it
+      // on every visit.
       const head = document.querySelector('#page-roster .sec-head');
       if (!head) return;
       chip = document.createElement('button');
       chip.id = 'backup-chip';
       chip.onclick = () => exportRoster();
-      head.parentNode.insertBefore(chip, head.nextSibling);
+      head.appendChild(chip);
     }
-    chip.style.cssText = `display:inline-block;margin:0 0 10px;font-size:10.5px;letter-spacing:.06em;padding:2px 10px;border-radius:10px;cursor:pointer;background:${col[0]};color:${col[1]};border:1px solid ${col[2]};font-family:sans-serif;`;
+    chip.style.cssText = `display:inline-block;vertical-align:middle;margin-left:12px;font-size:10.5px;text-transform:none;letter-spacing:.06em;padding:2px 10px;border-radius:10px;cursor:pointer;background:${col[0]};color:${col[1]};border:1px solid ${col[2]};font-family:sans-serif;font-weight:normal;`;
     chip.title = `Your heroes live in THIS browser on THIS device — clearing cookies/site data deletes them; the exported file is the true backup. ${m.savesSince} change${m.savesSince === 1 ? '' : 's'} since the last export. Click to export the roster now.`;
     chip.textContent = `💾 ${label}${m.savesSince ? ` · ${m.savesSince} change${m.savesSince === 1 ? '' : 's'} since` : ''}`;
     chip.style.display = 'inline-block';
