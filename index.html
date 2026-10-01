@@ -294,7 +294,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.57.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.58.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -336,6 +336,11 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
     <button class="btn" onclick="exportRoster()" title="Download every character as one JSON file — backup, or move heroes between browsers/machines.">⬇ Export Roster</button>
     <button class="btn" onclick="document.getElementById('roster-import-file').click()" title="Import characters from an exported JSON file (single hero or whole roster). Imported heroes are ADDED — nothing is overwritten; ID collisions get fresh IDs.">⬆ Import</button>
     <input id="roster-import-file" type="file" accept=".json,application/json" style="display:none;" onchange="importRosterFile(this)">
+  </div>
+  <!-- v8.58.0 Backup Guardian (d): the doctrine, stated where the buttons live. -->
+  <div style="font-size:11px;color:rgba(200,151,30,.55);margin-top:8px;line-height:1.5;">
+    💾 Your heroes live in <b>this browser on this device</b> — ⬇ export after every session; the file is the true backup.
+    Clearing cookies / site data deletes the roster. iPhone Safari players: add this page to your Home Screen so iOS doesn't tidy it away.
   </div>
 </div>
 
@@ -33061,6 +33066,62 @@ function storageBannerCheck() {
     document.body.appendChild(d);
   } catch (e) {}
 }
+
+// ============================================================================
+// v8.58.0 BACKUP GUARDIAN (Adam, 2026-09-30). Characters live in THIS
+// browser's storage on THIS device — the exported courier file is the only
+// true backup. Four prongs: (a) navigator.storage.persist() asks the browser
+// to shield the vault from AUTOMATIC eviction (iOS Safari's 7-day reaper,
+// storage-pressure cleanup — it cannot stop a deliberate clear-site-data);
+// (b) a header freshness chip tracks saves since the last export and ages
+// green→amber→red, one click exports; (c) exportRoster offers the phone's
+// native share sheet (message the file to yourself or the GM) — gated on
+// coarse-pointer devices so desktop keeps the classic download; (d) doctrine
+// copy on the Roster page and in the hosted README.
+function backupMeta() {
+  try { const m = JSON.parse(storeGet('dxd20v2_backup_meta') || '{}') || {}; return { lastExport: m.lastExport || 0, savesSince: m.savesSince || 0 }; }
+  catch (e) { return { lastExport: 0, savesSince: 0 }; }
+}
+function backupMetaSet(m) { storeSet('dxd20v2_backup_meta', JSON.stringify(m)); }
+function backupNoteSave() {
+  const m = backupMeta(); m.savesSince = (m.savesSince || 0) + 1; backupMetaSet(m);
+  renderBackupChip();
+}
+function backupNoteExport() {
+  backupMetaSet({ lastExport: Date.now(), savesSince: 0 });
+  renderBackupChip();
+}
+function renderBackupChip() {
+  try {
+    let chip = document.getElementById('backup-chip');
+    if (typeof chars === 'undefined' || !chars.length) { if (chip) chip.style.display = 'none'; return; }
+    const m = backupMeta();
+    const days = m.lastExport ? (Date.now() - m.lastExport) / 86400000 : Infinity;
+    const never = !m.lastExport;
+    // Freshness bands: red = 14+ days, 25+ unsaved-to-file saves, or never
+    // exported despite real use; amber = 7+ days, 10+ saves, or any
+    // never-exported roster; green otherwise.
+    const red = (never && m.savesSince >= 5) || days >= 14 || m.savesSince >= 25;
+    const amber = never || days >= 7 || m.savesSince >= 10;
+    const col = red ? ['#4a1a1a', '#e0a0a0', '#a05050'] : amber ? ['#4a3a12', '#e8d49a', '#a08a40'] : ['#1d3320', '#a8d4ae', '#4a7a52'];
+    const label = never ? 'no backup file yet' : days < 1 ? 'backed up today' : `backed up ${Math.floor(days)} day${Math.floor(days) === 1 ? '' : 's'} ago`;
+    if (!chip) {
+      const host = document.querySelector('.site-subtitle');
+      if (!host) return;
+      chip = document.createElement('button');
+      chip.id = 'backup-chip';
+      chip.onclick = () => exportRoster();
+      host.parentNode.insertBefore(chip, host.nextSibling);
+    }
+    chip.style.cssText = `display:inline-block;margin-top:6px;font-size:10.5px;letter-spacing:.06em;padding:2px 10px;border-radius:10px;cursor:pointer;background:${col[0]};color:${col[1]};border:1px solid ${col[2]};font-family:sans-serif;`;
+    chip.title = `Your heroes live in THIS browser on THIS device — clearing cookies/site data deletes them; the exported file is the true backup. ${m.savesSince} change${m.savesSince === 1 ? '' : 's'} since the last export. Click to export the roster now.`;
+    chip.textContent = `💾 ${label}${m.savesSince ? ` · ${m.savesSince} change${m.savesSince === 1 ? '' : 's'} since` : ''}`;
+    chip.style.display = 'inline-block';
+  } catch (e) {}
+}
+// Prong (a): one polite, silent request to shield the vault from automatic
+// eviction. Browsers that don't support it ignore it; no UI either way.
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {}
 let chars = [];
 try { chars = JSON.parse(storeGet('dxd20v2_chars') || '[]'); } catch (e) { chars = []; }
 if (!Array.isArray(chars)) chars = [];
@@ -33117,6 +33178,8 @@ const save = ()=>{
   // v8.55.3: storage-safe — a denied write surfaces the demo-mode banner
   // instead of throwing out of whatever flow called save().
   if (!storeSet('dxd20v2_chars', JSON.stringify(chars))) storageBannerCheck();
+  // v8.58.0 Backup Guardian: count this change toward the freshness chip.
+  try { if (typeof backupNoteSave === 'function') backupNoteSave(); } catch (e) {}
   // v8.32.0: refresh the nav attention dots on every persist — budgets can
   // change from any page (spend a skill point, take a talent, pick a spell).
   try {
@@ -36473,11 +36536,38 @@ function reconcileOrphanSubOptions(c){
 // without a name and a classes/heroClass shape is refused by file.
 function exportRoster() {
   if (!chars.length) { toast('Roster is empty — nothing to export.'); return; }
-  const blob = new Blob([JSON.stringify(chars, null, 1)], {type: 'application/json'});
+  const json = JSON.stringify(chars, null, 1);
+  const fname = 'EE_Roster_' + new Date().toISOString().slice(0, 10) + '.json';
+  // v8.58.0 Backup Guardian (c): coarse-pointer devices (phones/tablets) get
+  // the native share sheet — message the roster to yourself or the GM in one
+  // gesture (the sheet includes save-to-files options too). Desktop keeps
+  // the classic download. A cancelled sheet earns NO backup credit; a share
+  // failure that isn't a cancel falls back to the download.
+  try {
+    const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+    if (coarse && navigator.canShare && typeof File === 'function') {
+      const f = new File([json], fname, { type: 'application/json' });
+      if (navigator.canShare({ files: [f] })) {
+        navigator.share({ files: [f], title: 'E&E Roster' }).then(() => {
+          backupNoteExport();
+          toast(`📤 Shared ${chars.length} hero${chars.length === 1 ? '' : 'es'} — the file imports on any browser's roster.`);
+        }).catch((err) => {
+          if (err && err.name === 'AbortError') return;
+          exportRosterDownload(json, fname);
+        });
+        return;
+      }
+    }
+  } catch (e) {}
+  exportRosterDownload(json, fname);
+}
+function exportRosterDownload(json, fname) {
+  const blob = new Blob([json], {type: 'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'EE_Roster_' + new Date().toISOString().slice(0, 10) + '.json';
+  a.download = fname;
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  if (typeof backupNoteExport === 'function') backupNoteExport();
   toast(`⬇ Exported ${chars.length} hero${chars.length === 1 ? '' : 'es'} — the file imports on any browser's roster.`);
 }
 function exportCurrentHero() {
@@ -36513,6 +36603,7 @@ function importRosterFile(inp) {
   reader.readAsText(file);
 }
 function renderRoster(){
+  if (typeof renderBackupChip === 'function') renderBackupChip();  // v8.58.0
   const el=document.getElementById('roster-list');
   if(!chars.length){el.innerHTML=`<div class="empty"><div class="empty-ico">⚔</div><div class="empty-txt">No heroes yet — forge your first character</div></div>`;return;}
   // v8.6.0 C5: self-heal any record with missing HP before rendering.

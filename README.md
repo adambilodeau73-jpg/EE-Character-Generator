@@ -12,9 +12,18 @@ The official character generator for **Epics & Epochs (E&E)**, the tabletop role
 - **🌍 Homebrew Forge** — GMs can craft custom feats and grant them at the table
 - **⬇⬆ Roster courier** — export and import characters as files to move between devices or share with your GM
 
+## Back up your heroes — please read this one section
+Your characters live in **this browser on this device**. They are never uploaded anywhere — which also means **clearing cookies / site data deletes them**, and private/incognito windows never keep them at all.
+
+- **⬇ Export after every session.** The exported file is the one true backup — it imports on any browser, any device.
+- Watch the **💾 chip** under the title banner: green means recently backed up; amber and red mean your heroes are living dangerously. One click on the chip exports the roster.
+- **On phones**, Export opens your share sheet — message the file to yourself or your GM and the backup lives in the chat thread.
+- **iPhone Safari players:** add this page to your Home Screen (Share → Add to Home Screen). iOS can quietly clean up storage for websites it hasn't seen in a week; home-screen apps get better treatment.
+- **Table protocol we recommend:** at session end, every player exports; the GM imports the party into their own roster. The GM has always been the keeper of the table's reality — now it's official.
+
 ## Tips
 - **Bookmark the site** and use it in a normal browser (Chrome, Firefox, Edge, Safari). File-preview windows (e.g., inside cloud-storage apps) may block the generator from running or saving.
-- Your roster lives in the browser you used. Moving to a new device or browser? Export your characters, then import them on the other side.
+- Moving to a new device or browser? Export your characters, then import them on the other side.
 
 ## Updates
 New versions are published here directly — just refresh the page. The version number appears under the title banner.
