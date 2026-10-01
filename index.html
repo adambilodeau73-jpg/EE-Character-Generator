@@ -294,7 +294,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.59.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.59.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -46143,6 +46143,7 @@ function promptForFeatParam(feat, callback){
   const kind = feat.param.param_kind;
   const label = feat.param.param_label || 'Parameter';
   let options = [];
+  let titleNote = '';  // v8.59.1: set when a filter hid entries — the modal title explains the partial list
   // v8.3.33: 'pool' is a validated enum for feats that target one of the
   // character's spellcasting power point pools (Spellslinger is the
   // canonical example; future dual-pool feats like power-pool surges or
@@ -46170,16 +46171,27 @@ function promptForFeatParam(feat, callback){
     // browse-time badge only checks that the prereq feats are owned at all.
     let pool = WEAPONS;
     const pc = chars.find(x => x.id === curId);
+    // v8.59.1 (Adam's Weaponmaster report, §176): the proficiency filter is
+    // CORRECT (Weapon Focus requires proficiency with the chosen weapon) but
+    // it was SILENT — a partial list reads as missing data, and it fooled
+    // the game's own author (Strong Hero → Weaponmaster carries only simple
+    // weapons, so every sword vanished without a word). The picker now says
+    // what it hid and why.
+    const filterNotes = [];
     if (pc && Array.isArray(feat.prereqs)) {
       const pOpts = feat.prereqs.flat();
       for (const o of pOpts.filter(o => o.type === 'featParam')) {
+        const before = pool.length;
         const ownedParams = new Set((pc.feats || [])
           .filter(f => (f.name || f.n) === o.name)
           .map(f => f.param).filter(Boolean));
         pool = pool.filter(w => ownedParams.has(w.n));
+        if (pool.length < before) filterNotes.push(`must match your ${o.name} weapon`);
       }
       if (pOpts.some(o => o.type === 'weaponProficiency')) {
+        const before = pool.length;
         pool = pool.filter(w => isProficientWithWeapon(pc, w.n));
+        if (pool.length < before) filterNotes.push(`${before - pool.length} hidden — proficiency required (gain it via a Weapon Proficiency feat or a class that grants it)`);
       }
     }
     if (!pool.length) {
@@ -46187,6 +46199,7 @@ function promptForFeatParam(feat, callback){
       return;
     }
     options = pool.map(w => `${w.n} (${w.cat}, TS${w.tl})`);
+    if (filterNotes.length) titleNote = ` — ${filterNotes.join('; ')}`;
   } else if (kind === 'martial_weapon') {
     // v8.5.0: Martial Weapon Proficiency — one martial weapon type per take.
     // Firearm-flagged martial entries are excluded: guns are Personal
@@ -46251,7 +46264,7 @@ function promptForFeatParam(feat, callback){
   // "Craft (Mechanical)" picked by number — fixed as a side effect).
   const weaponish = kind === 'weapon' || kind === 'martial_weapon' || kind === 'exotic_weapon'
     || kind === 'power';  // v8.13.0: "(lvl N)" display suffix stripped like the weapon "(Cat, TSn)" ones
-  openChoiceModal(`${feat.n} — select ${label}`, options, (choice) => {
+  openChoiceModal(`${feat.n} — select ${label}${titleNote}`, options, (choice) => {
     let selected = weaponish ? choice.replace(/\s*\([^)]+\)\s*$/, '').trim() : choice;
     // v8.3.33: apply the value-map if this kind has one (lowercase storage for
     // 'pool', etc.). Match is case-insensitive on the display label.
