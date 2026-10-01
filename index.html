@@ -294,7 +294,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.58.2</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.59.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -8468,6 +8468,121 @@ function weaponRangeRule(def, it) {
   return `Range increment ${inc}′ — cumulative −2 to hit for each increment beyond the first. ${thrown ? 'Thrown' : 'Projectile'} weapon: maximum ${maxInc} increments (${(inc * maxInc).toLocaleString()}′), −${(maxInc - 1) * 2} to hit at that limit.`;
 }
 
+// ============================================================================
+// v8.59.0 — THE TRADE-OFF & FOCUS-SPIKE WIRING (Adam's challenge, 2026-10-02)
+// Three species, three doors:
+//  • DECLARED SET-POINTS (Power Attack / Combat Expertise): persistent dials
+//    on the Sheet's Base Attack card — declared until re-declared (Adam's
+//    ruling: no per-round reset). PA+CE total ≤ BAB (a character with both
+//    may legally dial BA to 0); CE additionally caps at +5 (HH p.207). Melee
+//    rows take the attack penalty; PA adds damage (×2 two-handed; light
+//    weapons get NO damage bonus — unarmed/natural exempt, HH p.235); CE's
+//    +N Defense is shown as an explicit tag on AC/Parry/Dodge (and reaches
+//    touch AC per the book) rather than silently rewriting computed stats.
+//  • ALT-MODE BRANCHES (Double Tap / Burst Fire — already wired v8.5.2):
+//    ranged-only by their own text, so they never interact with PA/CE.
+//  • FOCUS SPIKES (Power Fist / Psionic Weapon / Power Shot + Greaters):
+//    branch rows on qualifying weapon rows. Psionic path: actionable while
+//    focus is HELD (⚡ Expend Focus → focus drops, branch greys). Super-
+//    mutant path (Adam's ruling): sits READIED at all times — using it
+//    confirms the reminder that the momentary Super-Power focus costs the
+//    character's MOVE ACTION that round (HH p.354). Greater feats silently
+//    upgrade the same action 2d6 → 4d6. Greater Power Shot's Special bars
+//    mutants from applying Power Shot to external ranged weapons — so the
+//    ranged spike only arms through the psionic path.
+function ownsFeatN(c, n) { return (c && c.feats || []).some(f => (f.name || f.n) === n); }
+function combatDecl(c) {
+  const d = (c && c.combatDecl) || {};
+  return { pa: Math.max(0, d.pa || 0), ce: Math.max(0, d.ce || 0) };
+}
+function combatDeclCaps(c) {
+  const bab = (c && c.bab) || 0;
+  return { bab, ceMax: Math.min(5, bab) };
+}
+function declWhichModal(title, labels) {
+  return new Promise(res => {
+    openChoiceModal(title, labels, sel => res(sel === 'Power Attack' ? 'pa' : (sel === 'Combat Expertise' ? 'ce' : null)));
+  });
+}
+async function baDeclAdjust(dir) {
+  const c = chars.find(x => x.id === curId); if (!c) return;
+  const hasPA = ownsFeatN(c, 'Power Attack'), hasCE = ownsFeatN(c, 'Combat Expertise');
+  if (!hasPA && !hasCE) return;
+  const d = combatDecl(c), caps = combatDeclCaps(c);
+  if (dir > 0) {
+    // return a point of Base Attack from a modifier
+    if (d.pa + d.ce <= 0) { toast('All of your Base Attack is already unassigned.'); return; }
+    let from = (d.pa > 0 && d.ce > 0) ? null : (d.pa > 0 ? 'pa' : 'ce');
+    if (!from) from = await declWhichModal('Return a point of Base Attack from which modifier?', ['Power Attack', 'Combat Expertise']);
+    if (!from) return;
+    if (from === 'pa' && d.pa > 0) d.pa -= 1;
+    else if (from === 'ce' && d.ce > 0) d.ce -= 1;
+    else { toast('Nothing assigned to that modifier.'); return; }
+  } else {
+    if (d.pa + d.ce >= caps.bab) { toast('Base Attack is fully assigned — nothing left to trade.'); return; }
+    const ceOpen = hasCE && d.ce < caps.ceMax;
+    let to = (hasPA && ceOpen) ? null : (hasPA ? 'pa' : (ceOpen ? 'ce' : null));
+    if (to === null && hasPA && hasCE && !ceOpen) to = 'pa';
+    if (to === null) to = await declWhichModal('Assign the point of Base Attack to which modifier?', ['Power Attack', 'Combat Expertise']);
+    if (!to) return;
+    if (to === 'ce' && d.ce >= caps.ceMax) { toast('Combat Expertise caps at +5 (HH p.207).'); return; }
+    if (to === 'pa' && !hasPA) { toast('You don’t have the Power Attack feat.'); return; }
+    if (to === 'pa') d.pa += 1; else d.ce += 1;
+  }
+  c.combatDecl = d;
+  const eff = caps.bab - d.pa - d.ce;
+  if (typeof logAct === 'function') logAct(`⚔ Stance declared: Power Attack ${d.pa} · Combat Expertise ${d.ce} → effective Base Attack ${eff >= 0 ? '+' : ''}${eff}. Holds until re-declared.`);
+  save(); renderSheet();
+}
+// Focus paths for the spike feats.
+function psiFocusPathOf(c) {
+  const cs = computeCasterStats(c);
+  const psiCapable = !!(cs.psionic && cs.psionic.contributors.length);
+  // NOTE: eml floors at 1 for everyone — the honest super-mutant test is the
+  // state's own isSuperMutant flag (or the Supernatural Mutation feat).
+  const superCapable = (typeof getMPState === 'function' && getMPState(c).isSuperMutant === true)
+    || (typeof hasFeatNamed === 'function' && hasFeatNamed(c, 'Supernatural Mutation'));
+  return { psiCapable, superCapable };
+}
+// One spike descriptor per qualifying row kind, or null.
+function weaponSpikeInfo(c, rowKind, attackBonus) {
+  const featBy = { unarmed: 'Power Fist', melee: 'Psionic Weapon', ranged: 'Power Shot' };
+  const feat = featBy[rowKind];
+  if (!feat || !ownsFeatN(c, feat)) return null;
+  const greater = ownsFeatN(c, 'Greater ' + feat);
+  const dice = greater ? '4d6' : '2d6';
+  const dispFeat = greater ? 'Greater ' + feat : feat;
+  const { psiCapable, superCapable } = psiFocusPathOf(c);
+  const locked = (typeof psiFocusLocked === 'function') && psiFocusLocked(c);
+  let path = null, state = '';
+  if (c.psiFocused && !locked) { path = 'held'; state = 'focus held — ready'; }
+  else if (rowKind === 'ranged' && !psiCapable) { path = null; state = 'innate powers only (mutants — Greater Power Shot, Special)'; }
+  else if (superCapable) { path = 'momentary'; state = 'readied — costs your Move action'; }
+  else if (psiCapable) { path = null; state = locked ? 'focus locked (Second Skin)' : '○ not focused'; }
+  else { path = null; state = 'requires psionic focus'; }
+  return {
+    feat, dispFeat, dice, path,
+    name: dispFeat, atk: attackBonus, dmgMult: 1, spike: true,
+    display: `+${dice} dmg · ${state}`,
+    label: `${dispFeat}: expend ${path === 'momentary' ? 'a momentary Super-Power focus (move action, HH p.354)' : 'your psionic focus'} to add +${dice} damage to this single attack. Declared BEFORE the roll — the focus is spent even if the attack misses.${greater ? '' : (ownsFeatN(c, 'Greater ' + feat) ? '' : '')}`,
+  };
+}
+async function weaponSpikeUse(feat, dice, path) {
+  const c = chars.find(x => x.id === curId); if (!c) return;
+  if (path === 'held') {
+    if (typeof psiFocusLocked === 'function' && psiFocusLocked(c)) { toast('🧿 Focus is locked sustaining the Second Skin.'); return; }
+    if (!c.psiFocused) { toast('○ Not psionically focused — gain focus first.'); return; }
+    c.psiFocused = false;
+    if (typeof logActionEvent === 'function') logActionEvent(c, 'psi-focus', 0, 'Focus expended', `${feat}: +${dice} damage on this attack — declared before the roll; spent even on a miss.`);
+  } else if (path === 'momentary') {
+    if (!(await confirmModal(`${feat} via momentary Super-Power focus:\n\nThis costs your MOVE ACTION this round — the momentary focus lasts only until your very next action, which must be this attack (HH p.354).\n\nThe +${dice} rides that single attack and is spent even on a miss. Declare it?`))) return;
+    if (typeof logActionEvent === 'function') logActionEvent(c, 'psi-focus', 0, 'Momentary focus', `Move action: momentary Super-Power focus — ${feat} +${dice} on this attack (spent even on a miss).`);
+  } else return;
+  toast(`⚡ ${feat}: +${dice} damage on this one attack — spent even on a miss.`);
+  save();
+  if (typeof renderGear === 'function') renderGear();
+}
+
 function computeEquippedWeaponSummaries(c) {
   const out = [];
   const twf = twfStatus(c);
@@ -8675,6 +8790,19 @@ function computeEquippedWeaponSummaries(c) {
         }
       }
     }
+    // v8.59.0: declared set-point stances — melee rows only (PA and CE are
+    // melee-only by their own text, so ranged rows and DT/BF never interact).
+    const _decl = combatDecl(c);
+    if (!isRangedWeapon(def) && (_decl.pa + _decl.ce) > 0) {
+      attackBonus -= (_decl.pa + _decl.ce);
+      if (_decl.pa) mods.push({ label: 'Power Attack (declared stance)', value: -_decl.pa });
+      if (_decl.ce) mods.push({ label: `Combat Expertise (declared — Defense +${_decl.ce})`, value: -_decl.ce });
+      if (_decl.pa) {
+        if (def.kind === 'light') dmgParts.push({ label: 'Power Attack — light weapon: penalty applies, NO damage bonus (HH p.235)', value: 0 });
+        else if (def.kind === 'two-handed') dmgParts.push({ label: 'Power Attack ×2 (two-handed, declared)', value: _decl.pa * 2 });
+        else dmgParts.push({ label: 'Power Attack (declared)', value: _decl.pa });
+      }
+    }
     // v8.5.2: alternate-attack-mode feats (Burst Fire, Double Tap) — gated on
     // owning the feat AND the equipped weapon's parsed rof[] supporting it
     // (Burst Fire needs 'A', Double Tap needs 'S'; see build_weapons.mjs).
@@ -8741,6 +8869,13 @@ function computeEquippedWeaponSummaries(c) {
         display: `${attackBonus >= 0 ? '+' : ''}${attackBonus} atk / ×1.5 dmg (primed)`,
         label: 'Variable Charge: prime as an attack action for +50% damage on the next shot. Max 3 rounds primed — a 4th round forces the shot or the weapon explodes for +200% on the user. Energy weapons only.',
       });
+    }
+    // v8.59.0: focus-spike branch for this row (Psionic Weapon on armed
+    // melee, Power Shot on ranged — Power Fist lives on the unarmed/natural
+    // rows below). Rendered as a branch with an ⚡ Expend Focus button.
+    {
+      const sp = weaponSpikeInfo(c, isRangedWeapon(def) ? 'ranged' : 'melee', attackBonus);
+      if (sp) altModes.push(sp);
     }
     // v8.6.1: off-hand attack sequence (1 base; 2nd at −5 with Improved TWF;
     // 3rd at −10 with Greater/Advanced) + the half-Str damage reminder for
@@ -8825,6 +8960,14 @@ function computeEquippedWeaponSummaries(c) {
         if (meleeDmgBonus > 0) dmgPartsN.push({ label: `Melee Smash talents${_hasSuperSmash ? ' (Super-Smash)' : ''}`, value: meleeDmgBonus });
         const ebN = (c.euphoric && typeof euphoriacBonus === 'function') ? euphoriacBonus(c) : 0;
         if (ebN) { atkN += ebN; modsN.push({ label: 'Euphoriac morale (post-surge)', value: ebN }); dmgPartsN.push({ label: 'Euphoriac morale (post-surge)', value: ebN }); }
+        // v8.59.0: declared stances — natural weapons are melee and EXEMPT
+        // from the light-weapon exclusion (HH p.235: full PA bonus applies).
+        const _declN = combatDecl(c);
+        if (_declN.pa + _declN.ce > 0) {
+          atkN -= (_declN.pa + _declN.ce);
+          if (_declN.pa) { modsN.push({ label: 'Power Attack (declared stance)', value: -_declN.pa }); dmgPartsN.push({ label: 'Power Attack (declared — natural weapon, full bonus)', value: _declN.pa }); }
+          if (_declN.ce) modsN.push({ label: `Combat Expertise (declared — Defense +${_declN.ce})`, value: -_declN.ce });
+        }
         const dmgSumN = dmgPartsN.reduce((s, p) => s + p.value, 0);
         let dmgN = die + (dmgSumN ? `${dmgSumN > 0 ? '+' : ''}${dmgSumN}` : '');
         const isBite = /bite/i.test(natName) || m.name === 'Fangs';
@@ -8837,7 +8980,7 @@ function computeEquippedWeaponSummaries(c) {
           statStrip: 'crit 20/×2',
           attackBonus: atkN, damage: dmgN, dmgBreakdown: dmgPartsN, damageTypes: [natType],
           damageLabel: DamageResolver.renderLabel(pseudoN), resistances: DamageResolver.applicableResistances(pseudoN),
-          proficient: true, mods: modsN, altModes: [], unarmed: true,
+          proficient: true, mods: modsN, altModes: (() => { const sp = weaponSpikeInfo(c, 'unarmed', atkN); return sp ? [sp] : []; })(), unarmed: true,
           unarmedNote: `Natural weapon (${m.name}). Always armed — no attack of opportunity.${szNote}${wieldingWeapons ? ' While wielding manufactured weapons, natural attacks are SECONDARY: −5 to hit and ½ Str to damage (apply at the table).' : ''}`,
         });
       }
@@ -8878,6 +9021,14 @@ function computeEquippedWeaponSummaries(c) {
     if (meleeDmgBonus > 0) dmgParts.push({ label: `Melee Smash talents${_hasSuperSmash ? ' (Super-Smash)' : ''}`, value: meleeDmgBonus });
     const ebU = (c.euphoric && typeof euphoriacBonus === 'function') ? euphoriacBonus(c) : 0;
     if (ebU) { attackBonus += ebU; mods.push({ label: 'Euphoriac morale (post-surge)', value: ebU }); dmgParts.push({ label: 'Euphoriac morale (post-surge)', value: ebU }); }
+    // v8.59.0: declared stances — the unarmed strike is melee and EXEMPT
+    // from the light-weapon exclusion (HH p.235: full PA bonus applies).
+    const _declU = combatDecl(c);
+    if (_declU.pa + _declU.ce > 0) {
+      attackBonus -= (_declU.pa + _declU.ce);
+      if (_declU.pa) { mods.push({ label: 'Power Attack (declared stance)', value: -_declU.pa }); dmgParts.push({ label: 'Power Attack (declared — unarmed, full bonus)', value: _declU.pa }); }
+      if (_declU.ce) mods.push({ label: `Combat Expertise (declared — Defense +${_declU.ce})`, value: -_declU.ce });
+    }
     const dmgSum = dmgParts.reduce((s, p) => s + p.value, 0);
     const sumSufx = dmgSum ? `${dmgSum > 0 ? '+' : ''}${dmgSum}` : '';
     let damage = `${nlDie}${sumSufx} nonlethal` + (hasCMA ? ` / ${cmaDie}${sumSufx} lethal (CMA${maLvl >= 1 ? ' — Living Weapon' : ''})` : '');
@@ -8885,6 +9036,9 @@ function computeEquippedWeaponSummaries(c) {
     const critMult = ownsF('Advanced Combat Martial Arts') ? '×3' : '×2';
     if (threat !== '20' || critMult !== '×2') damage += ` · crit ${threat}/${critMult}`;
     const altModes = [];
+    // v8.59.0: Power Fist spike on the unarmed row (Monk's granted copies at
+    // 8th/14th arrive as real feat records, so they qualify automatically).
+    { const spU = weaponSpikeInfo(c, 'unarmed', attackBonus); if (spU) altModes.push(spU); }
     const monkLvl = migrateLegacyClasses(c).filter(e => e.name === 'Monk').reduce((s, e) => s + (e.level || 0), 0);
     if (monkLvl > 0 && !wearingArmorCategory(c)) {
       altModes.push({
@@ -10664,7 +10818,9 @@ function renderGear() {
         return `<tr><td>${escapeHTML(s.name)}${unarmedTag}${integTag}${handChip}${capFlag}${s.proficient ? '' : ' <span style="color:#d4865a;font-size:10px;" title="-4 not proficient">⚠ not proficient</span>'}${statStrip}</td>`
       + `<td style="cursor:help;" title="${escapeHTML(atkTip)}">${atkText}</td><td>${escapeHTML(s.damage)} ${escapeHTML(s.damageLabel)}${dmgInfo}</td>`
       + `<td style="font-size:10px;opacity:.8;cursor:help;" title="Resisted by: ${escapeHTML(s.resistances.join('; ') || '—')}${s.vsObjects ? escapeHTML('\nVs objects: ' + s.vsObjects) : ''}${(((s.typeLabel||'').toLowerCase().includes('ballistic')) || (s.damageTypes||[]).includes('ballistic')) ? escapeHTML('\n\nOverpenetration (Ballistic — ruled 2026-09-24): critical confirmations roll 2d20, keep the better. A confirmed critical that deals damage passes through the target: apply the same attack roll against the next target directly behind along the line of fire, which takes normal (non-critical) weapon damage. One pass-through per attack. A shooter with Precise Shot never endangers allies this way — a pass-through that would strike an ally is wasted instead.') : ''}">${escapeHTML(s.typeLabel || (s.damageTypes || []).join('/') || '—')}</td>`
-      + `<td style="font-size:10px;">${s.altModes.length ? s.altModes.map(m => `<div title="${escapeHTML(m.label)}" style="color:rgba(120,175,205,.9);cursor:help;white-space:nowrap;">${escapeHTML(m.name)}: ${m.display ? escapeHTML(m.display) : `${m.atk >= 0 ? '+' : ''}${m.atk} atk / ×${m.dmgMult} dmg${m.roundsCost ? ` <span style="opacity:.55;">(${m.roundsCost} rds)</span>` : ''}`}</div>`).join('') : '<span style="opacity:.4;">—</span>'}</td></tr>`;
+      + `<td style="font-size:10px;">${s.altModes.length ? s.altModes.map(m => m.spike
+          ? `<div title="${escapeHTML(m.label)}" style="color:${m.path ? 'rgba(220,205,138,.95)' : 'rgba(220,205,138,.4)'};white-space:nowrap;cursor:help;">↳ ⚡ ${escapeHTML(m.name)}: ${escapeHTML(m.display)}${m.path ? ` <button class="btn btn-sm" style="font-size:9px;padding:0 5px;margin-left:4px;" onclick="weaponSpikeUse('${escapeHTML(m.dispFeat)}','${m.dice}','${m.path}')">Expend Focus</button>` : ''}</div>`
+          : `<div title="${escapeHTML(m.label)}" style="color:rgba(120,175,205,.9);cursor:help;white-space:nowrap;">↳ ${escapeHTML(m.name)}: ${m.display ? escapeHTML(m.display) : `${m.atk >= 0 ? '+' : ''}${m.atk} atk / ×${m.dmgMult} dmg${m.roundsCost ? ` <span style="opacity:.55;">(${m.roundsCost} rds)</span>` : ''}`}</div>`).join('') : '<span style="opacity:.4;">—</span>'}</td></tr>`;
       }).join('') + twfRow + rangerRow
     : `<tr><td colspan="5" style="opacity:.5;text-align:center;">No weapons equipped.</td></tr>` + rangerRow;
 
@@ -37085,13 +37241,30 @@ function renderSheet(){
   // first-class combat cell alongside BAB/Defense — it's a headline combat
   // modifier, not encumbrance trivia.
   const grap = (typeof computeGrapple === 'function') ? computeGrapple(c) : null;
+  // v8.59.0 (Adam's trade-off challenge): the Base Attack card grows the
+  // declared-stance stepper when Power Attack / Combat Expertise is owned.
+  // ▼ trades a point of BA into a modifier (prompting which, when both feats
+  // are owned); ▲ returns one. The declaration is a SET POINT — it holds
+  // until re-declared (Adam's ruling), survives save/reload, and may legally
+  // drive effective BA to 0. CE's +N Defense surfaces as explicit tags on
+  // the AC/Parry/Dodge cards (it reaches touch AC too, per HH p.207) rather
+  // than silently rewriting the computed stats.
+  const _dcl = combatDecl(c);
+  const _dclOwn = ownsFeatN(c, 'Power Attack') || ownsFeatN(c, 'Combat Expertise');
+  const _dclSpent = _dcl.pa + _dcl.ce;
+  const _effBA = (c.bab || 0) - _dclSpent;
+  const _ceTag = _dcl.ce ? `<span style="display:block;font-size:9px;color:#78afcd;" title="Combat Expertise declared stance — this +${_dcl.ce} dodge bonus also applies to TOUCH AC (HH p.207). Lasts until re-declared.">+${_dcl.ce} CE (declared)</span>` : '';
   const statCells = [
-    {l:'Base Attack',v:(c.bab>=0?'+':'')+c.bab,k:'bab'},
+    {l:'Base Attack',
+     v: _dclSpent ? `${_effBA >= 0 ? '+' : ''}${_effBA}` : (c.bab>=0?'+':'')+c.bab,
+     k:'bab',
+     tooltip: _dclOwn ? `Declared stance — holds until re-declared. Power Attack ${_dcl.pa} · Combat Expertise ${_dcl.ce} · base Base Attack ${(c.bab>=0?'+':'')+(c.bab||0)}. ▼ assigns a point of Base Attack to a modifier; ▲ returns one. Melee attack rows apply the penalty; Power Attack adds damage (×2 two-handed, none on light weapons); Combat Expertise adds Defense.` : undefined,
+     extraHtml: _dclOwn ? `<span style="display:block;margin-top:2px;white-space:nowrap;"><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_dclSpent >= ((c.bab)||0) ? 'opacity:.35;' : ''}" title="Assign a point of Base Attack to Power Attack / Combat Expertise" onclick="event.stopPropagation();baDeclAdjust(-1)">▼</button><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_dclSpent <= 0 ? 'opacity:.35;' : ''}" title="Return a point of Base Attack" onclick="event.stopPropagation();baDeclAdjust(1)">▲</button>${_dclSpent ? `<span style="font-size:9px;color:#d4b870;margin-left:4px;">PA ${_dcl.pa} · CE ${_dcl.ce}</span>` : ''}</span>` : ''},
     {l:'Defense Bonus',v:(c.def>=0?'+':'')+c.def,k:'def'},
     ...(grap ? [{l:'Grapple', v:(grap.total>=0?'+':'')+grap.total, tooltip: grap.parts.join(' + ') + ' — size uses the effective category (Super-Strong riders included).'}] : []),
-    {l:acDisp.label, v:acDisp.value, k:'ac'},
-    {l:'Parry', v:(parry.total>=0?'+':'')+parry.total, k:'parry'},
-    {l:'Dodge', v:(dodge.total>=0?'+':'')+dodge.total, k:'dodge'},
+    {l:acDisp.label, v:acDisp.value, k:'ac', extraHtml:_ceTag},
+    {l:'Parry', v:(parry.total>=0?'+':'')+parry.total, k:'parry', extraHtml:_ceTag},
+    {l:'Dodge', v:(dodge.total>=0?'+':'')+dodge.total, k:'dodge', extraHtml:_ceTag},
   ];
   if (natHardness > 0) statCells.push({l:'Nat. Hardness', v:natHardness, k:'natHardness', tooltip:natTooltip});
   // v8.8.2 (Adam's Basic-class pass): Spell Resistance — a caster must beat
@@ -37117,7 +37290,7 @@ function renderSheet(){
     const drillCls=s.k?'stat-cell drillable':'stat-cell';
     const click=s.k?` onclick="showStatBreakdown('${s.k}')"`:'';
     const title=s.tooltip?` title="${escapeHTML(s.tooltip)}"`:'';
-    return `<div class="${drillCls}"${click}${title}><span class="sc-lbl">${s.l}</span><span class="sc-val">${s.v}</span></div>`;
+    return `<div class="${drillCls}"${click}${title}><span class="sc-lbl">${s.l}</span><span class="sc-val">${s.v}</span>${s.extraHtml || ''}</div>`;
   }).join('');
   // v8.8.0 (Adam): Resistances & Immunities panel — best-wins per type,
   // immunity supersedes, provenance on hover, universal derivation flagged.
