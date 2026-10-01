@@ -294,7 +294,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.59.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.60.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1049,7 +1049,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
     <div class="sec-head sm">Equipped Weapons — Attack &amp; Damage</div>
     <div class="panel" style="overflow-x:auto;margin-bottom:.9rem;">
-      <table class="sk-tbl"><thead><tr><th>Weapon</th><th>Attack</th><th>Damage</th><th>Damage Type</th><th>Alt. Modes</th></tr></thead><tbody id="gear-weapon-summary"></tbody></table>
+      <table class="sk-tbl"><thead><tr><th>Weapon</th><th title="The bracketed sequence is the Full Attack action: one extra swing per 5 points of Base Attack, each at a cumulative −5 (five swings at BA +20, the cap).">Attack (Full Atk)</th><th>Damage</th><th>Damage Type</th><th>Alt. Modes</th></tr></thead><tbody id="gear-weapon-summary"></tbody></table>
     </div>
 
     <!-- v8.56.0 (playtest issue #3d): the body-slot map is collapsible —
@@ -8287,6 +8287,15 @@ function computeGrapple(c) {
     const agg = aggregateBonuses(aeG);
     if (agg.total) { total += agg.total; parts.push(`active powers +${agg.total}`); }
   }
+  // v8.59.3 (Adam's ruling, from his Weaponmaster field test): the declared
+  // PA/CE trade SPENDS Base Attack itself (feat table: "reduce Base Attack
+  // modifier") — Grapple is BA-keyed, so the full declared total applies.
+  // Fixing it HERE means the Sheet cell, drilldowns, and print all inherit.
+  const _dG = (typeof combatDecl === 'function') ? combatDecl(c) : { pa: 0, ce: 0 };
+  if (_dG.pa + _dG.ce > 0) {
+    total -= (_dG.pa + _dG.ce);
+    parts.push(`declared stance (PA ${_dG.pa} · CE ${_dG.ce}) −${_dG.pa + _dG.ce}`);
+  }
   return { total, parts, sizeIdx };
 }
 
@@ -8648,11 +8657,16 @@ function computeEquippedWeaponSummaries(c) {
     // damage column since its creation. Melee: full Str (×1.5 two-handed,
     // ½ off-hand while dual-wielding); thrown (Dart/Javelin): full Str;
     // projectile/firearm: none (composite bows' Str ratings = GM note).
+    // v8.60.0 (Adam): wield2H = a true two-hander OR a one-handed melee
+    // weapon in the two-handed grip (off hand free, not dual-wielding).
+    // Drives Str ×1.5 and Power Attack ×2 identically for both.
+    const wield2H = def.kind === 'two-handed'
+      || (!!it.twoHandedGrip && def.kind === 'one-handed' && !isRangedWeapon(def) && !twf && !it._integratedIn);
     {
       const isOffhand = twf && !it._integratedIn && it.slot === 'off_hand';
       let dmgAbility = 0, dmgAbilityLabel = 'Str modifier';
       if (!isRangedWeapon(def)) {
-        if (def.kind === 'two-handed') { dmgAbility = Math.floor(strM * 1.5); dmgAbilityLabel = 'Str ×1.5 (two-handed)'; }
+        if (wield2H) { dmgAbility = Math.floor(strM * 1.5); dmgAbilityLabel = def.kind === 'two-handed' ? 'Str ×1.5 (two-handed)' : 'Str ×1.5 (wielded in both hands)'; }
         else if (isOffhand) { dmgAbility = Math.floor(strM / 2); dmgAbilityLabel = '½ Str (off hand)'; }
         else dmgAbility = strM;
       } else if (def.n === 'Dart' || def.n === 'Javelin') { dmgAbility = strM; dmgAbilityLabel = 'Str modifier (thrown)'; }
@@ -8799,7 +8813,7 @@ function computeEquippedWeaponSummaries(c) {
       if (_decl.ce) mods.push({ label: `Combat Expertise (declared — Defense +${_decl.ce})`, value: -_decl.ce });
       if (_decl.pa) {
         if (def.kind === 'light') dmgParts.push({ label: 'Power Attack — light weapon: penalty applies, NO damage bonus (HH p.235)', value: 0 });
-        else if (def.kind === 'two-handed') dmgParts.push({ label: 'Power Attack ×2 (two-handed, declared)', value: _decl.pa * 2 });
+        else if (wield2H) dmgParts.push({ label: `Power Attack ×2 (${def.kind === 'two-handed' ? 'two-handed' : 'wielded in both hands'}, declared)`, value: _decl.pa * 2 });
         else dmgParts.push({ label: 'Power Attack (declared)', value: _decl.pa });
       }
     }
@@ -8891,8 +8905,20 @@ function computeEquippedWeaponSummaries(c) {
     const dmgSum = dmgParts.reduce((s, p) => s + (p.value || 0), 0);
     const damageNote = dmgBase + (dmgSum ? `${dmgSum > 0 ? '+' : ''}${dmgSum}` : '') + dmgExtras.map(e => ' ' + e).join('');
     const pseudo = { type: (def.damage_type && def.damage_type[0]) || 'untyped', lethality: def.lethality || 'lethal', pool: 'hit_points', descriptors: [] };
+    // v8.60.0 (Adam): the E&E iterative ladder — one extra Full-Attack swing
+    // per 5 points of BASE attack (+5/+0 at BA 5 … five swings at BA 20, the
+    // cap; the GMG's own deity rule echoes the five-attack ceiling). The
+    // COUNT keys off printed BA; each swing's total rides attackBonus (so
+    // declared stances, proficiency, and TWF penalties carry through). Off-
+    // hand rows don't iterate — their extra attacks are the TWF chain's.
+    const fullAttack = [];
+    if (twfHand !== 'off') {
+      const nAtk = Math.min(5, 1 + Math.floor((c.bab || 0) / 5));
+      for (let i = 0; i < nAtk; i++) fullAttack.push(attackBonus - 5 * i);
+    } else fullAttack.push(attackBonus);
     out.push({
       itemId: it.id, name: enchantDisplayName(it), slot: it.slot, hand: twfHand,
+      fullAttack, gripBothHands: wield2H && def.kind !== 'two-handed',
       enchantOverCap: !!(it.enchant && it.enchant.overCap),
       typeLabel: classifiedDamageLabel(it, def),
       vsObjects: damageVsObjectsNote(def),
@@ -9073,6 +9099,8 @@ function computeEquippedWeaponSummaries(c) {
       statStrip: `crit ${threat}/${critMult}`,
       attackBonus, damage, dmgBreakdown: dmgParts, damageTypes: ['bludgeoning'],
       damageLabel: DamageResolver.renderLabel(pseudo), resistances: DamageResolver.applicableResistances(pseudo),
+      // v8.60.0: the unarmed strike iterates like any weapon attack.
+      fullAttack: (() => { const fa = []; const nAtk = Math.min(5, 1 + Math.floor((c.bab || 0) / 5)); for (let i = 0; i < nAtk; i++) fa.push(attackBonus - 5 * i); return fa; })(),
       proficient: true, mods, altModes, unarmed: true,
       unarmedNote: `Light weapon; can't be disarmed. ${hasCMA ? 'Counts as ARMED (Combat Martial Arts) — no attack of opportunity.' : 'Unarmed attacks provoke attacks of opportunity (no martial-arts feat).'}`,
     });
@@ -9195,8 +9223,29 @@ function twoHandedEquipped(c) {
     if (!slotDef || slotDef.category !== 'held') continue;
     const def = getCatalogueEntry('weapon', it.ref);
     if (def && weaponHands(def) === 2) return it;
+    // v8.60.0 (Adam): a one-handed melee weapon held in a TWO-HANDED GRIP
+    // claims the off hand exactly like a true two-hander.
+    if (def && it.twoHandedGrip && def.kind === 'one-handed' && !isRangedWeapon(def)) return it;
   }
   return null;
+}
+
+// v8.60.0: toggle the two-handed grip on an equipped one-handed melee
+// weapon (Adam's design: available only while the off hand is free).
+// Grants Str ×1.5 damage and double Power Attack; costs the off hand.
+function toggleTwoHandGrip(itemId) {
+  const c = chars.find(x => x.id === curId); if (!c) return;
+  const it = (c.items || []).find(i => i.id === itemId); if (!it) return;
+  if (!it.twoHandedGrip) {
+    const offBusy = getCharItems(c).some(o => o.id !== it.id && o.equipped && o.slot === 'off_hand');
+    if (offBusy) { toast('🤲 Off hand is occupied — free it first to take a two-handed grip.'); return; }
+    it.twoHandedGrip = true;
+    if (typeof logAct === 'function') logAct(`🤲 ${it.ref}: two-handed grip — Str ×1.5 to damage, Power Attack counts double; the off hand is committed.`);
+  } else {
+    delete it.twoHandedGrip;
+    if (typeof logAct === 'function') logAct(`🤲 ${it.ref}: back to a one-handed grip.`);
+  }
+  save(); renderGear();
 }
 
 // v8.6.1 (TWF pass): equip an item INTO a specific slot — reassigns the
@@ -10699,10 +10748,17 @@ function renderInventoryList(items, techScale, catalogue) {
       profFlag = ` <span style="color:#d4865a;font-size:10px;" title="Not proficient: while equipped, the armor check penalty (${acp}) applies to attack rolls and all Str- and Dex-based checks">⚠ not proficient${acp < 0 && it.equipped ? ` (${acp} atk & Str/Dex checks)` : ''}</span>`;
     }
 
+    // v8.60.0 (Adam): 🤲 two-handed grip toggle — equipped one-handed melee
+    // weapons only, and only while the off hand is free (or already gripped).
+    const gripBtn = (catalogue === 'weapon' && it.equipped && def && def.kind === 'one-handed' && !isRangedWeapon(def)) ? (() => {
+      const on = !!it.twoHandedGrip;
+      const offBusy = curChar && getCharItems(curChar).some(o => o.id !== it.id && o.equipped && o.slot === 'off_hand');
+      return `<button class="btn btn-sm" style="font-size:10px;${on ? 'border-color:rgba(220,205,138,.6);color:rgba(220,205,138,.95);' : (offBusy ? 'opacity:.4;' : '')}" onclick="toggleTwoHandGrip('${it.id}')" title="${on ? 'Wielded in BOTH hands: Str ×1.5 damage, Power Attack ×2, off hand committed. Click to return to one hand.' : (offBusy ? 'Off hand is occupied — free it to take a two-handed grip.' : 'Wield this one-handed weapon in both hands (off hand stays committed): Str ×1.5 damage, Power Attack counts double.')}">🤲</button>`;
+    })() : '';
     return `<div style="border:1px solid rgba(200,151,30,.15);border-radius:3px;padding:6px 8px;margin-bottom:5px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
         <div><b${nameTip}>${escapeHTML((enchInfo || it.customName) ? enchantDisplayName(it) : it.ref)}</b>${it.customName ? ` <span style="font-size:9px;opacity:.55;">(${escapeHTML(it.ref)})</span>` : ''}${enchantTags}${profFlag} <span style="font-size:10px;opacity:.6;">(${catalogue}${it.equipped ? ', equipped' : ''})</span>${it.provenance ? ` <span style="font-size:10px;cursor:help;" title="${it.provenance === 'purchased' ? 'Purchased — paid from funds' : 'Acquired — loot, gift, or GM grant'}">${it.provenance === 'purchased' ? '💰' : '🎁'}</span>` : ''} ${(() => { const pts = (_priceCheckTs != null) ? _priceCheckTs : techScale; return enchInfo ? priceSpan(dcForDollars(enchInfo.cost * 100), pts) : priceSpan(parseInt(def.dc, 10) || def.purchase_dc || 0, pts, (def.tl != null ? def.tl : def.tech_scale) || 0); })()}${armorStrip}</div>
-        <div style="display:flex;align-items:center;gap:6px;">${equipToggle}${handSwap}${enchantBtn}${mcControl}<button class="btn btn-sm" style="font-size:10px;" onclick="renameItem('${it.id}')" title="Give this item a custom name (flavor only)">✎</button><button class="btn btn-sm" style="font-size:10px;" onclick="sellItem('${it.id}')" title="Sell — into any market's Tech Scale (cross-scalar; HH p.257 Sale Price rule applies)">💱</button><button class="btn btn-sm" style="font-size:10px;" onclick="removeItemFromChar('${it.id}')" title="Remove from inventory">🗑</button></div>
+        <div style="display:flex;align-items:center;gap:6px;">${equipToggle}${handSwap}${gripBtn}${enchantBtn}${mcControl}<button class="btn btn-sm" style="font-size:10px;" onclick="renameItem('${it.id}')" title="Give this item a custom name (flavor only)">✎</button><button class="btn btn-sm" style="font-size:10px;" onclick="sellItem('${it.id}')" title="Sell — into any market's Tech Scale (cross-scalar; HH p.257 Sale Price rule applies)">💱</button><button class="btn btn-sm" style="font-size:10px;" onclick="removeItemFromChar('${it.id}')" title="Remove from inventory">🗑</button></div>
       </div>
       ${effectNote}${gadgetHtml}
     </div>`;
@@ -10807,16 +10863,22 @@ function renderGear() {
         // (extra dice like +1d6 cold stay distinct); the ⓘ itemizes the sum.
         const dmgTip = (s.dmgBreakdown || []).map(p => `${p.label}: ${p.value >= 0 ? '+' : ''}${p.value}`).join('\n');
         const dmgInfo = dmgTip ? ` <span style="cursor:help;color:rgba(120,175,205,.75);font-size:10px;" title="${escapeHTML('Damage modifier breakdown:\n' + dmgTip)}">ⓘ</span>` : '';
-        const handChip = s.hand ? ` <span style="font-size:9px;padding:1px 5px;border-radius:2px;background:rgba(120,175,205,.12);border:1px solid rgba(120,175,205,.3);">${s.hand === 'main' ? 'main hand' : 'off hand'}</span>` : '';
+        const handChip = s.hand ? ` <span style="font-size:9px;padding:1px 5px;border-radius:2px;background:rgba(120,175,205,.12);border:1px solid rgba(120,175,205,.3);">${s.hand === 'main' ? 'main hand' : 'off hand'}</span>` : (s.gripBothHands ? ` <span style="font-size:9px;padding:1px 5px;border-radius:2px;background:rgba(220,205,138,.12);border:1px solid rgba(220,205,138,.35);" title="One-handed weapon wielded in both hands: Str ×1.5 damage, Power Attack ×2. Toggle with 🤲 on the inventory row.">🤲 both hands</span>` : '');
+        // v8.60.0: Full Attack brackets — "+12 (+7)" per Adam's spec; TWF
+        // off-hand rows keep their own extra-attack sequence display.
         const atkText = (s.twfExtraAtks && s.twfExtraAtks.length > 1)
           ? s.twfExtraAtks.map(fmtAtk).join(' / ')
-          : fmtAtk(s.attackBonus);
+          : (s.fullAttack && s.fullAttack.length > 1)
+            ? `${fmtAtk(s.fullAttack[0])} (${s.fullAttack.slice(1).map(fmtAtk).join('/')})`
+            : fmtAtk(s.attackBonus);
+        const atkIterTip = (s.fullAttack && s.fullAttack.length > 1)
+          ? `\n\nFull Attack: ${s.fullAttack.map(fmtAtk).join(' / ')} — one extra swing per 5 points of Base Attack (max 5), each at a cumulative −5.` : '';
         const unarmedTag = s.unarmed ? ` <span style="font-size:9px;padding:1px 5px;border-radius:2px;background:rgba(200,151,30,.1);border:1px solid rgba(200,151,30,.3);cursor:help;" title="${escapeHTML(s.unarmedNote || '')}">🥊 unarmed</span>` : '';
         const capFlag = s.enchantOverCap ? ' <span style="color:#d47070;font-size:10px;" title="Aggregate enchantment exceeds this item’s Tech Scale cap — GM override recorded.">⚑</span>' : '';
         const integTag = s.integratedIn ? ` <span style="font-size:9px;padding:1px 5px;border-radius:2px;background:rgba(200,151,30,.08);border:1px solid rgba(200,151,30,.3);" title="Alternate Weapon gadget — integrated into the host, usable at any time while it is equipped.${s.detachable ? ' Detachable (can be physically separated).' : ' Fixed mounting.'}">🔩 in ${escapeHTML(s.integratedIn)}${s.detachable ? ' · detachable' : ''}</span>` : '';
         const statStrip = s.statStrip ? `<div style="font-size:9.5px;color:rgba(200,151,30,.55);margin-top:1px;cursor:help;" title="crit threat/multiplier · range increment · Rate of Fire (S = semiautomatic, A = automatic) · magazine${s.rangeRule ? escapeHTML('\n\n' + s.rangeRule) : ''}">${escapeHTML(s.statStrip)}</div>` : '';
         return `<tr><td>${escapeHTML(s.name)}${unarmedTag}${integTag}${handChip}${capFlag}${s.proficient ? '' : ' <span style="color:#d4865a;font-size:10px;" title="-4 not proficient">⚠ not proficient</span>'}${statStrip}</td>`
-      + `<td style="cursor:help;" title="${escapeHTML(atkTip)}">${atkText}</td><td>${escapeHTML(s.damage)} ${escapeHTML(s.damageLabel)}${dmgInfo}</td>`
+      + `<td style="cursor:help;" title="${escapeHTML(atkTip + atkIterTip)}">${atkText}</td><td>${escapeHTML(s.damage)} ${escapeHTML(s.damageLabel)}${dmgInfo}</td>`
       + `<td style="font-size:10px;opacity:.8;cursor:help;" title="Resisted by: ${escapeHTML(s.resistances.join('; ') || '—')}${s.vsObjects ? escapeHTML('\nVs objects: ' + s.vsObjects) : ''}${(((s.typeLabel||'').toLowerCase().includes('ballistic')) || (s.damageTypes||[]).includes('ballistic')) ? escapeHTML('\n\nOverpenetration (Ballistic — ruled 2026-09-24): critical confirmations roll 2d20, keep the better. A confirmed critical that deals damage passes through the target: apply the same attack roll against the next target directly behind along the line of fire, which takes normal (non-critical) weapon damage. One pass-through per attack. A shooter with Precise Shot never endangers allies this way — a pass-through that would strike an ally is wasted instead.') : ''}">${escapeHTML(s.typeLabel || (s.damageTypes || []).join('/') || '—')}</td>`
       + `<td style="font-size:10px;">${s.altModes.length ? s.altModes.map(m => m.spike
           ? `<div title="${escapeHTML(m.label)}" style="color:${m.path ? 'rgba(220,205,138,.95)' : 'rgba(220,205,138,.4)'};white-space:nowrap;cursor:help;">↳ ⚡ ${escapeHTML(m.name)}: ${escapeHTML(m.display)}${m.path ? ` <button class="btn btn-sm" style="font-size:9px;padding:0 5px;margin-left:4px;" onclick="weaponSpikeUse('${escapeHTML(m.dispFeat)}','${m.dice}','${m.path}')">Expend Focus</button>` : ''}</div>`
@@ -33198,6 +33260,20 @@ const WEAPONS = [
   {n:'Rocket Launcher',cat:'Exotic',tl:5,kind:'one-handed',firearm:true},
 ];
 
+// v8.60.0 (Adam's trade-off test drive, §179): POLEARM KIND CORRECTIONS.
+// The weapons extraction mis-kinded the reach polearms as 'ranged' (their
+// reach lines read as range increments) — documented since v8.6.1 as
+// display-only, now LOAD-BEARING: a 'ranged' kind made these five roll Dex
+// to hit, earn ZERO Str damage, and hide from Power Attack entirely.
+// Runtime patch (both arrays) rather than JSON surgery — sentinel-safe.
+{
+  const POLEARM_KIND_FIX = ['Glaive', 'Guisarme', 'Halberd', 'Ranseur', 'Lance'];
+  for (const nm of POLEARM_KIND_FIX) {
+    const a = WEAPONS.find(w => w.n === nm); if (a && a.kind === 'ranged') a.kind = 'two-handed';
+    const b = WEAPONS_CATALOG.find(w => w.name === nm); if (b && b.kind === 'ranged') b.kind = 'two-handed';
+  }
+}
+
 // ========== STATE ==========
 // v8.55.3 (Adam's Pixel 9 field report): STORAGE-SAFE BOOT. In sandboxed
 // viewing contexts — Google Drive's HTML preview, sandboxed iframes, some
@@ -46144,6 +46220,11 @@ function promptForFeatParam(feat, callback){
   const label = feat.param.param_label || 'Parameter';
   let options = [];
   let titleNote = '';  // v8.59.1: set when a filter hid entries — the modal title explains the partial list
+  // v8.59.2: one sort for every weapon-flavored picker.
+  const sortWeaponPool = (pool) => {
+    const catRank = { 'Simple': 0, 'Martial': 1, 'Exotic': 2 };
+    return [...pool].sort((a, b) => (catRank[a.cat] ?? 9) - (catRank[b.cat] ?? 9) || (a.tl || 0) - (b.tl || 0) || a.n.localeCompare(b.n));
+  };
   // v8.3.33: 'pool' is a validated enum for feats that target one of the
   // character's spellcasting power point pools (Spellslinger is the
   // canonical example; future dual-pool feats like power-pool surges or
@@ -46198,15 +46279,19 @@ function promptForFeatParam(feat, callback){
       toast(`No qualifying weapon — ${feat.n} requires its prerequisite feats taken on the same weapon (and proficiency with it).`);
       return;
     }
-    options = pool.map(w => `${w.n} (${w.cat}, TS${w.tl})`);
+    // v8.59.2 (Adam's Greataxe-between-Taser-and-Cryonic-Grenade report):
+    // the WEAPONS array keeps the book-extraction's era-block order, which a
+    // FILTERED list exposes as apparent chaos. Sort every weapon picker:
+    // category (Simple → Martial → Exotic), then Tech Scale, then name.
+    options = sortWeaponPool(pool).map(w => `${w.n} (${w.cat}, TS${w.tl})`);
     if (filterNotes.length) titleNote = ` — ${filterNotes.join('; ')}`;
   } else if (kind === 'martial_weapon') {
     // v8.5.0: Martial Weapon Proficiency — one martial weapon type per take.
     // Firearm-flagged martial entries are excluded: guns are Personal
     // Firearms Proficiency territory.
-    options = WEAPONS.filter(w => w.cat === 'Martial' && !w.firearm).map(w => `${w.n} (TS${w.tl})`);
+    options = sortWeaponPool(WEAPONS.filter(w => w.cat === 'Martial' && !w.firearm)).map(w => `${w.n} (TS${w.tl})`);
   } else if (kind === 'exotic_weapon') {
-    options = WEAPONS.filter(w => w.cat === 'Exotic').map(w => `${w.n} (TS${w.tl})`);
+    options = sortWeaponPool(WEAPONS.filter(w => w.cat === 'Exotic')).map(w => `${w.n} (TS${w.tl})`);
   } else if (kind === 'skill') {
     options = SKILLS.map(s => s.n);
   } else if (kind === 'school') {
@@ -48658,7 +48743,9 @@ function printSheet(){
       // modes (Double Tap / Burst Fire) reach the print sheet too.
       const wAtk = (w) => (w.twfExtraAtks && w.twfExtraAtks.length > 1)
         ? w.twfExtraAtks.map(a=>`${a>=0?'+':''}${a}`).join('/')
-        : `${w.attackBonus>=0?'+':''}${w.attackBonus}`;
+        : (w.fullAttack && w.fullAttack.length > 1)
+          ? `${w.fullAttack[0]>=0?'+':''}${w.fullAttack[0]} (${w.fullAttack.slice(1).map(a=>`${a>=0?'+':''}${a}`).join('/')})`
+          : `${w.attackBonus>=0?'+':''}${w.attackBonus}`;
       const wAlt = (w) => (w.altModes||[]).map(m=>m.display?`${m.name}: ${m.display}`:`${m.name} ${m.atk>=0?'+':''}${m.atk}/×${m.dmgMult}`).join(', ');
       const wRows = weapons.map(w=>`<tr><td>${w.name}${w.integratedIn?` <span style="font-size:6pt;color:#888;">(integrated in ${w.integratedIn}${w.detachable?', detachable':''})</span>`:''}${w.hand?` <span style="font-size:6pt;color:#888;">(${w.hand==='main'?'main':'off'} hand)</span>`:''}${w.proficient?'':' ⚠'}${w.statStrip?`<div style="font-size:6pt;color:#888;">${w.statStrip}</div>`:''}${wAlt(w)?`<div style="font-size:6pt;color:#888;">${wAlt(w)}</div>`:''}</td><td class="attr">${wAtk(w)}</td><td>${w.damage||'—'}</td><td class="attr" style="font-size:6.5pt;">${w.typeLabel||(w.damageTypes||[]).join('/')||'—'}</td></tr>`).join('');
       gearBlock = `<div class="ps-sec"><div class="ps-sec-head">Equipped Gear</div><div class="ps-sec-body">
