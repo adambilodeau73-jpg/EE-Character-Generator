@@ -296,7 +296,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.65.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.66.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -2178,8 +2178,8 @@ const CLASS_FEATURES = {
     // feature TEXT keys Master to 10+ ranks and says Renowned is "By
     // 15th-level" with 15+ ranks. Following the TEXT (which the rank gates
     // only make sense with) until Adam rules.
-    {lvl:10, name:'Master Artisan',     page:85, desc:'(10+ Artisan ranks) Always Take 10 on the Artisan skill, even under duress. [Table/text level conflict — see errata.]', kind:'unimplemented'},
-    {lvl:15, name:'Renowned Artisan',   page:85, desc:'(15+ Artisan ranks) Renown feat (+3 Rep) in matters of the Artisan skill, and +1 Purchase DC on all their work. [Table/text level conflict — see errata.]', kind:'unimplemented'},
+    {lvl:10, name:'Master Artisan',     page:85, desc:'(10+ Artisan ranks) Always Take 10 on the Artisan skill, even under duress. RULED 2026-10-02: feature text canonical — Master at 10th, Renowned at 15th (the table row is the typo; Word doc updated). Take-10 permission, table-adjudicated.', kind:'passive'},
+    {lvl:15, name:'Renowned Artisan',   page:85, desc:'(15+ Artisan ranks) Renown feat (+3 Rep) in matters of the Artisan skill, and +1 Purchase DC on all their work. RULED 2026-10-02: feature TEXT canonical (Renowned 15th / Master 10th; table row = the typo, Word doc updated). The scoped +3 is flagged on the Reputation card (v8.66.0); Purchase DC manual.', kind:'passive'},
     {lvl:20, name:'Grandmaster Artisan', page:85, desc:'(20+ Artisan ranks) Take 20 in half the time on the Artisan skill; +2 Purchase DC on their works (replaces Renowned Artisan’s +1).', kind:'unimplemented'},
   ],
   // Fighter: 'Tactical Awareness' was DRIFT (d20 Modern Soldier). Real
@@ -2617,7 +2617,7 @@ const CLASS_FEATURES = {
      effect:{type:'bonusFeats', formula:{milestones:[3,6,9]}, restriction:'General or Expert feat list'}},
     {lvl:4, name:'Tough It Out',        page:122, desc:'DR 1/− (stacks into the universal pool — already wired) + an instance of Improved Damage Threshold.', kind:'passive'},
     {lvl:5, name:'Shrug It Off',        page:122, desc:'1/day (or 1 AP): Concentration check DC = incoming damage → take half.', kind:'active'},
-    {lvl:7, name:'Shut It Out',         page:122, desc:'Pick 3 + Con mod class skills: Take 10 on them under any circumstances.', kind:'meta'},
+    {lvl:7, name:'Shut It Out',         page:122, desc:'Pick 3 + Con mod class skills: Take 10 on them under any circumstances. — wired: Take-10 designation tracker in 🎓 Class Choices (v8.66.0; capacity = 3 + BASE-Con mod, Ex bakes only, grows with the score — Adam’s ruling)', kind:'meta'},
     {lvl:8, name:'Shake It Off',        page:122, desc:'1/day (or 1 AP): on a failed Will save, Concentration check vs the same DC → save succeeds.', kind:'active'},
     {lvl:10, name:'Let It Out',         page:122, desc:'1/day (or 1 AP): roll 2d20-take-better on any Str- or Dex-based skill check.', kind:'active'},
   ],
@@ -10624,7 +10624,10 @@ function renderClassChoices(c) {
   const host = document.getElementById('sh-classchoices');
   if (!host) return;
   const specs = computeClassChoiceSpecs(c);
-  if (!specs.length) { host.style.display = 'none'; host.innerHTML = ''; return; }
+  // v8.66.0: the skill-set designations can exist without picker specs —
+  // the empty-panel gate must consider both.
+  const _ssAny = (typeof computeSkillSetSpecs === 'function') && computeSkillSetSpecs(c).length > 0;
+  if (!specs.length && !_ssAny) { host.style.display = 'none'; host.innerHTML = ''; return; }
   host.style.display = '';
   const pending = specs.filter(s => !s.chosen).length;
   const rows = specs.map(s => {
@@ -10639,8 +10642,90 @@ function renderClassChoices(c) {
   }).join('');
   const feList = computeFavoredEnemies(c);
   const feRow = feList.length ? `<div style="font-size:11px;margin-top:4px;color:rgba(200,151,30,.8);">🎯 <b>Favored Enemies:</b> ${feList.map(f => `${escapeHTML(f.type)} +${f.bonus}`).join(', ')} <span style="opacity:.6;">(damage &amp; Bluff/Listen/Sense Motive/Spot/Survival vs the type — apply at the table)</span></div>` : '';
-  host.innerHTML = `<div style="font-family:'Epics Serif','Cinzel',serif;font-size:10px;color:var(--bronze);margin-bottom:4px;">🎓 Class Choices${pending ? ` <span style="color:#d4b870;font-size:9px;">(${pending} pending)</span>` : ''}</div>${rows}${feRow}`;
+  // v8.66.0 (Adam's design): Take-10 skill-set designations — collapsible
+  // one-liners, ⚑-amber while open slots remain, red while over capacity.
+  const ssSpecs = (typeof computeSkillSetSpecs === 'function') ? computeSkillSetSpecs(c) : [];
+  let ssRows = '', ssPending = 0;
+  if (ssSpecs.length) {
+    if (!window._ssOpen) window._ssOpen = {};
+    ssRows = ssSpecs.map(s => {
+      const picks = ((c.skillSets || {})[s.key]) || [];
+      const open = !!window._ssOpen[s.key];
+      const slotsLeft = Math.max(0, s.cap - picks.length);
+      const over = picks.length > s.cap;
+      if (slotsLeft) ssPending += slotsLeft;
+      const opts = s.eligible.filter(n => !picks.includes(n));
+      const body = open ? `<div style="margin:2px 0 4px 18px;font-size:11px;">
+          ${picks.map((p, i) => `<span style="display:inline-block;margin:1px 8px 1px 0;color:rgba(120,175,205,.95);">${escapeHTML(p)} <span style="cursor:pointer;opacity:.5;font-size:10px;" title="Remove this designation (GM retcon)" onclick="removeSkillSetPick('${s.key}',${i})">✕</span></span>`).join('') || '<i style="opacity:.5;">none designated yet</i>'}
+          ${slotsLeft > 0 ? `<div style="margin-top:2px;"><select onchange="addSkillSetPick('${s.key}', this.value)" style="font-size:11px;"><option value="">— designate a skill (${slotsLeft} open) —</option>${opts.map(o => `<option>${escapeHTML(o)}</option>`).join('')}</select></div>` : ''}
+          ${over ? `<div style="color:#d47070;font-size:10px;">⚠ ${picks.length - s.cap} over capacity — the base ${s.attrName} score dropped; the GM adjudicates which designations lapse (nothing auto-deletes).</div>` : ''}
+        </div>` : '';
+      return `<div style="font-size:11.5px;margin:2px 0;">
+        <span style="cursor:pointer;user-select:none;" onclick="window._ssOpen['${s.key}']=!window._ssOpen['${s.key}'];renderClassChoices(chars.find(x=>x.id===curId))">${open ? '▾' : '▸'}</span>
+        <span style="cursor:help;color:rgba(200,151,30,.75);" title="${escapeHTML(s.note)}">${s.className} — ${s.feature} <span style="opacity:.5;">(L${s.atLvl} · Take 10)</span></span>
+        <b style="color:rgba(120,175,205,.95);">${picks.length}/${s.cap} designated</b>${slotsLeft ? ` <span style="color:#d4b870;font-size:10px;">⚑ ${slotsLeft} open</span>` : ''}${over ? ' <span style="color:#d47070;font-size:10px;">⚠ over capacity</span>' : ''}
+      </div>${body}`;
+    }).join('');
+  }
+  const pendingAll = pending + ssPending;
+  host.innerHTML = `<div style="font-family:'Epics Serif','Cinzel',serif;font-size:10px;color:var(--bronze);margin-bottom:4px;">🎓 Class Choices${pendingAll ? ` <span style="color:#d4b870;font-size:9px;">(${pendingAll} pending)</span>` : ''}</div>${rows}${ssRows}${feRow}`;
 }
+// ============================================================================
+// v8.66.0 (Adam's design, 2026-10-02): TAKE-10 SKILL-SET DESIGNATIONS —
+// Shut It Out (Daredevil 7) and Skill Mastery (Rogue SA) share one chassis:
+// a one-liner in 🎓 Class Choices with a collapsible designation list,
+// amber-⚑ while slots sit unselected (the standing pending idiom).
+// CAPACITY RULING: 3 + the attribute modifier of the BASE score — only
+// EXTRAORDINARY bakes count (Su bakes subtracted, item enhancements never
+// included), and the set GROWS live as the base score permanently rises.
+// A base-score drop leaves the set over capacity — flagged red, GM
+// adjudicates which designations lapse (no auto-delete).
+function baseExAttrMod(c, i) {
+  const su = (typeof suBakedPerAttr === 'function') ? (suBakedPerAttr(c) || [0, 0, 0, 0, 0, 0]) : [0, 0, 0, 0, 0, 0];
+  return am((((c.attrs) || [10, 10, 10, 10, 10, 10])[i] || 10) - (su[i] || 0));
+}
+function computeSkillSetSpecs(c) {
+  const out = [];
+  const dd = _cfLvlOf(c, 'Daredevil');
+  if (dd >= 7) {
+    const list = CLASS_SKILLS['Daredevil'] || [];
+    const eligible = SKILLS.map(s => s.n).filter(n => {
+      if (list.includes(n)) return true;
+      const fam = n.split(' (')[0];
+      return list.some(x => x === fam + ' (Any)' || x === fam);
+    });
+    out.push({ key: 'shutItOut', className: 'Daredevil', feature: 'Shut It Out', atLvl: 7, attrIdx: 2, attrName: 'Con',
+      cap: Math.max(0, 3 + baseExAttrMod(c, 2)), eligible,
+      note: 'Take 10 with the designated Daredevil class skills even when circumstances would prevent it (HH p.122). Capacity = 3 + Con modifier of the BASE score — Extraordinary bakes only; Su bakes and item enhancements never count (Adam’s ruling 2026-10-02). The set grows as the base score permanently rises.' });
+  }
+  const smTakes = Object.keys(c.classChoices || {}).filter(k => k.startsWith('rog_sa_') && c.classChoices[k] === 'Skill Mastery').length;
+  if (smTakes > 0) {
+    out.push({ key: 'skillMastery', className: 'Rogue', feature: `Skill Mastery${smTakes > 1 ? ` ×${smTakes}` : ''}`, atLvl: 10, attrIdx: 3, attrName: 'Int',
+      cap: smTakes * Math.max(0, 3 + baseExAttrMod(c, 3)),
+      eligible: SKILLS.map(s => s.n).filter(n => ((c.skills || {})[n] || 0) > 0),
+      note: 'Take 10 with the designated skills even when stress would prevent it (HH p.98). Capacity = (3 + Int modifier) per take, BASE score — Extraordinary bakes only (Adam’s ruling 2026-10-02). Eligible: skills you have ranks in.' });
+  }
+  return out;
+}
+function addSkillSetPick(key, val) {
+  if (!val) return;
+  const c = chars.find(x => x.id === curId); if (!c) return;
+  if (!c.skillSets) c.skillSets = {};
+  if (!c.skillSets[key]) c.skillSets[key] = [];
+  if (!c.skillSets[key].includes(val)) c.skillSets[key].push(val);
+  if (!window._ssOpen) window._ssOpen = {};
+  window._ssOpen[key] = true;
+  if (typeof logAct === 'function') logAct(`🎓 ${key === 'shutItOut' ? 'Shut It Out' : 'Skill Mastery'}: ${val} designated (Take 10 even under duress).`);
+  save(); renderClassChoices(c);
+}
+function removeSkillSetPick(key, idx) {
+  const c = chars.find(x => x.id === curId); if (!c) return;
+  const arr = (c.skillSets || {})[key]; if (!arr || idx < 0 || idx >= arr.length) return;
+  const gone = arr.splice(idx, 1)[0];
+  if (typeof logAct === 'function') logAct(`🎓 ${key === 'shutItOut' ? 'Shut It Out' : 'Skill Mastery'}: ${gone} designation removed (GM retcon).`);
+  save(); renderClassChoices(c);
+}
+
 // ---- Class-feature ATTRIBUTE BAKES (Ex, permanent; ledgered like the talent
 // bakes; NOT nullified-suppressed). Sources: Psion Profound Realization
 // (+1 Int @6/12/18), Warmind Self-Control (+1 Wis @3/9/15) & Self-Mastery
@@ -36802,7 +36887,8 @@ async function saveCharacter(){
       for (const k of ['items','powers','mutations','mpGrants','superMutantTier',
                        'superPPCurrent','ppCurrent','powersKnownList','mlXpCompensatedTo',
                        'preparedSlots','preparedToday','nullified','wealthScore','wealthBreakdown','funds','rangerCombatStyle',
-                       'abilityUses','raging','fatigued','euphoric','classChoices','classAttrApplied','companions','rkcmDamaged']) {  // conditions handled above
+                       'abilityUses','raging','fatigued','euphoric','classChoices','classAttrApplied','companions','rkcmDamaged',
+                       'skillSets']) {  // v8.66.0: Take-10 designations survive edit-saves // conditions handled above
         // (talentHpApplied deliberately NOT preserved — reconcileTalentHp
         // re-applies onto the assembly's fresh maxHP, like mutNacHpApplied.)
         if (chars[idx][k] !== undefined) char[k] = chars[idx][k];
@@ -37843,7 +37929,19 @@ function renderSheet(){
     // (feat ±3s and the class-feature Rep quartet included) — the stored
     // c.rep is class-progression only, and the card/drilldown mismatch was
     // the same disease the v8.6.0 save cells had.
-    {l:'Reputation',v:(typeof computeStatBlock==='function'?computeStatBlock(c).rep.total:(c.rep||0)),k:'rep'},
+    // v8.66.0 (Adam's ruling): Renowned Artisan (Expert 15 — TEXT canonical
+    // over the table, errata ruled 2026-10-02, Word doc updated) is a
+    // SCOPED +3: flagged on the card for real-time call-out, NEVER folded
+    // into the headline total.
+    (() => {
+      let raTag = '';
+      if (typeof _cfLvlOf === 'function' && _cfLvlOf(c, 'Expert') >= 15) {
+        const art = (c.classChoices || {})['exp_art_5'];
+        const ranks = art ? ((c.skills || {})[art] || 0) : 0;
+        if (art && ranks >= 15) raTag = `<span style="display:block;font-size:9px;color:#d4b870;font-style:italic;" title="Renowned Artisan (Expert 15; ruled 2026-10-02: feature text canonical — Renowned 15th / Master 10th, table row is the typo): the equivalent of Renown, but ONLY in matters of ${escapeHTML(art)}. Call the +3 out in real time when the audience cares about the craft — it is NOT in the headline total. Also +1 Purchase DC on your works (apply at the table).">+3 Artisan renown (conditional)</span>`;
+      }
+      return {l:'Reputation',v:(typeof computeStatBlock==='function'?computeStatBlock(c).rep.total:(c.rep||0)),k:'rep',extraHtml:raTag};
+    })(),
   );
   document.getElementById('sh-stats').innerHTML = statCells.map(s=>{
     const drillCls=s.k?'stat-cell drillable':'stat-cell';
