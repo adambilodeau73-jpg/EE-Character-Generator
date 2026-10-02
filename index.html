@@ -303,7 +303,7 @@ details.hy-det[open]>summary::before{content:'▾ '}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.72.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.73.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -4881,8 +4881,12 @@ const PRESTIGE_CLASSES = {
       // qualifiable PURELY through super-powers (the 7-Clairsentience road),
       // so Mutation Scale 5 joins the scenario gate — "or Mutation Scale 5
       // scenario" (book edit queued on the TODO for the Word pass).
-      [{type:'sixLevelAny',axes:['arcane','divine','psionic'],min:1},{type:'sixLevel',axis:'mutation',min:5,desc:'Mutation Scale 5+ scenario (the super-power road)'}],
-      [{type:'skillFamily',family:'Knowledge',min:10}],
+      // v8.73.0 (Adam's Compass report): the Scales gate reads as ONE line
+      // ("…or Mutation 5+ or…" — a single trailing "scenario"); Mutation 5
+      // is the v8.70.1 super-power-road ruling (Hellfire's road). And the
+      // old "Knowledge (any) 10" group was a DUPLICATE of the GMG line —
+      // "Knowledge (any two) 10 ranks each" (p.173) is the only gate.
+      [{type:'sixLevelOr',options:[{axis:'arcane',min:1},{axis:'divine',min:1},{axis:'mutation',min:5},{axis:'psionic',min:1}]}],
       [{type:'skillFamilyCount',family:'Knowledge',min:10,count:2,desc:'two Knowledge skills at 10 ranks each'}],
       [{type:'featCount',families:['Magic','Power'],min:3,desc:'Any 3 Magic or Power feats'}],
       [{type:'featParamIs',name:'Skill Focus',paramPrefix:'Knowledge',desc:'Skill Focus (any Knowledge)'}],
