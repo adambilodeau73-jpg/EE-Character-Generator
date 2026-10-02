@@ -296,7 +296,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.68.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.68.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1897,7 +1897,7 @@ const RACES = {
   // GM-tailored path (drop abilities to shave the RLM) enters its adjusted
   // RLM manually. Full per-ability itemization awaits the racial-ability
   // census (prose → structured) — flagged, not forgotten.
-  'Hybrid':{adj:{},ecl:0,notes:'Half-blood of two parent races (Humanoid / Monstrous Humanoid, GM approval — HH pp.29-30). Gains ALL racial abilities of BOTH parents; Racial Level Modifier = parent A + parent B + 1 (a Half-Elf: 0+0+1 = +1). Size and movement follow ONE chosen parent. GM-tailored builds may drop specific abilities and enter the GM-adjusted RLM manually.'},
+  'Hybrid':{adj:{},ecl:0,notes:'Half-blood of two HUMANOID parent races (GM approval — HH pp.29-30; Adam’s ruling 2026-10-02: only Humanoids interbreed — Monstrous Humanoids, Giants, Outsiders, Fey and Aberrations cannot). Gains ALL racial abilities of BOTH parents; Racial Level Modifier = parent A + parent B + 1 (a Half-Elf: 0+0+1 = +1). Size and movement follow ONE chosen parent. GM-tailored builds may drop specific abilities and enter the GM-adjusted RLM manually.'},
   Other:{adj:{},ecl:0,notes:'Custom race — see GM for racial details.'},
 };
 const HERO_CLASSES = {
@@ -34305,9 +34305,19 @@ function renderAttrBudget(){
 // ========== RACE INFO ==========
 // v8.68.0: the Hybrid form helpers — populate the parent pickers once,
 // recompute the RLM line, and re-apply the summed adjustments on any change.
+// v8.68.1 (Adam's correction): only HUMANOID races interbreed — Monstrous
+// Humanoids are OUT (the Drow/Dromite battery example exposed the slip).
+// Explicit whitelist by 3.5/XPH creature type, GM-amendable. Judgment calls
+// documented: Merfolk IS Humanoid (Aquatic) per the MM — included; Bugbear/
+// Hobgoblin/Goblin/Blue are Humanoid (Goblinoid); Kobold/Lizardfolk/
+// Troglodyte Humanoid (Reptilian); Drakkin & Kinori are E&E humanoid
+// stocks. EXCLUDED by type: Dromite/Centaur/Gargoyle/Doppelganger/Grimlock/
+// Minotaur (Monstrous Humanoid), Half-Giant/Ogre/Trolls/the Giants (Giant),
+// Aasimar/Tiefling/Azer/Janni/Rakshasa/Hound Archon (Outsider), Pixie/Satyr
+// (Fey), Elan (Aberration), Unbodied, the Werewolf template.
+const HYBRID_HUMANOID_RACES = ['Blue', 'Bugbear', 'Drakkin', 'Drow', 'Duergar', 'Dwarf', 'Elf', 'Gnoll', 'Gnome', 'Goblin', 'Half-Orc', 'Halfling', 'Hobgoblin', 'Human', 'Kinori', 'Kobold', 'Lizardfolk', 'Maenad', 'Merfolk', 'Orc', 'Troglodyte', 'Xeph'];
 function _hybridEligibleRaces() {
-  const barred = new Set(['Hybrid', 'Mutant/Hybrid', 'Other']);
-  return Object.keys(RACES).filter(n => !barred.has(n)).sort();
+  return HYBRID_HUMANOID_RACES.filter(n => RACES[n]).sort();
 }
 function _formHybridRlm() {
   const a = document.getElementById('c-hyb-a')?.value || '';
@@ -34326,7 +34336,12 @@ function updateHybridForm() {
       const auto = ((RACES[a] || {}).ecl || 0) + ((RACES[b] || {}).ecl || 0) + 1;
       const eff = _formHybridRlm();
       info.innerHTML = `RLM: <b>+${eff}</b> ${eff === auto ? `(auto: ${(RACES[a]||{}).ecl||0} + ${(RACES[b]||{}).ecl||0} + 1)` : `<span style="color:#d4b870;">(GM override — auto would be +${auto})</span>`}`;
-    } else info.innerHTML = '<span style="color:#d4b870;">⚑ pick BOTH parents (GM approval — Humanoid / Monstrous Humanoid)</span>';
+    } else info.innerHTML = '<span style="color:#d4b870;">⚑ pick BOTH parents (HUMANOID races only, GM approval)</span>';
+  // v8.68.1: legacy/GM-exception guard — a stored non-Humanoid parent flags.
+  if (info && a && b) {
+    const bad = [a, b].filter(x => !HYBRID_HUMANOID_RACES.includes(x));
+    if (bad.length) info.innerHTML += ` <span style="color:#d47070;font-size:10px;" title="Only Humanoid races can interbreed (Adam's ruling 2026-10-02). A non-Humanoid parent on a legacy record stands only as an explicit GM exception.">⚠ ${bad.join(' & ')}: not Humanoid — GM exception territory</span>`;
+  }
   }
   applyRaceAdjustments('Hybrid');
   if (typeof updateDerived === 'function') updateDerived();
