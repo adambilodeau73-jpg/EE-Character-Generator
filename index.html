@@ -57,6 +57,8 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 /* ATTR */
 .attr-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-bottom:.9rem}
 @media(max-width:600px){.attr-grid{grid-template-columns:repeat(3,1fr)}}
+.minds-under-mental{width:calc(50% - 3.5px);margin-left:auto;margin-top:-2px;margin-bottom:.8rem}
+@media(max-width:600px){.minds-under-mental{width:100%}}
 .attr-box{background:rgba(26,20,8,.7);border:1px solid rgba(200,151,30,.3);border-radius:4px;text-align:center;padding:9px 5px;transition:border-color .2s}
 .attr-box:hover{border-color:var(--gold)}
 .attr-nm{font-family:'Epics Serif','Cinzel',serif;font-size:9px;letter-spacing:.1em;color:var(--bronze);display:block;margin-bottom:3px}
@@ -294,7 +296,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.60.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.60.2</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -876,6 +878,12 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
       <div>
         <div class="sec-head sm">Ability Scores</div>
         <div class="attr-grid" id="sh-attrs"></div>
+        <!-- v8.60.2 (Adam's placement): the Mind's Ledger sits directly
+             beneath the MENTAL attributes it clamps (the v8.49.0 half-floor
+             rule acts on INT/WIS/CHA) — right half under the mental trio on
+             desktop; full width under the mental row at phone width, where
+             the grid wraps 3+3. Moved from below the ✨ buffs block. -->
+        <div id="sh-minds" class="minds-under-mental" style="display:none;"></div>
         <div class="ornament">✦ ✦ ✦</div>
         <!-- v8.3.4: Racial-NAC migration banner. Surfaces when the character's
              stored c.naturalAC is less than their race's structured natAC value
@@ -895,11 +903,8 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
         <!-- v8.42.0: transient-wired active power effects (✨ chips with ✕
              dismiss). Populated by renderActiveBuffs(); greyed under NPF. -->
         <div id="sh-buffs" style="margin-top:6px;display:none;"></div>
-        <!-- v8.46.0: 🧠 THE MIND'S LEDGER — the printed Insanity & Horror system
-             (GMG pp.144-150 / FF pp.529-532, as synthesized 2026-09-28: five
-             orthogonal categories, one row each; +4 competence familiarity;
-             perceived-Scale ratchet; Shock/the Swoon). renderMindsLedger(). -->
-        <div id="sh-minds" style="margin-top:6px;display:none;"></div>
+        <!-- v8.46.0: 🧠 THE MIND'S LEDGER (GMG pp.144-150 / FF pp.529-532) —
+             v8.60.2: MOVED up beneath the mental attributes (see #sh-attrs). -->
         <div class="ornament">✦ ✦ ✦</div>
         <div class="sec-head sm">Saving Throws</div>
         <div class="stat-strip" id="sh-saves"></div>
@@ -1450,6 +1455,10 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
             <option value="">More…</option>
           </select>
           <button class="ilbtn" onclick="clearConds()">Clear All</button>
+          <!-- v8.60.2: the ⊘ Nullified toggle (moved from the Sheet — it's a
+               condition, if an extreme one). Populated by renderConds for
+               Su-bearing characters only. -->
+          <span id="tr-nullify"></span>
         </div>
         <!-- v8.3.20: persistent mechanical-effects panel populated when any
              condition is active. Hidden when there are no conditions. -->
@@ -9322,6 +9331,7 @@ function toggleNullified() {
   c.nullified = !c.nullified;
   logAct(c.nullified ? '⊘ NULLIFIED — all Supernatural modifiers suppressed (Null Power Field).' : '✦ Nullification lifted — Supernatural modifiers restored.');
   save(); renderSheet(); renderGear(); renderSkills();
+  try { if (typeof renderConds === 'function' && document.getElementById('tr-nullify')) renderConds(c); } catch (e) {}  // v8.60.2: refresh the Tracker toggle
   toast(c.nullified ? '⊘ Supernatural modifiers suppressed.' : '✦ Supernatural modifiers restored.');
 }
 
@@ -37239,13 +37249,22 @@ function renderSheet(){
       ? `<div style="font-family:'Epics Serif','Crimson Pro',serif;font-size:9px;color:rgba(196,153,212,.8);font-style:italic;margin-top:2px;cursor:help;" title="${escapeHTML(mutNamesPerAttr[a].join(' + '))} — Extraordinary (Ex) bonuses are never negated; Supernatural (Su) bonuses can be temporarily negated by effects that suppress supernatural abilities (e.g. Null Power Field).">${mutBits.join(' · ')}</div>`
       : '';
     const iB = itemAttrB.best[i] || 0;
-    const effV = c.attrs[i] + iB;
+    // v8.60.1 (Adam's Animal Affinity report): the ✨ transient-buff door
+    // (activeBuffAttrDeltas) joins the card display — the ENGINES honored it
+    // since v8.43.0 (effAttrs feeds attacks, skills, DCs, grapple), but the
+    // ability boxes only ever showed the item door, so a wired Animal
+    // Affinity was invisible exactly where the player looks first.
+    const buffD = (typeof activeBuffAttrDeltas === 'function') ? (activeBuffAttrDeltas(c)[i] || 0) : 0;
+    const effV = c.attrs[i] + iB + buffD;
     const itemTag = iB > 0
       ? `<div style="font-family:'Epics Serif','Crimson Pro',serif;font-size:9px;color:rgba(120,175,205,.85);font-style:italic;margin-top:2px;cursor:help;" title="${escapeHTML(itemAttrB.from[i] || '')} — enhancement bonus while equipped (firm-wired: saves, skills, DCs, and attacks use the effective score; stored max HP does not follow item CON — RAW treats those hit points as temporary).">+${iB} equipped</div>`
       : '';
+    const buffTag = buffD !== 0
+      ? `<div style="font-family:'Epics Serif','Crimson Pro',serif;font-size:9px;color:rgba(220,205,138,.85);font-style:italic;margin-top:2px;cursor:help;" title="Active power effects (✨ panel below) — ${escapeHTML((c.activeEffects || []).filter(ae => (ae.effects || []).some(e => e.k === 'attr' && e.attr === a)).map(ae => ae.name).join(' + ') || 'wired buff')}. Clears on rest or the chip's ✕; suppressed while ⊘ Nullified.">${buffD > 0 ? '+' : ''}${buffD} ✨ active</div>`
+      : '';
     return `<div class="attr-box"><span class="attr-nm">${a}</span>
-    <span class="attr-inp" style="font-family:'Epics Serif','Cinzel',serif;font-size:21px;font-weight:600;display:block;">${c.attrs[i]}${iB > 0 ? ` <span style="font-size:13px;color:rgba(120,175,205,.9);">(${effV})</span>` : ''}</span>
-    <span class="attr-mod">${ms(effV)}</span>${bumpTag}${mutTag}${itemTag}</div>`;
+    <span class="attr-inp" style="font-family:'Epics Serif','Cinzel',serif;font-size:21px;font-weight:600;display:block;">${c.attrs[i]}${(iB > 0 || buffD !== 0) ? ` <span style="font-size:13px;color:rgba(120,175,205,.9);">(${effV})</span>` : ''}</span>
+    <span class="attr-mod">${ms(effV)}</span>${bumpTag}${mutTag}${itemTag}${buffTag}</div>`;
   }).join('');
   const cM=effAm(c,2),dM=effAm(c,1),wM=effAm(c,4);  // v8.6.0 firm-wire: effective mods
   // v8.3.4: Racial NAC migration check. If the character's race grants a
@@ -37482,7 +37501,9 @@ function renderSheet(){
         const used = abilityUsed(c, 'rage'), mx = rageUsesPerDay(c);
         btns.push(`<button class="btn btn-sm" style="font-size:10px;border-color:rgba(212,140,70,.5);color:#d4865a;" title="Fly into a ${rt.name}: +${rt.attr} Str/Con, +${rt.will} morale Will, −2 AC for 3 + raged Con mod rounds. Free action on your own action; once per encounter. ${used}/${mx} used today." onclick="toggleRage()">🔥 Rage! <span style="opacity:.6;">${used}/${mx}</span></button>`);
       }
-      if (hasSu && !c.nullified) btns.push(`<button class="btn btn-sm" style="font-size:10px;opacity:.75;" title="Simulate a Null Power Field: suppress ALL Supernatural modifiers, reducing the character to natural + Extraordinary." onclick="toggleNullified()">⊘ Nullified?</button>`);
+      // v8.60.2 (Adam): the ⊘ Nullified? TRIGGER moved to the Tracker's
+      // Conditions panel — it's a condition, if an extreme one (Sheet =
+      // report: the red NULLIFIED banner + Restore above remain here).
       if (btns.length) chunks.push(`<div style="text-align:right;display:flex;gap:6px;justify-content:flex-end;">${btns.join('')}</div>`);
       nEl.innerHTML = chunks.join('');
     }
@@ -42555,6 +42576,13 @@ function finishPrepCast(c, pc, rec, spell, element) {
   const after = getPoolPPState(c, pc.poolName);
   renderCastResult({ name: displayName, baseName: spell.name, pool: pc.poolName, lvl: rec.lvl, cost: 0, spent: 0, after, atom, saveDC, dcBonus, spell, buff: false, prepaid: true });
   if (typeof logAct === 'function') logAct(`Cast prepared ${displayName} (${pc.ctr.class} ${pc.ctr.level}) → ${rec.qty - rec.cast} of ${rec.qty} left`);
+  // v8.60.1 (Adam's Animal Affinity report): PREPARED casts wire curated
+  // buffs too — this path never called applyWiredBuff, so every ✨ buff cast
+  // from the Prepared panel silently skipped the sheet since the v8.57.0
+  // memorize-first surgery. Augment PP is 0 here: preparation fixes the
+  // level, and there is no cast-time augment stage (rules question for the
+  // book: may a prepared caster pay augment PP at release? — flagged).
+  if (typeof applyWiredBuff === 'function') applyWiredBuff(c, spell.name, pc.poolName, 0, null);
   save(); renderPowers();
 }
 
@@ -42611,6 +42639,8 @@ function convertPreparedAt(pi, idx) {
     const saveDC = (pick.ts.save && !/none/i.test(pick.ts.save)) ? 10 + pick.k + attrMod + dcBonus : null;
     renderCastResult({ name: pick.label, baseName: pick.ts.name, pool: pc.poolName, lvl: pick.k, cost: 0, spent: 0, after: getPoolPPState(c, pc.poolName), atom: pick.ts.damage || null, saveDC, dcBonus, spell: pick.ts, buff: false, prepaid: true });
     if (typeof logAct === 'function') logAct(`Converted prepared ${rec.dispName || rec.name} → ${pick.label} (${pc.ctr.class} ${pc.ctr.level})`);
+    // v8.60.1: conversion targets wire too (none curated today — future-proof).
+    if (typeof applyWiredBuff === 'function') applyWiredBuff(c, pick.ts.name, pc.poolName, 0, null);
     save(); renderPowers();
   });
 }
@@ -46922,6 +46952,21 @@ function renderConds(c){
   const el=document.getElementById('tr-conds');
   const effectsEl=document.getElementById('tr-cond-effects');
   const conds=c.conditions||[];
+  // v8.60.2 (Adam): ⊘ Nullified lives with the conditions now. Rendered
+  // only for Su-bearing characters (same gate as the old Sheet button);
+  // lit red while active. The Sheet keeps the status banner + Restore.
+  {
+    const nfEl = document.getElementById('tr-nullify');
+    if (nfEl) {
+      const suAttrs = (typeof suBakedPerAttr === 'function') ? suBakedPerAttr(c) : [0,0,0,0,0,0];
+      const hasSu = suAttrs.some(v => v)
+        || (c.talents || []).some(t => TALENTS_DB.find(x => x.n === (t.name || t.n) && /Super-Talent/.test(x.tier || '')))
+        || (c.powers || []).some(p => p.pool === 'super');
+      nfEl.innerHTML = hasSu
+        ? `<button class="ilbtn" style="${c.nullified ? 'border-color:rgba(212,112,112,.7);color:#d47070;' : 'opacity:.7;'}" title="${c.nullified ? 'Null Power Field active — all Supernatural modifiers suppressed (Su ability bakes, Bulletproof, Hyper-Speed, Energy Immunity, Super-Smash, ✨ buffs). Click to restore.' : 'Simulate a Null Power Field: suppress ALL Supernatural modifiers, reducing the character to natural + Extraordinary. Rage still works (Ex).'}" onclick="toggleNullified()">⊘ Nullified${c.nullified ? ' ✓' : '?'}</button>`
+        : '';
+    }
+  }
 
   if(!conds.length){
     el.innerHTML=`<span style="font-family:'Epics Serif','Cinzel',serif;font-size:11px;color:rgba(200,151,30,.35);">No conditions</span>`;
