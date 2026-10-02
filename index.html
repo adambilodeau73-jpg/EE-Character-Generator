@@ -296,7 +296,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.70.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.70.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -3015,7 +3015,7 @@ function computeBonusFeatsFromClassFeatures(c) {
 function getFeatSlotBreakdown(c) {
   if (!c) return {baselineTotal: 0, classBonus: [], totalCapacity: 0};
   const heroClass = (c.classes||[]).some(e => e.tier==='hero');
-  const baselineTotal = 1 + 1 + (c.race==='Human'?1:0) + (heroClass?1:0) + Math.floor((c.totalLvl||0)/3);
+  const baselineTotal = 1 + 1 + (isHumanParented(c)?1:0) + (heroClass?1:0) + Math.floor((c.totalLvl||0)/3);  // v8.70.1: Human-parent Hybrids inherit the bonus feat
   const classBonus = [];
   const features = getActiveClassFeatures(c);
   for (const f of features) {
@@ -4853,7 +4853,11 @@ const PRESTIGE_CLASSES = {
     def :[0,1,1,1,2,2,2,3,3,3],
     rep :[0,0,1,1,1,1,2,2,2,2],
     prereqs:[
-      [{type:'sixLevelAny',axes:['arcane','divine','psionic'],min:1}],
+      // v8.70.1 (Adam's ruling, 2026-10-02): the Loremaster is the one class
+      // qualifiable PURELY through super-powers (the 7-Clairsentience road),
+      // so Mutation Scale 5 joins the scenario gate — "or Mutation Scale 5
+      // scenario" (book edit queued on the TODO for the Word pass).
+      [{type:'sixLevelAny',axes:['arcane','divine','psionic'],min:1},{type:'sixLevel',axis:'mutation',min:5,desc:'Mutation Scale 5+ scenario (the super-power road)'}],
       [{type:'skillFamily',family:'Knowledge',min:10}],
       [{type:'skillFamilyCount',family:'Knowledge',min:10,count:2,desc:'two Knowledge skills at 10 ranks each'}],
       [{type:'featCount',families:['Magic','Power'],min:3,desc:'Any 3 Magic or Power feats'}],
@@ -8418,6 +8422,15 @@ function racialNatACOf(c) {
   return (RACES[(c && c.race)] || {}).natAC || 0;
 }
 function raceDisplayOf(c) { const hy = hybridInfo(c); return hy ? `Hybrid (${hy.a} / ${hy.b})` : ((c && c.race) || ''); }
+// v8.70.1 (Adam's Hero's-Gift catch exposed it): the Human racial bonuses
+// (feat slot, per-level SP) belong to Human-PARENTED Hybrids too — "all
+// racial abilities of both parents." One predicate, every consumer.
+function isHumanParented(c) {
+  if (!c) return false;
+  if (c.race === 'Human') return true;
+  const hy = hybridInfo(c);
+  return !!(hy && (hy.a === 'Human' || hy.b === 'Human'));
+}
 function buildRacialBonusesFor(c) {
   const hy = hybridInfo(c);
   if (!hy) return buildRacialBonuses((c && c.race) || '');
@@ -13216,7 +13229,7 @@ function getFeatBudget(c) {
   const sources = [];
   sources.push({label:'Free L1 feat', count:1, source:'l1-base'});
   sources.push({label:'Heritage feat', count:1, source:'heritage'});
-  if (c.race === 'Human') sources.push({label:'Human bonus', count:1, source:'human'});
+  if (isHumanParented(c)) sources.push({label:'Human bonus' + (c.race === 'Hybrid' ? ' (Hybrid — Human parent)' : ''), count:1, source:'human'});  // v8.70.1
   const heroClass = (c.classes||[]).some(e => e.tier==='hero');
   if (heroClass) {
     if (isLegacyCharacter(c)) {
@@ -36726,11 +36739,13 @@ let _firstSaveConfirmed = false; // Set to true by confirmFirstSaveSixLevels() t
 // choice on the Sheet). So this function emits only the base/heritage/
 // human/occupation slots at first save; the herosGift slot is added later
 // when the player commits to 'feat' on the Sheet.
-function deriveFirstLevelSlots({race, classes, occupations}) {
+function deriveFirstLevelSlots({race, classes, occupations, hybrid}) {
   const slots = [];
   slots.push({kind:'base', filled:null, filledParam:null});
   slots.push({kind:'heritage', filled:null, filledParam:null});
-  if (race === 'Human') {
+  // v8.70.1: Human-PARENTED Hybrids inherit the Human bonus slot ("all
+  // racial abilities of both parents").
+  if (race === 'Human' || (race === 'Hybrid' && hybrid && (hybrid.a === 'Human' || hybrid.b === 'Human'))) {
     slots.push({kind:'human', filled:null, filledParam:null});
   }
   // One occupation slot per occupation that has bonus_feat_options.
@@ -37039,6 +37054,9 @@ async function saveCharacter(){
   const existingChar = editId ? chars.find(x=>x.id===editId) : null;
   const existingIsLegacy = existingChar ? isLegacyCharacter(existingChar) : false;
   let v840_schemaVer, v840_heroesGiftChoice, v840_firstLevelSlots;
+  // v8.70.1: the Hybrid parent pair for the Human-bonus slot derivation —
+  // read from the FORM (the char literal doesn't exist yet at this point).
+  const _hybSlots = race === 'Hybrid' ? { a: document.getElementById('c-hyb-a')?.value || '', b: document.getElementById('c-hyb-b')?.value || '' } : null;
   // v8.4.0: track retcon for case (2). When set, saveCharacter runs the
   // compliance scan and records a GM exception after the char record is
   // built. Three fields: oldChoice (what was there before), newChoice
@@ -37051,7 +37069,7 @@ async function saveCharacter(){
     v840_schemaVer = CURRENT_SCHEMA_VER;
     const heroClassed = classesCopy.some(e => e.tier === 'hero');
     v840_heroesGiftChoice = heroClassed ? null : undefined;
-    v840_firstLevelSlots = deriveFirstLevelSlots({race, classes: classesCopy, occupations});
+    v840_firstLevelSlots = deriveFirstLevelSlots({race, classes: classesCopy, occupations, hybrid: _hybSlots});
   } else if (existingIsLegacy) {
     // Case (3): legacy stays legacy
     v840_schemaVer = undefined;
@@ -37063,7 +37081,7 @@ async function saveCharacter(){
     v840_heroesGiftChoice = existingChar.heroesGiftChoice ?? null;
     v840_firstLevelSlots = existingChar.firstLevelSlots
       ? existingChar.firstLevelSlots.map(s => Object.assign({}, s))
-      : deriveFirstLevelSlots({race, classes: classesCopy, occupations});
+      : deriveFirstLevelSlots({race, classes: classesCopy, occupations, hybrid: _hybSlots});
     // Detect Hero's Gift retcon — only if the user explicitly picked a new
     // value from the dropdown. The dropdown's "" value means "no change".
     const heroClassed = classesCopy.some(e => e.tier === 'hero');
@@ -39186,14 +39204,15 @@ function renderSkills(){
   } else {
     sSuffix = ` (${-remaining} over budget — reconcile or get GM approval)`;
   }
-  // v8.51.0: itemize the cross-class surcharge so overages explain themselves.
-  let ccNote = '';
-  try { const cc = crossClassPremiumOf(c); if (cc.prem > 0) ccNote = ` · incl. +${cc.prem} cross-class premium (${cc.items.join(', ')})`; } catch (e) {}
-  // v8.67.0 (Mutant sync): name the Unnatural Prowess SP in the budget line,
-  // with the Tech-0 restriction stated (table-enforced).
-  let muSpNote = '';
-  try { const _mlN = (typeof getMPState === 'function') ? (getMPState(c).mutantLevel || 0) : 0; if (_mlN > 0) muSpNote = ` · incl. +${2 * _mlN} Unnatural Prowess (Mutant +${_mlN} — <span style="cursor:help;" title="HH p.29: these bonus points may only buy TECH SCALE 0 skills (no Computer Use, Drive, Pilot, Repair and kin) — the table enforces the restriction.">Tech-0 skills only ⓘ</span>)`; } catch (e) {}
-  ptsInfoEl.innerHTML = `<span title="${sDisplay.label}" style="color:${sDisplay.color};">${sDisplay.icon}</span> Skill Points: ${spent} spent of ~${totalSP} total${sSuffix}${ccNote}${muSpNote}`;
+  // v8.70.1 (Adam's condense request): the budget line had grown a run-on
+  // of "incl." clauses (cross-class premium + Unnatural Prowess + its
+  // restriction). ONE compact line now; the itemized breakdown moves to a
+  // hover ⓘ, the house idiom. Nothing is lost — only folded.
+  let bkBits = [];
+  try { const cc = crossClassPremiumOf(c); if (cc.prem > 0) bkBits.push(`+${cc.prem} cross-class premium (${cc.items.join(', ')})`); } catch (e) {}
+  try { const _mlN = (typeof getMPState === 'function') ? (getMPState(c).mutantLevel || 0) : 0; if (_mlN > 0) bkBits.push(`+${2 * _mlN} skill points from Unnatural Prowess (Mutant +${_mlN}) — HH p.29: these bonus points may only buy TECH SCALE 0 skills (no Computer Use, Drive, Pilot, Repair and kin); the table enforces the restriction`); } catch (e) {}
+  const bkNote = bkBits.length ? ` <span style="cursor:help;opacity:.8;color:rgba(200,151,30,.9);" title="${escapeHTML('Budget breakdown — ' + bkBits.join('  ·  '))}">ⓘ</span>` : '';
+  ptsInfoEl.innerHTML = `<span title="${sDisplay.label}" style="color:${sDisplay.color};">${sDisplay.icon}</span> Skill Points: ${spent} spent of ~${totalSP} total${sSuffix}${bkNote}`;
   ptsInfoEl.style.color = sDisplay.color;
   ptsInfoEl.setAttribute('data-state', sState);
 
@@ -49639,7 +49658,7 @@ function lvlupComputeOwed(c, newTotalLvl) {
       // v8.3.15: Human racial +1 SP per additional level (HH p.21). The L1
       // case (+5) is handled in computeSkillPointBudget; this is the
       // per-level addition for L2+.
-      if (c.race === 'Human' && newTotalLvl > 1) {
+      if (isHumanParented(c) && newTotalLvl > 1) {  // v8.70.1: Human-parent Hybrids too
         spThisLevel += 1;
       }
       spComputed = true;
