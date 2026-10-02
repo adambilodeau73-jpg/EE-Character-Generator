@@ -296,7 +296,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.68.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.69.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -328,9 +328,10 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <!-- =================== ROSTER =================== -->
 <div id="page-roster" class="page active">
-  <div class="sec-head">Character Roster</div>
-  <div id="roster-list"></div>
-  <div class="btn-row">
+  <!-- v8.69.0 (Adam's playtest-volume report): the command row moved ABOVE
+       the roster — a long roster made these a scroll away. The backup
+       doctrine rides with the buttons it explains. -->
+  <div class="btn-row" style="margin-bottom:4px;">
     <button class="btn btn-pri" onclick="showPage('create')">✦ Create New Hero</button>
     <button class="btn" onclick="openQuickdraw()" title="Target class + level in, legal skeleton out: only the forced picks are made; the amber dots mark everything still yours to choose.">⚡ Quickdraw</button>
     <!-- v8.51.1: the courier — characters were trapped in each browser's
@@ -340,10 +341,12 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
     <input id="roster-import-file" type="file" accept=".json,application/json" style="display:none;" onchange="importRosterFile(this)">
   </div>
   <!-- v8.58.0 Backup Guardian (d): the doctrine, stated where the buttons live. -->
-  <div style="font-size:11px;color:rgba(200,151,30,.55);margin-top:8px;line-height:1.5;">
+  <div style="font-size:11px;color:rgba(200,151,30,.55);margin-bottom:10px;line-height:1.5;">
     💾 Your heroes live in <b>this browser on this device</b> — ⬇ export after every session; the file is the true backup.
     Clearing cookies / site data deletes the roster. iPhone Safari players: add this page to your Home Screen so iOS doesn't tidy it away.
   </div>
+  <div class="sec-head">Character Roster</div>
+  <div id="roster-list"></div>
 </div>
 
 <!-- v8.40.0: ⚡ QUICKDRAW modal — goal + level (+ optional starting class,
@@ -371,8 +374,16 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
       <label>Target class<br><select id="qd-goal" style="width:100%;"></select></label>
       <label>Character level<br><input id="qd-level" type="number" min="1" max="20" value="5"></label>
       <label>Starting class<br><select id="qd-start" style="width:100%;"></select></label>
-      <label>Race<br><select id="qd-race" style="width:100%;"></select></label>
+      <label>Race<br><select id="qd-race" onchange="qdHybridToggle()" style="width:100%;"></select></label>
       <label>How many?<br><input id="qd-count" type="number" min="1" max="10" value="1"></label>
+      <!-- v8.68.2 (Adam's field report): Hybrid in Quickdraw/Bespoke prompts
+           for its parents like the Create form does. -->
+      <div id="qd-hyb-row" style="grid-column:1 / -1;display:none;border:1px solid rgba(200,151,30,.3);border-radius:3px;padding:6px 8px;font-size:11px;">
+        <span>Parent A <select id="qd-hyb-a"></select></span>
+        <span style="margin-left:8px;">Parent B <select id="qd-hyb-b"></select></span>
+        <span style="margin-left:8px;" title="Size AND movement follow this parent (HH p.30).">Size &amp; movement from <select id="qd-hyb-size"><option value="a">Parent A</option><option value="b">Parent B</option></select></span>
+        <span style="margin-left:8px;opacity:.7;">(HUMANOID parents only — RLM = A + B + 1)</span>
+      </div>
       <label>Name / name stem<br><input id="qd-stem" type="text" placeholder="e.g. Redshirt" style="width:100%;"></label>
       <!-- v8.53.0 (Adam's request): occupation offered at build time, gently.
            Choosing one here only SETS the occupation — the perk picks (which
@@ -13581,6 +13592,30 @@ function qdResolvePrereqs(goal, spec) {
 // Point-buy attrs: 20 points over base 10s (target sum 80, cap 18), gates
 // first, then the goal's key attribute, then round-robin. Returns null when
 // gates exceed the budget even with every level-bump conscripted.
+// v8.69.0 (Adam's option (a)): Quickdraw/Bespoke now apply RACIAL ATTRIBUTE
+// ADJUSTMENTS exactly as the Create form does — on top of the point-buy,
+// the moment the race is known. The allocator aims at (need − adj), so the
+// ADJUSTED score still meets every prerequisite target (a −2 racial would
+// otherwise quietly break the very gate the build was engineered to pass);
+// a +adj means the allocator spends less to get there, exactly like a
+// player would at the table. Hybrids sum both parents' adjustments.
+function qdRacialAdjArr(spec) {
+  const AN = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'];
+  if (spec && spec.race === 'Hybrid' && spec.hybrid && !spec.hybrid.invalid) {
+    const aj = (RACES[spec.hybrid.a] || {}).adj || {}, bj = (RACES[spec.hybrid.b] || {}).adj || {};
+    return AN.map(n => (aj[n] || 0) + (bj[n] || 0));
+  }
+  const adj = (RACES[(spec && spec.race) || ''] || {}).adj || {};
+  return AN.map(n => adj[n] || 0);
+}
+function qdAllocWithAdj(needs, keyAttr, bumpsAvail, adjArr) {
+  const idx = { STR: 0, DEX: 1, CON: 2, INT: 3, WIS: 4, CHA: 5 };
+  const comp = {};
+  for (const k of Object.keys(needs)) comp[k] = needs[k] - ((adjArr || [])[idx[k]] || 0);
+  const alloc = qdAllocateAttrs(comp, keyAttr, bumpsAvail);
+  if (!alloc) return null;
+  return { attrs: alloc.attrs.map((v, i) => v + ((adjArr || [])[i] || 0)), bumps: alloc.bumps };
+}
 function qdAllocateAttrs(needs, keyAttr, bumpsAvail) {
   const idx = {STR:0, DEX:1, CON:2, INT:3, WIS:4, CHA:5};
   const attrs = [10, 10, 10, 10, 10, 10];
@@ -13717,7 +13752,8 @@ function qdBuildAttempt(spec, res, startName, goalE, isEntryFree) {
     // ---- attributes ----
     // `let`, not `const`: the bridge race (below) may re-run the allocation
     // with a bridge's attrMin folded in — the budget chases the best ladder.
-    let alloc = qdAllocateAttrs(attrNeeds, qdKeyAttr(goalE.def), Math.floor(N / 4));
+    const _adjArr = qdRacialAdjArr(spec);  // v8.69.0: racial adj, Create-form parity
+    let alloc = qdAllocWithAdj(attrNeeds, qdKeyAttr(goalE.def), Math.floor(N / 4), _adjArr);
     if (!alloc) return {ok: false, reason: 'attribute prerequisites exceed the 20-point buy even with every level bump'};
 
     // ---- assembly scaffold shared by gate-sim and final ----
@@ -13725,6 +13761,7 @@ function qdBuildAttempt(spec, res, startName, goalE, isEntryFree) {
     const powers = qdSpellPicks(res.spellReqs.filter(r => r.kind !== 'access'), spellPool);
     const mkChar = (classes, id, nm) => ({
       id, name: nm, race: spec.race || 'Human', sex: '', align: res.align || 'Neutral',
+      hybrid: (spec.race === 'Hybrid' && spec.hybrid && !spec.hybrid.invalid) ? {...spec.hybrid} : null,  // v8.68.2
       allegiance: res.allegiance || '', occupations: [], xp: 0, hpMode: 'hero',
       schemaVer: (typeof CURRENT_SCHEMA_VER !== 'undefined') ? CURRENT_SCHEMA_VER : 1,
       attrs: alloc.attrs.slice(), attrBumps: alloc.bumps.slice(),
@@ -13799,7 +13836,7 @@ function qdBuildAttempt(spec, res, startName, goalE, isEntryFree) {
             if ((alloc.attrs[ATTR_IDX[code]] || 0) < bE.def.attrMin) {
               const needsB = {...attrNeeds};
               needsB[code] = Math.max(needsB[code] || 0, bE.def.attrMin);
-              const allocB = qdAllocateAttrs(needsB, qdKeyAttr(goalE.def), Math.floor(N / 4));
+              const allocB = qdAllocWithAdj(needsB, qdKeyAttr(goalE.def), Math.floor(N / 4), _adjArr);  // v8.69.0: adj-compensated like the primary allocation
               if (!allocB) continue;  // genuinely unreachable — skip this bridge
               alloc = allocB;  // mkChar closes over `alloc` — sims below see it
               candNote = `point buy re-balanced to cover the ${s.name} bridge's ${code} ${bE.def.attrMin} entry gate`;
@@ -13949,12 +13986,13 @@ function qdBespokeBuild(spec) {
       res.pools.forEach(p => merged.pools.add(p)); merged.spellReqs.push(...res.spellReqs);
     }
     const lastDef = qdEntry(steps[steps.length - 1].name).def;
-    const alloc = qdAllocateAttrs(merged.attrNeeds, qdKeyAttr(lastDef), Math.floor(N / 4));
+    const alloc = qdAllocWithAdj(merged.attrNeeds, qdKeyAttr(lastDef), Math.floor(N / 4), qdRacialAdjArr(spec));  // v8.69.0: racial adj, Create-form parity
     if (!alloc) return {ok: false, reason: 'attribute prerequisites exceed the 20-point buy even with every level bump'};
     const spellPool = merged.pools.size ? [...merged.pools][0] : 'arcane';
     const powers = qdSpellPicks(merged.spellReqs.filter(r => r.kind !== 'access'), spellPool);
     const mk = (classes, id, nm) => ({
       id, name: nm, race: spec.race || 'Human', sex: '', align: 'Neutral',
+      hybrid: (spec.race === 'Hybrid' && spec.hybrid && !spec.hybrid.invalid) ? {...spec.hybrid} : null,  // v8.68.2
       allegiance: '', occupations: [], xp: 0, hpMode: 'hero',
       schemaVer: (typeof CURRENT_SCHEMA_VER !== 'undefined') ? CURRENT_SCHEMA_VER : 1,
       attrs: alloc.attrs.slice(), attrBumps: alloc.bumps.slice(),
@@ -14049,10 +14087,14 @@ function qdBespokeRun() {
   if (parsed.err) { toast('⚡ Bespoke: ' + parsed.err); return; }
   const six = {};
   for (const a of ['arcane', 'divine', 'heroic', 'mutation', 'psionic', 'tech']) six[a] = parseInt((document.getElementById('qd-sl-' + a) || {}).value, 10) || 0;
+  // v8.68.2: Bespoke shares the QD Hybrid parent row — validate up front.
+  const _bspHyb = qdHybridSpec();
+  if (_bspHyb && _bspHyb.invalid) { toast('⚗ Hybrid: pick BOTH Humanoid parents first.'); return; }
   const spec = {
     steps: parsed.steps, sixLevels: six,
     presetName: (document.getElementById('qd-preset') || {}).value || 'Custom',
     race: (document.getElementById('qd-race') || {}).value || 'Human',
+    hybrid: _bspHyb,
     name: ((document.getElementById('qd-stem') || {}).value || '').trim() || 'Bespoke Hero',
     occupation: (document.getElementById('qd-occ') || {}).value || '',
   };
@@ -14147,20 +14189,53 @@ function qdRefreshClassLists() {
   const starts = qdLegalStarts(sl);
   sSel.innerHTML = `<option value="AUTO">— most direct (auto) —</option><option value="MIX">— varied squad (mix) —</option>` +
     starts.map(s => `<option value="${escapeHTML(s.name)}"${s.name === sPrev ? ' selected' : ''}>${escapeHTML(s.name)}</option>`).join('');
-  // race list (Human default)
+  // race list (Human default). v8.68.2: the legacy 'Mutant/Hybrid' catch-all
+  // is creation-barred (legacy records only); Hybrid stays and prompts for
+  // its parents via the row below the select.
   const rSel = document.getElementById('qd-race');
   if (!rSel.options.length) {
-    const names = Array.isArray(RACES) ? RACES.map(r => r.name || r.n || r).filter(Boolean) : Object.keys(RACES);
+    const names = (Array.isArray(RACES) ? RACES.map(r => r.name || r.n || r).filter(Boolean) : Object.keys(RACES))
+      .filter(n => n !== 'Mutant/Hybrid');
     rSel.innerHTML = names.sort().map(n => `<option${n === 'Human' ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('');
+  }
+  qdHybridToggle();
+}
+// v8.68.2: show the Hybrid parent row when the QD race is Hybrid; the
+// parent pool is the same Humanoid whitelist the Create form uses.
+function qdHybridToggle() {
+  const row = document.getElementById('qd-hyb-row');
+  const rSel = document.getElementById('qd-race');
+  if (!row || !rSel) return;
+  const on = rSel.value === 'Hybrid';
+  row.style.display = on ? '' : 'none';
+  if (on) {
+    const a = document.getElementById('qd-hyb-a'), b = document.getElementById('qd-hyb-b');
+    if (a && !a.options.length) {
+      const opts = '<option value="">— choose —</option>' + _hybridEligibleRaces().map(n => `<option>${escapeHTML(n)}</option>`).join('');
+      a.innerHTML = opts; b.innerHTML = opts;
+    }
   }
 }
 function closeQuickdraw() { const m = document.getElementById('qd-modal'); if (m) m.style.display = 'none'; }
+// v8.68.2: the QD/Bespoke Hybrid parent record (null = not a Hybrid;
+// {invalid:true} = Hybrid chosen but parents unset — the caller toasts).
+function qdHybridSpec() {
+  const rSel = document.getElementById('qd-race');
+  if (!rSel || rSel.value !== 'Hybrid') return null;
+  const a = document.getElementById('qd-hyb-a')?.value || '';
+  const b = document.getElementById('qd-hyb-b')?.value || '';
+  if (!a || !b) return { invalid: true };
+  return { a, b, sizeFrom: document.getElementById('qd-hyb-size')?.value || 'a', rlmOverride: null, dropped: '' };
+}
 function qdRun() {
   const sl = qdScales();
   const goal = document.getElementById('qd-goal').value;
   const level = Math.max(1, Math.min(20, parseInt(document.getElementById('qd-level').value, 10) || 1));
   const startVal = document.getElementById('qd-start').value;
   const race = document.getElementById('qd-race').value || 'Human';
+  // v8.68.2: a Hybrid build needs its parents declared up front.
+  const hyb = qdHybridSpec();
+  if (hyb && hyb.invalid) { toast('⚗ Hybrid: pick BOTH Humanoid parents first.'); return; }
   const count = Math.max(1, Math.min(10, parseInt(document.getElementById('qd-count').value, 10) || 1));
   const stem = (document.getElementById('qd-stem').value || '').trim() || goal;
   const presetName = document.getElementById('qd-preset').value;
@@ -14174,12 +14249,12 @@ function qdRun() {
       // the goal (a Smart Ordinary can't make Soldier's BAB +3 by level 5),
       // fall through to the next one so the squad still fills.
       for (let k = 0; k < starts.length; k++) {
-        r = qdBuild({goal, level, startClass: starts[(i + k) % starts.length].name, sixLevels: sl, presetName, race, name});
+        r = qdBuild({goal, level, startClass: starts[(i + k) % starts.length].name, sixLevels: sl, presetName, race, name, hybrid: hyb});
         if (r.ok) break;
       }
     } else {
       const startClass = (startVal === 'AUTO' || startVal === 'MIX') ? null : startVal;
-      r = qdBuild({goal, level, startClass, sixLevels: sl, presetName, race, name});
+      r = qdBuild({goal, level, startClass, sixLevels: sl, presetName, race, name, hybrid: hyb});
     }
     if (r && r.ok) {
       // v8.53.0: build-time occupation — sets the occupation only; the perk
@@ -34849,14 +34924,19 @@ function populateRaceDropdown(){
   if(!sel)return;
   // The 9 core races from the Hero's Handbook (those defined first in the RACES table)
   const coreNames = new Set(['Human','Dromite','Drow','Duergar','Dwarf','Elan','Elf','Gnome','Halfling']);
-  const catchAll  = new Set(['Mutant/Hybrid','Other']);
+  // v8.68.2 (Adam's field report): 'Mutant/Hybrid' is LEGACY-ONLY — new
+  // characters never see it (Mutant = base race + the Mutations tab; the
+  // edit flow re-adds the option dynamically for records that carry it).
+  // 'Hybrid' moves out of the Foe Folio shelf into its own group.
+  const legacyOnly = new Set(['Mutant/Hybrid']);
+  const catchAll  = new Set(['Hybrid','Other']);
   const allNames  = Object.keys(RACES);
-  const ff        = allNames.filter(n => !coreNames.has(n) && !catchAll.has(n)).sort();
+  const ff        = allNames.filter(n => !coreNames.has(n) && !catchAll.has(n) && !legacyOnly.has(n)).sort();
   const mkOpt = n => `<option value="${n}">${n}</option>`;
   sel.innerHTML =
     `<optgroup label="Core (Hero's Handbook)">${[...coreNames].map(mkOpt).join('')}</optgroup>`+
     `<optgroup label="Foe Folio (Tier 1)">${ff.map(mkOpt).join('')}</optgroup>`+
-    `<optgroup label="Custom">${[...catchAll].map(mkOpt).join('')}</optgroup>`;
+    `<optgroup label="Half-Blood &amp; Custom">${[...catchAll].map(mkOpt).join('')}</optgroup>`;
 }
 
 // ========== SIX SCALES (SCENARIO SETTINGS) ==========
@@ -37273,6 +37353,12 @@ function editCurrentChar(){
   document.getElementById('c-sex').value=c.sex||'';
   document.getElementById('c-langs').value=c.langs||'';
   document.getElementById('c-notes').value=c.notes||'';
+  // v8.68.2: a legacy race ('Mutant/Hybrid') is creation-barred but must
+  // still EDIT — re-add its option dynamically when the record carries it.
+  { const _rs = document.getElementById('c-race');
+    if (_rs && c.race && ![..._rs.options].some(o => o.value === c.race)) {
+      _rs.innerHTML += `<optgroup label="Legacy (this character only)"><option value="${escapeHTML(c.race)}">${escapeHTML(c.race)}</option></optgroup>`;
+    } }
   document.getElementById('c-race').value=c.race;
   // v8.68.0: repopulate the Hybrid parent picker from the record BEFORE the
   // race-info refresh (which reads the selects for the adj sum).
@@ -38362,7 +38448,7 @@ function renderSheet(){
   const radj = _hyS
     ? (ATTR_NAMES.map((n, i) => { const v = ((_hyS.A.adj||{})[n]||0) + ((_hyS.B.adj||{})[n]||0); return v ? `${v>0?'+':''}${v} ${n}` : ''; }).filter(Boolean).join(', ') || 'None')
     : (Object.entries(race.adj||{}).map(([k,v])=>(v>0?'+':'')+v+' '+k).join(', ')||'None');
-  let featuresHtml=`<b style="color:var(--gold);">${_hyS ? raceDisplayOf(c) : c.race}</b>${citeHTML('races', c.race)}<br>Ability Adj.: ${radj} &nbsp;|&nbsp; ${_hyS ? 'RLM' : 'ECL Mod'}: +${_hyS ? _hyS.rlm : (race.ecl||0)}${_hyS && _hyS.rlm !== _hyS.autoRlm ? ` <span style="font-size:10px;color:#d4b870;">(GM-tailored — auto would be +${_hyS.autoRlm}${_hyS.dropped ? '; dropped: ' + escapeHTML(_hyS.dropped) : ''})</span>` : ''}${_hyS ? ` &nbsp;|&nbsp; size &amp; movement: ${_hyS.sizeFrom}` : ''}<br>${race.notes||''}${_hyS ? `<br><span style="font-size:11px;"><b>${_hyS.a}:</b> ${_hyS.A.notes||''}<br><b>${_hyS.b}:</b> ${_hyS.B.notes||''}</span>` : ''}`;
+  let featuresHtml=`<b style="color:var(--gold);">${_hyS ? raceDisplayOf(c) : c.race}</b>${citeHTML('races', c.race)}<br>Ability Adj.: ${radj} &nbsp;|&nbsp; ${_hyS ? 'RLM' : 'ECL Mod'}: +${_hyS ? _hyS.rlm : (race.ecl||0)}${_hyS && _hyS.rlm !== _hyS.autoRlm ? ` <span style="font-size:10px;color:#d4b870;">(GM-tailored — auto would be +${_hyS.autoRlm}${_hyS.dropped ? '; dropped: ' + escapeHTML(_hyS.dropped) : ''})</span>` : ''}${_hyS ? ` &nbsp;|&nbsp; size &amp; movement: ${_hyS.sizeFrom}` : ''}${!_hyS && c.race === 'Hybrid' ? ' <span style="color:#d4b870;font-size:11px;">⚑ parents not chosen — ✎ Edit this character and pick BOTH Humanoid parents (the RLM, adjustments, and inherited abilities all key off them)</span>' : ''}<br>${race.notes||''}${_hyS ? `<br><span style="font-size:11px;"><b>${_hyS.a}:</b> ${_hyS.A.notes||''}<br><b>${_hyS.b}:</b> ${_hyS.B.notes||''}</span>` : ''}`;
   for(const e of classArr){
     const cls=getClassEntry(e); if(!cls)continue;
     const tierLabel={hero:'',basic:' (Basic Class)',advanced:' (Advanced Class)',prestige:` (Prestige Class, max ${cls.maxLvl||10})`}[e.tier]||'';
