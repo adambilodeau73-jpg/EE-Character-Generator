@@ -296,7 +296,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.69.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.70.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -2405,7 +2405,7 @@ const CLASS_FEATURES = {
     {lvl:1, book:'GMG', name:'Sneak Attack',       page:157, desc:'+1d6, +1d6 more at 3/5/7/9 (+5d6 total) — STACKS with sneak attack from other sources.', kind:'passive'},
     {lvl:1, book:'GMG', name:'Assassinate',        page:157, desc:'Study 3 rounds, then a damaging melee sneak attack within 3 rounds: Fort DC 10 + class level + Int mod (+ Improved Methods) or the target dies (or is paralyzed 1d6 + level rounds — Assassin’s choice).', kind:'active'},
     {lvl:1, book:'GMG', name:'Poison Use',         page:158, desc:'Never risks self-poisoning when applying poison to a blade.', kind:'passive'},
-    {lvl:2, book:'GMG', name:'Improved Methods',   page:158, desc:'At 2/4/6/8/10: +1 Assassinate DC per instance, OR advance an existing caster/manifester class (PP + spells/powers known).', kind:'meta'},
+    {lvl:2, book:'GMG', name:'Improved Methods',   page:158, desc:'At 2/4/6/8/10 — either-or per level, picked in 🎓 Class Choices as the level is attained (ruling 2026-10-02): +1 Assassinate DC per instance, OR advance an existing caster/manifester class (PP + spells/powers known).', kind:'meta'},
     {lvl:2, book:'GMG', name:'Uncanny Dodge',      page:158, desc:'Keep Dex to AC when flat-footed / vs invisible attackers; Improved (can’t be flanked) at 6th.', kind:'passive'},
     // BOOK CONFLICT (errata): the feature TEXT says Poison Resistance is
     // "gained at 2nd level, +1 per two additional levels", but the level
@@ -2491,7 +2491,7 @@ const CLASS_FEATURES = {
     {lvl:5, book:'GMG', name:'Dreadnaught',     page:172, desc:'Immune to fear (wired), +4 equipment on Fortitude saves (wired), and redundant systems IGNORE CRITICAL HITS.', kind:'passive'},
   ],
   'Loremaster': [
-    {lvl:1, book:'GMG', name:'Improved Magic / Psionics', page:173, desc:'EVERY level advances a prior casting/manifesting class (PP/day + spells/powers known only).', kind:'passive'},
+    {lvl:1, book:'GMG', name:'Improved Magic / Psionics', page:173, desc:'EVERY level advances a prior casting/manifesting class (PP/day + spells/powers known only) — the pool is CHOSEN PER LEVEL in 🎓 Class Choices (ruling 2026-10-02: improve whatever means qualified you; unpicked levels default to Arcane).', kind:'passive'},
     {lvl:1, book:'GMG', name:'Secret',        page:173, desc:'At 1/3/5/7/9 pick a Secret (tier ≤ class level + Int mod, no repeats) — in Class Choices: Instant Mastery (4 ranks in an untrained skill), Secret Health (+3 HP — baked), Inner Strength (+2 Will — wired), True Stamina (+2 Fort — wired), Avoidance (+2 Reflex — wired), Weapon Trick (Weapon Focus), Dodge Trick (Dodge, prereqs waived), Applicable Knowledge (any feat), Newfound Arcana (a 1st-level spell/power), More Newfound Arcana (2nd-level).', kind:'meta'},
     {lvl:2, book:'GMG', name:'Lore',          page:174, desc:'Bardic-knowledge-style check: 1d20 + Loremaster level + Int mod.', kind:'active'},
     {lvl:4, book:'GMG', name:'New Tongue',    page:174, desc:'Any new language at 4th and 8th.', kind:'meta'},
@@ -3219,7 +3219,39 @@ const CASTER_CLASSES = {
   // wishes on either art." CLs, max spell levels, and access stay per-pool.
   'Mystic Theurge': {tier:'prestige', advances:['arcane','divine'], mode:'full', apB:'cha', capstoneCharLevel:10, blendsPools:true},
   'Archmage':       {tier:'prestige', advances:'arcane',  mode:'full', apB:'cha'},
-  'Loremaster':     {tier:'prestige', advances:'arcane',  mode:'full', apB:'cha'},
+  // v8.70.0 (Adam's ruling): the Loremaster improves whatever means
+  // QUALIFIED it (7 Divinations cast / 7 Clairsentience powers manifested —
+  // all three pools genuinely reach the gate), chosen PER LEVEL as the
+  // level is attained (the GG's "some Loremasters opt to diversify").
+  // Unpicked levels default to Arcane — the pre-v8.70.0 status quo.
+  'Loremaster':     {tier:'prestige', mode:'full', apB:'cha',
+    advancesChoice:{base:'lm_adv_', ms:[1,2,3,4,5,6,7,8,9,10], map:{'Arcane':'arcane','Divine':'divine','Psionic':'psionic'}, defaultPool:'arcane'}},
+  // v8.70.0 (Adam's ruling): Improved Methods is an either-or PER LEVEL,
+  // decided when the level is attained — +1 Assassinate DC or an advance.
+  'Assassin':       {tier:'prestige', mode:'full', apB:'cha',
+    advancesChoice:{base:'asn_im_', ms:[2,4,6,8,10], map:{'Advance: Arcane':'arcane','Advance: Divine':'divine','Advance: Psionic':'psionic'}}},
+  // v8.70.0 — THE ADVANCER COMPLETION (Adam's Epic-prereq sitrep found the
+  // gap): ten classes whose advancement was display-text only. Schedules
+  // from each class's own GG table (carried in its CLASS_FEATURES desc);
+  // advancesAt = the class levels that advance the feeder (absent = every
+  // level). Ecclesiarch per its table advances at 2nd-5th; the Knights at
+  // 1/2/4/5/7/8/10; Elocater/Soulstalker at 1/3/4/6/7/8/10; the Tricksters
+  // at 2/3/4/6/7/8 with the Consummate capstone (CL = character level at
+  // 10th — the Theurges' Perfected Technique mechanic, reused verbatim).
+  // Loremaster stays arcane-only pending Adam's multi-pool ruling (its text
+  // reads "a prior casting/manifesting class"); Assassin's Improved Methods
+  // is an option-based advance — also awaiting a ruling.
+  'Metamind':              {tier:'prestige', advances:'psionic', mode:'full', apB:'cha'},
+  'Ecclesiarch':           {tier:'prestige', advances:'divine',  mode:'full', apB:'cha', advancesAt:[2,3,4,5]},
+  'Crusader':              {tier:'prestige', advances:'divine',  mode:'full', apB:'cha'},
+  'Guildmember (Magic)':   {tier:'prestige', advances:'arcane',  mode:'full', apB:'cha'},
+  'Guildmember (Psionic)': {tier:'prestige', advances:'psionic', mode:'full', apB:'cha'},
+  'Eldritch Knight':       {tier:'prestige', advances:'arcane',  mode:'full', apB:'cha', advancesAt:[1,2,4,5,7,8,10]},
+  'Holy Knight':           {tier:'prestige', advances:'divine',  mode:'full', apB:'cha', advancesAt:[1,2,4,5,7,8,10]},
+  'Elocater':              {tier:'prestige', advances:'psionic', mode:'full', apB:'cha', advancesAt:[1,3,4,6,7,8,10]},
+  'Soulstalker':           {tier:'prestige', advances:'psionic', mode:'full', apB:'cha', advancesAt:[1,3,4,6,7,8,10]},
+  'Arcane Trickster':      {tier:'prestige', advances:'arcane',  mode:'full', apB:'cha', advancesAt:[2,3,4,6,7,8], capstoneCharLevel:10},
+  'Psychic Trickster':     {tier:'prestige', advances:'psionic', mode:'full', apB:'cha', advancesAt:[2,3,4,6,7,8], capstoneCharLevel:10},
   'Cerebremancer':  {tier:'prestige', advances:['arcane','psionic'], mode:'full', capstoneCharLevel:10, blendsPools:true},  // printed alias of Psychic Theurge (GMG p.185)
   'Psychic Theurge':{tier:'prestige', advances:['arcane','psionic'], mode:'full', apB:'cha', capstoneCharLevel:10, blendsPools:true},
   // Note: more prestige classes may advance casting — see GM's Guide for full list.
@@ -3550,13 +3582,35 @@ function computeCasterStats(char) {
   // Stacked advancers compound onto the already-boosted feeder state.
   for (const e of classArr) {
     const meta = CASTER_CLASSES[e.name];
-    if (!meta || !meta.advances) continue;
+    if (!meta || (!meta.advances && !meta.advancesChoice)) continue;
     if (meta.tier !== e.tier) continue;
     const lvl = Math.max(0, e.level || 0);
     if (lvl <= 0) continue;
-    const targets = Array.isArray(meta.advances) ? meta.advances : [meta.advances];
-    for (const poolName of targets) {
-      if (!(poolName in out)) continue;
+    // v8.70.0 (the Advancer Completion): partial-schedule advancers — the
+    // meta's advancesAt lists WHICH class levels advance the feeder (the
+    // class's own GG table column); absent = every level, the standard.
+    const advLvls = Array.isArray(meta.advancesAt) ? meta.advancesAt.filter(m => lvl >= m).length : lvl;
+    // v8.70.0 (Adam's either-or ruling, 2026-10-02): CHOICE advancers — the
+    // Loremaster's per-level pool pick ("open to improve whatever means by
+    // which it was qualified"; the GG's own "some Loremasters opt to
+    // diversify") and the Assassin's Improved Methods (DC or advance) —
+    // each ATTAINED milestone's pick routes that level's advance, read from
+    // classChoices at the time the level is attained.
+    const poolAdvance = {};  // pool → advancer levels for THIS class entry
+    if (meta.advancesChoice) {
+      const ch = meta.advancesChoice;
+      for (const m of ch.ms) {
+        if (m > lvl) continue;
+        const pick = (char.classChoices || {})[ch.base + m];
+        const pn = pick ? (ch.map[pick] || null) : (ch.defaultPool || null);
+        if (pn) poolAdvance[pn] = (poolAdvance[pn] || 0) + 1;
+      }
+    } else {
+      const targets = Array.isArray(meta.advances) ? meta.advances : [meta.advances];
+      for (const poolName of targets) poolAdvance[poolName] = advLvls;
+    }
+    for (const [poolName, advN] of Object.entries(poolAdvance)) {
+      if (!(poolName in out) || advN <= 0) continue;
       const pool = out[poolName];
       // the feeder: best basic contributor with progression data
       let feeder = null;
@@ -3569,7 +3623,7 @@ function computeCasterStats(char) {
         const prog = CASTER_PROGRESSION[feeder.class];
         const fMeta = CASTER_CLASSES[feeder.class];
         const prevEff = Math.min(20, feeder.level + (feeder._advancedBy || 0));
-        const effLvl = Math.min(20, prevEff + lvl);
+        const effLvl = Math.min(20, prevEff + advN);  // v8.70.0: schedule/choice-aware
         const oldPP = prog.pp[prevEff - 1] || 0, newPP = prog.pp[effLvl - 1] || 0;
         const newMax = prog.maxPowerLvl[effLvl - 1] || 0;
         let newCl = 0;
@@ -3591,13 +3645,13 @@ function computeCasterStats(char) {
         feeder.classBonusPP = newBonus;
         feeder.classMaxPowerLvl = newMax;
         feeder.clContribution = newCl;
-        feeder._advancedBy = (feeder._advancedBy || 0) + lvl;
+        feeder._advancedBy = (feeder._advancedBy || 0) + advN;  // v8.70.0: schedule/choice-aware
         if (newCl > pool.cl) pool.cl = newCl;
         if (newMax > pool.maxPowerLvl) pool.maxPowerLvl = newMax;
       } else {
         // no basic feeder in the pool (GM-exception build): the legacy
         // CL-only stack keeps such characters no worse off than before.
-        pool.cl += lvl;
+        pool.cl += advN;  // v8.70.0: schedule/choice-aware
       }
       pool.contributors.push({
         class: e.name,
@@ -10503,6 +10557,13 @@ const CLASS_CHOICE_DEFS = [
   { cls:'Eldritch Knight', feature:'Knighthood',       base:'ek_kh_',  ms:[10], kind:'pick', options:['Renown','Windfall','Both (formal Allegiance declared)'], note:'Renown or Windfall — BOTH with a formal Allegiance to the honoring organization.' },
   { cls:'Holy Knight',     feature:'Knighthood',       base:'hk_kh_',  ms:[10], kind:'pick', options:['Both (Allegiance to the god/church)'], note:'Every Holy Knight has an official Allegiance — both feats.' },
   { cls:'Elementalist',    feature:'Elemental Focus',  base:'ele_var_', ms:[1], kind:'pick', options:['Ambrian (air/electricity)','Kryonian (water/cold)','Vesuvian (fire/fire)','Vitrolian (earth/acid)'], note:'Drives Affinity saves, Adaptation resistance, Immunity, and every variant feature.' },
+  // v8.70.0 (Adam's rulings): the per-level either-or advancers.
+  { cls:'Loremaster',      feature:'Improved Magic / Psionics', base:'lm_adv_', ms:[1,2,3,4,5,6,7,8,9,10], kind:'pick',
+    options:['Arcane','Divine','Psionic'],
+    note:'Which pool THIS Loremaster level improves — decided as the level is attained (GG p.173; ruling 2026-10-02: any pool that could have QUALIFIED you — the 7-Divination / 7-Clairsentience gate — may be improved; “some Loremasters opt to diversify”). Unpicked levels default to Arcane (the pre-v8.70.0 behavior).' },
+  { cls:'Assassin',        feature:'Improved Methods', base:'asn_im_', ms:[2,4,6,8,10], kind:'pick',
+    options:['Assassinate DC +1','Advance: Arcane','Advance: Divine','Advance: Psionic'],
+    note:'Either-or per level, decided when the level is attained (ruling 2026-10-02): +1 to the Assassinate save DC, OR advance an existing casting/manifesting class (PP + spells/powers known only). DC picks apply to the Assassinate feature at the table; Advance picks route the pool engine live.' },
   { cls:'Loremaster',      feature:'Secret',           base:'lm_sec_', ms:[1,3,5,7,9], kind:'pick', distinct:true,
     options:['Instant mastery (4 ranks, untrained skill)','Secret health (+3 HP)','Secrets of inner strength (+2 Will)','The lore of true stamina (+2 Fort)','Secret knowledge of avoidance (+2 Reflex)','Weapon trick (Weapon Focus)','Dodge trick (Dodge, prereqs waived)','Applicable knowledge (any feat)','Newfound arcana (1st-level spell/power)','More newfound arcana (2nd-level spell/power)'],
     note:'Tier must be ≤ Loremaster level + Int modifier (1–10 in list order; GM enforces); no repeats. HP/save picks bake live.' },
@@ -37632,7 +37693,10 @@ function reconcileOrphanSubOptions(c){
 function exportRoster() {
   if (!chars.length) { toast('Roster is empty — nothing to export.'); return; }
   const json = JSON.stringify(chars, null, 1);
-  const fname = 'EE_Roster_' + new Date().toISOString().slice(0, 10) + '.json';
+  // v8.70.0 (the long-earmarked micro-fix): LOCAL date, not UTC —
+  // toISOString stamped evening exports with tomorrow's date.
+  const _d = new Date();
+  const fname = 'EE_Roster_' + _d.getFullYear() + '-' + String(_d.getMonth() + 1).padStart(2, '0') + '-' + String(_d.getDate()).padStart(2, '0') + '.json';
   // v8.58.0 Backup Guardian (c): coarse-pointer devices (phones/tablets) get
   // the native share sheet — message the roster to yourself or the GM in one
   // gesture (the sheet includes save-to-files options too). Desktop keeps
@@ -38453,7 +38517,12 @@ function renderSheet(){
     const cls=getClassEntry(e); if(!cls)continue;
     const tierLabel={hero:'',basic:' (Basic Class)',advanced:' (Advanced Class)',prestige:` (Prestige Class, max ${cls.maxLvl||10})`}[e.tier]||'';
     const apHint=e.tier==='hero'?` &nbsp;|&nbsp; AP: ${c.apMax}/lvl`:'';
-    featuresHtml+=`<br><br><b style="color:var(--gold);">${e.name} ${e.level}</b>${citeHTML('classes', e.name)} <span style="font-size:11px;color:rgba(200,151,30,.5);">${tierLabel}</span><br>Hit Die: d${cls.hd} &nbsp;|&nbsp; Key: ${cls.attr} &nbsp;|&nbsp; ${cls.sp}+Int SP/lvl${apHint}`;
+    // v8.70.0 (Adam's ask, GG p.161 verbatim: "The Ecclesiarch, known
+    // sometimes as a Hierophant"): the Druid-side Ecclesiarch wears the
+    // Hierophant name on the Sheet.
+    const _clsDisp = (e.name === 'Ecclesiarch' && (c.druidOption || migrateLegacyClasses(c).some(x => x._heritageChoice === 'Cleric (Druid Option)')))
+      ? `<span title="GG p.161: the Ecclesiarch is 'known sometimes as a Hierophant' — the Druid-rooted ones answer to it.">Ecclesiarch (Hierophant)</span>` : e.name;
+    featuresHtml+=`<br><br><b style="color:var(--gold);">${_clsDisp} ${e.level}</b>${citeHTML('classes', e.name)} <span style="font-size:11px;color:rgba(200,151,30,.5);">${tierLabel}</span><br>Hit Die: d${cls.hd} &nbsp;|&nbsp; Key: ${cls.attr} &nbsp;|&nbsp; ${cls.sp}+Int SP/lvl${apHint}`;
   }
   if(c.sixLevels){
     const slLine=['arcane','divine','heroic','mutation','psionic','tech'].map(a=>`${SIX_LEVELS[a].short} ${c.sixLevels[a]||0}`).join(' · ');
