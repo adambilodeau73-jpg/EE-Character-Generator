@@ -296,7 +296,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.66.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.68.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -627,6 +627,21 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
         <select id="c-race" onchange="updateRaceInfo()">
           <!-- populated by populateRaceDropdown() at init time, sourced from the RACES table -->
         </select>
+        <!-- v8.68.0 (Adam's simple model): the Hybrid two-parent picker.
+             Shown only while Race = Hybrid; RLM auto-computes A+B+1 with a
+             GM-override field for tailored builds (dropped abilities noted). -->
+        <div id="hybrid-row" style="display:none;margin-top:6px;padding:7px 9px;border:1px solid rgba(200,151,30,.3);border-radius:3px;font-size:11.5px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <span>Parent A <select id="c-hyb-a" onchange="updateHybridForm()"></select></span>
+            <span>Parent B <select id="c-hyb-b" onchange="updateHybridForm()"></select></span>
+            <span title="Size AND movement modes/rate follow this parent (HH p.30).">Size &amp; movement from <select id="c-hyb-size" onchange="updateHybridForm()"><option value="a">Parent A</option><option value="b">Parent B</option></select></span>
+          </div>
+          <div style="margin-top:4px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <span id="c-hyb-rlm-info" style="color:rgba(200,151,30,.8);"></span>
+            <span title="GM-TAILORED builds only: if your GM approved dropping specific racial abilities to shave the modifier, enter the GM-adjudicated RLM here (blank = the automatic A + B + 1).">GM override RLM <input type="number" id="c-hyb-rlm" style="width:56px;" placeholder="auto" onchange="updateHybridForm()"></span>
+            <input type="text" id="c-hyb-dropped" placeholder="Dropped abilities (GM-tailored builds — note them here)…" style="flex:1;min-width:180px;font-size:11px;">
+          </div>
+        </div>
       </div>
       <div class="fr">
         <label>Alignment</label>
@@ -1875,7 +1890,14 @@ const RACES = {
             {type:'racial',target:'will',value:1,condition:'vs powers, spells & spell-like abilities',label:'Xeph resilience'}],
     notes:'60′ Darkvision. Naturally Psionic +1 PP. +1 saves vs powers/spells. Burst (psionic speed boost). Favored: Warmind.'},
   // === Catch-alls ===
-  'Mutant/Hybrid':{adj:{},ecl:0,notes:'See GM for mutation specifics and ECL. Tier-2 Foe Folio creatures (60+ playable monsters lacking AS CHARACTERS sections) also derive from base stats per GM.'},
+  'Mutant/Hybrid':{adj:{},ecl:0,notes:'LEGACY CATCH-ALL (v8.67.0, Adam’s ruling): MUTANT is a SUBTYPE, not a race — pick your TRUE base race and build the mutation on the Mutations tab (MP, tier, Mutant level, and the Unnatural Prowess/Resilience bakes all wire automatically; HH p.29). HYBRID is its own race entry with the two-parent picker. This entry remains for legacy characters and Tier-2 Foe Folio creatures (60+ playable monsters lacking AS CHARACTERS sections) derived from base stats per GM.'},
+  // v8.68.0 (Adam's simple model, HH pp.29-30 "Half-[Race]"): the two-parent
+  // half-blood. ALL racial abilities of BOTH parents; RLM = A + B + 1
+  // (Half-Elf: 0+0+1 = +1); size & movement from ONE chosen parent. The
+  // GM-tailored path (drop abilities to shave the RLM) enters its adjusted
+  // RLM manually. Full per-ability itemization awaits the racial-ability
+  // census (prose → structured) — flagged, not forgotten.
+  'Hybrid':{adj:{},ecl:0,notes:'Half-blood of two parent races (Humanoid / Monstrous Humanoid, GM approval — HH pp.29-30). Gains ALL racial abilities of BOTH parents; Racial Level Modifier = parent A + parent B + 1 (a Half-Elf: 0+0+1 = +1). Size and movement follow ONE chosen parent. GM-tailored builds may drop specific abilities and enter the GM-adjusted RLM manually.'},
   Other:{adj:{},ecl:0,notes:'Custom race — see GM for racial details.'},
 };
 const HERO_CLASSES = {
@@ -3711,7 +3733,9 @@ function computeCasterStats(char) {
   // psionic pool exists (a Naturally Psionic character with no manifesting
   // class banks the reserve at the table — note-level, like the book).
   {
-    const _rpp = (RACES[char.race] || {}).bonusPP || 0;
+    // v8.68.0: a Hybrid inherits BOTH parents' Naturally-Psionic bonus PP.
+    const _hyPP = (typeof hybridInfo === 'function') ? hybridInfo(char) : null;
+    const _rpp = _hyPP ? ((_hyPP.A.bonusPP || 0) + (_hyPP.B.bonusPP || 0)) : ((RACES[char.race] || {}).bonusPP || 0);
     if (_rpp && out.psionic && out.psionic.contributors.length) {
       out.psionic.ppBase += _rpp;
       out.psionic.contributors.push({
@@ -7895,9 +7919,14 @@ function computeResistances(c) {
   // Janni fire 10, Kinori cold 20) and immunities (Elf sleep, Duergar
   // poison/paralysis, Azer fire, Doppelganger sleep/charm, Grimlock gaze…)
   // — the best-wins / immunity-supersedes engine handles the rest.
-  const _rr = RACES[(c && c.race)] || {};
-  for (const t in (_rr.resist || {})) better(t, _rr.resist[t], `${c.race} racial`);
-  for (const t of (_rr.immune || [])) if (!immune[t]) immune[t] = `${c.race} racial`;
+  // v8.68.0: Hybrids carry BOTH parents' resistances & immunities (the
+  // best-wins / immunity-supersedes engine reconciles overlaps).
+  const _hy = (typeof hybridInfo === 'function') ? hybridInfo(c) : null;
+  const _rrList = _hy ? [[_hy.A, _hy.a + ' racial (Hybrid)'], [_hy.B, _hy.b + ' racial (Hybrid)']] : [[RACES[(c && c.race)] || {}, `${c.race} racial`]];
+  for (const [_rr, _rrSrc] of _rrList) {
+    for (const t in (_rr.resist || {})) better(t, _rr.resist[t], _rrSrc);
+    for (const t of (_rr.immune || [])) if (!immune[t]) immune[t] = _rrSrc;
+  }
   // Talents (channels carry resolved values).
   const bon = buildTalentBonuses(c) || {};
   for (const key in bon) {
@@ -7988,10 +8017,13 @@ function computeSR(c) {
   if (mnk >= 13) entries.push({ value: mnk + 10, source: `Diamond Soul (Monk ${mnk} + 10; Ex)` });
   // v8.16.0 Races pass: racial SR (Drow 11+level, Azer 13+level, Hound
   // Archon 16+level, Ogre Mage flat 19) — best-wins like every SR source.
-  const _rsr = (RACES[c.race] || {}).sr;
-  if (_rsr) {
-    const v = _rsr.base + (_rsr.perLevel ? (c.totalLvl || 1) : 0);
-    entries.push({ value: v, source: `${c.race} racial SR ${_rsr.base}${_rsr.perLevel ? ' + level' : ''}` });
+  // v8.68.0: Hybrids carry both parents' SR — best-wins resolves.
+  const _hySR = (typeof hybridInfo === 'function') ? hybridInfo(c) : null;
+  for (const [_rsr, _srSrc] of (_hySR ? [[_hySR.A.sr, _hySR.a], [_hySR.B.sr, _hySR.b]] : [[(RACES[c.race] || {}).sr, c.race]])) {
+    if (_rsr) {
+      const v = _rsr.base + (_rsr.perLevel ? (c.totalLvl || 1) : 0);
+      entries.push({ value: v, source: `${_srSrc} racial SR ${_rsr.base}${_rsr.perLevel ? ' + level' : ''}` });
+    }
   }
   for (const it of getCharItems(c)) {
     if (it.equipped && it.catalogue === 'magic' && it.ref === 'Mantle of Spell Resistance') {
@@ -8188,8 +8220,11 @@ function computeDR(c) {
   // Satyr 5/cold iron, Rakshasa 15/good & piercing, Werewolf 10/silver in
   // hybrid form…) — typed instances, best-per-attack; never part of the
   // class-level x/− pool (FF p.523).
-  const _rdr = (RACES[c.race] || {}).dr;
-  if (_rdr) entries.push({ value: _rdr.value, bypass: _rdr.bypass, source: `${c.race} racial`, conditional: _rdr.conditional || undefined });
+  // v8.68.0: Hybrids carry both parents' DR instances (best-applicable rules).
+  const _hyDR = (typeof hybridInfo === 'function') ? hybridInfo(c) : null;
+  for (const [_rdr, _drSrc] of (_hyDR ? [[_hyDR.A.dr, _hyDR.a], [_hyDR.B.dr, _hyDR.b]] : [[(RACES[c.race] || {}).dr, c.race]])) {
+    if (_rdr) entries.push({ value: _rdr.value, bypass: _rdr.bypass, source: `${_drSrc} racial`, conditional: _rdr.conditional || undefined });
+  }
   // v8.15.4: Biofeedback — the book's OWN non-stacking example. Shown as a
   // conditional instance whenever the power is in the repertoire.
   if (getCharPowers(c).some(p => p.name === 'Biofeedback')) entries.push({ value: 2, bypass: '—', source: 'Biofeedback (manifested)', conditional: 'while manifested — DR 2/− (+1 per 3 extra PP augmented); does NOT stack with the class-level pool (FF p.523): the best applicable applies' });
@@ -8212,6 +8247,50 @@ const RACE_BASE_SPEED = { 'Dwarf': 20, 'Gnome': 20, 'Halfling': 20 };
 // NOT preserved across edit-saves; the assembly recomputes maxHP from the
 // form and this reconciler re-applies onto the fresh value). Called from
 // talent add/remove, level-up, the edit-save path, and a renderSheet guard.
+// v8.67.0 (MUTANT SYNC — Adam's rulings, 2026-10-02): the Mutant subtype's
+// UNNATURAL PROWESS and UNNATURAL RESILIENCE (HH p.29), previously entirely
+// unwired. All Extraordinary (racial physiology — Null Power Field proof).
+// Per +1 Mutant level: +2 skill points (Tech-0, budget-integrated) and
+// +(5 + Con mod) HP. Per +2: +1 Base Attack (REAL printed BA — it mints
+// iteratives at thresholds, ruled book-intended) and +1 ALL saves. Per +3:
+// +1 Defense Bonus. BA/Def/HP BAKE via this delta ledger (the
+// mutNacHpApplied convention: NOT edit-preserved, re-applies onto fresh
+// assembly values); saves ride computeStatBlock lanes; drilldown parity via
+// buildMutantSubtypeLanes below.
+function reconcileMutantSubtype(c) {
+  if (!c) return false;
+  const ml = (typeof getMPState === 'function') ? (getMPState(c).mutantLevel || 0) : 0;
+  const conM = am((((c.attrs) || [10, 10, 10, 10, 10, 10])[2]) || 10);
+  const exp = { bab: Math.floor(ml / 2), def: Math.floor(ml / 3), hp: ml * (5 + conM) };
+  const app = c.mutSubApplied || { bab: 0, def: 0, hp: 0 };
+  let changed = false;
+  if (exp.bab !== app.bab && isFinite(c.bab)) { c.bab += exp.bab - app.bab; changed = true; }
+  if (exp.def !== app.def && isFinite(c.def)) { c.def += exp.def - app.def; changed = true; }
+  if (exp.hp !== app.hp && isFinite(c.maxHP)) {
+    c.maxHP += exp.hp - app.hp;
+    if (exp.hp > app.hp && isFinite(c.currentHP)) c.currentHP += exp.hp - app.hp;
+    if (isFinite(c.currentHP)) c.currentHP = Math.min(c.currentHP, c.maxHP);
+    changed = true;
+  }
+  if (changed || !c.mutSubApplied) c.mutSubApplied = exp;
+  return changed;
+}
+// The drilldown/parity lanes — ONE builder consumed by computeStatBlock
+// (entries) and verifyParity (symmetric subtraction). The bab/def entries
+// mirror the baked values so card and drilldown agree.
+function buildMutantSubtypeLanes(c) {
+  const ml = (typeof getMPState === 'function') ? (getMPState(c).mutantLevel || 0) : 0;
+  if (ml <= 0) return { bab: [], def: [], fort: [], ref: [], will: [] };
+  const half = Math.floor(ml / 2), third = Math.floor(ml / 3);
+  const prow = (v) => ({ type: 'racial', source: 'mutant:unnaturalProwess', value: v, label: `Unnatural Prowess (Mutant +${ml}, Ex — HH p.29)` });
+  const resl = (v) => ({ type: 'racial', source: 'mutant:unnaturalResilience', value: v, label: `Unnatural Resilience (Mutant +${ml}, Ex — HH p.29)` });
+  return {
+    bab: half ? [prow(half)] : [],
+    def: third ? [prow(third)] : [],
+    fort: half ? [resl(half)] : [], ref: half ? [resl(half)] : [], will: half ? [resl(half)] : [],
+  };
+}
+
 function reconcileTalentHp(c) {
   if (!c) return false;
   const expected = (((buildTalentBonuses(c) || {}).hp) || []).reduce((s, b) => s + (b.value || 0), 0);
@@ -8251,10 +8330,43 @@ const SIZE_LADDER = ['Fine', 'Diminutive', 'Tiny', 'Small', 'Medium', 'Large', '
 // Natural-weapon die progression for sizes past the catalogued L die
 // (standard d20 step-up ladder).
 const DIE_STEP_UP = { '1d2': '1d3', '1d3': '1d4', '1d4': '1d6', '1d6': '1d8', '1d8': '2d6', '2d6': '3d6', '3d6': '4d6', '4d6': '6d6', '6d6': '8d6' };
+// ============================================================================
+// v8.68.0 (Adam's simple model) — THE HYBRID RESOLVER. c.hybrid =
+// {a, b, sizeFrom:'a'|'b', rlmOverride?, dropped?}. One resolver; the racial
+// consumers each route through it: ECL/RLM, size+movement (ONE parent),
+// racial bonuses/resist/immunities/SR/DR/bonusPP/feat+weapon grants (UNION
+// of both parents — "all racial abilities of both"; best-wins engines
+// reconcile overlaps), attribute adjustments (A + B, applied at creation).
+function hybridInfo(c) {
+  if (!c || c.race !== 'Hybrid' || !c.hybrid || !c.hybrid.a || !c.hybrid.b) return null;
+  const h = c.hybrid;
+  const A = RACES[h.a] || {}, B = RACES[h.b] || {};
+  const auto = (A.ecl || 0) + (B.ecl || 0) + 1;
+  const rlm = (h.rlmOverride === 0 || h.rlmOverride) ? h.rlmOverride : auto;
+  return { a: h.a, b: h.b, A, B, sizeFrom: h.sizeFrom === 'b' ? h.b : h.a, rlm, autoRlm: auto, dropped: h.dropped || '' };
+}
+function raceEclOf(c) { const hy = hybridInfo(c); return hy ? hy.rlm : ((RACES[(c && c.race)] || {}).ecl || 0); }
+function raceKeyForSize(c) { const hy = hybridInfo(c); return hy ? hy.sizeFrom : (c && c.race); }
+function racialNatACOf(c) {
+  const hy = hybridInfo(c);
+  if (hy) return Math.max(hy.A.natAC || 0, hy.B.natAC || 0);
+  return (RACES[(c && c.race)] || {}).natAC || 0;
+}
+function raceDisplayOf(c) { const hy = hybridInfo(c); return hy ? `Hybrid (${hy.a} / ${hy.b})` : ((c && c.race) || ''); }
+function buildRacialBonusesFor(c) {
+  const hy = hybridInfo(c);
+  if (!hy) return buildRacialBonuses((c && c.race) || '');
+  const A = buildRacialBonuses(hy.a) || {}, B = buildRacialBonuses(hy.b) || {};
+  const out = {};
+  for (const k of new Set([...Object.keys(A), ...Object.keys(B)])) out[k] = [...(A[k] || []), ...(B[k] || [])];
+  return out;
+}
+
 function raceSizeIndex(c) {
   // v8.16.0 Races pass: the structured size field governs ('S' Small, 'L'
   // Large); the notes regex stays as the legacy fallback.
-  const r = RACES[(c && c.race)] || {};
+  // v8.68.0: Hybrids read the chosen size parent.
+  const r = RACES[raceKeyForSize(c)] || {};
   if (r.size === 'S') return 3;
   if (r.size === 'L') return 5;
   return /\bSmall\b/.test(r.notes || '') ? 3 : 4;
@@ -8357,7 +8469,10 @@ function computeGrapple(c) {
 }
 
 function computeSpeeds(c) {
-  const race = c.race || '';
+  // v8.68.0: a Hybrid's size parent governs movement too (HH p.30 — size is
+  // selected "by which the character's movement modes and movement rate are
+  // also determined").
+  const race = (typeof raceKeyForSize === 'function') ? (raceKeyForSize(c) || '') : (c.race || '');
   const rdef = RACES[race] || {};
   const notes = rdef.notes || '';
   // v8.16.0 Races pass: the structured speed field governs (Centaur 50′,
@@ -9379,7 +9494,7 @@ function computeEquippedWeaponSummaries(c) {
     const _eff = effAttrs(c);
     const strM = am(_eff[0]);
     const bab = c.bab || 0;
-    const small = /\bSmall\b/.test(((RACES[c.race] || {}).notes) || '');
+    const small = raceSizeIndex(c) === 3;  // v8.68.0: routed through the size resolver (Hybrid-aware)
     let attackBonus = bab + strM;
     const mods = [
       { label: 'Base Attack Bonus', value: bab },
@@ -11883,7 +11998,9 @@ function computeStatBlock(char, activeConditions) {
   // Class-progression bonuses, bucketed by stat
   const classBon = buildClassBonuses(classArr);
   // Racial trait bonuses, bucketed by target stat
-  const racialBon = buildRacialBonuses(char.race);
+  // v8.68.0: Hybrids merge both parents' trait bonuses (distinct sources —
+  // the typed aggregator reconciles same-type overlaps).
+  const racialBon = (typeof buildRacialBonusesFor === 'function') ? buildRacialBonusesFor(char) : buildRacialBonuses(char.race);
   // Feat bonus contributions, bucketed by target stat
   const featBon = buildFeatBonuses(char);
   // v8.5.0 Layer 2: talent bonus contributions. Only hp and init merge here —
@@ -11914,12 +12031,16 @@ function computeStatBlock(char, activeConditions) {
   // cards, drilldowns, and AC all move together (PA's mirror).
   const _bdDecl = (typeof combatDecl === 'function') ? (combatDecl(char).bd || 0) : 0;
   const _bdEntry = _bdDecl ? [{ type: 'untyped', source: 'declared:bestDefense', value: -_bdDecl, label: `Best Defense (declared — +${_bdDecl} melee attack)` }] : [];
+  // v8.67.0 (Mutant sync): Unnatural Prowess/Resilience lanes — the bab/def
+  // entries mirror the reconciler's bakes (card/drilldown parity), the save
+  // entries ARE the wire (saves aren't baked). verifyParity subtracts these.
+  const msLanes = (typeof buildMutantSubtypeLanes === 'function') ? buildMutantSubtypeLanes(char) : { bab: [], def: [], fort: [], ref: [], will: [] };
   const lists = {
-    bab:  [...classBon.bab,  ...(featBon.bab||[]), ...((cfSaveBon && cfSaveBon.bab)||[])],
-    def:  [...classBon.def,  ...(racialBon.def||[]),  ...(featBon.def||[]), ...((cfSaveBon && cfSaveBon.def)||[]), ..._bdEntry],
-    fort: [...classBon.fort, buildAttributeBonus('CON', conM), ...(racialBon.fort||[]), ...(featBon.fort||[]), ...(mutBon.fort||[]), ...(mgBon.fort||[]), ...(cfSaveBon.fort||[]), ...(aeBon.fort||[])],
-    ref:  [...classBon.ref,  buildAttributeBonus('DEX', dexM), ...(racialBon.ref||[]),  ...(featBon.ref||[]),  ...(mutBon.ref||[]),  ...(mgBon.ref||[]),  ...(cfSaveBon.ref||[]),  ...(aeBon.ref||[])],
-    will: [...classBon.will, buildAttributeBonus('WIS', wisM), ...(racialBon.will||[]), ...(featBon.will||[]), ...(mutBon.will||[]), ...(mgBon.will||[]), ...(cfSaveBon.will||[]), ...(aeBon.will||[])],
+    bab:  [...classBon.bab,  ...(featBon.bab||[]), ...((cfSaveBon && cfSaveBon.bab)||[]), ...msLanes.bab],
+    def:  [...classBon.def,  ...(racialBon.def||[]),  ...(featBon.def||[]), ...((cfSaveBon && cfSaveBon.def)||[]), ...msLanes.def, ..._bdEntry],
+    fort: [...classBon.fort, buildAttributeBonus('CON', conM), ...(racialBon.fort||[]), ...(featBon.fort||[]), ...(mutBon.fort||[]), ...(mgBon.fort||[]), ...(cfSaveBon.fort||[]), ...(aeBon.fort||[]), ...msLanes.fort],
+    ref:  [...classBon.ref,  buildAttributeBonus('DEX', dexM), ...(racialBon.ref||[]),  ...(featBon.ref||[]),  ...(mutBon.ref||[]),  ...(mgBon.ref||[]),  ...(cfSaveBon.ref||[]),  ...(aeBon.ref||[]), ...msLanes.ref],
+    will: [...classBon.will, buildAttributeBonus('WIS', wisM), ...(racialBon.will||[]), ...(featBon.will||[]), ...(mutBon.will||[]), ...(mgBon.will||[]), ...(cfSaveBon.will||[]), ...(aeBon.will||[]), ...msLanes.will],
     rep:  [...classBon.rep,  ...(racialBon.rep||[]),  ...(featBon.rep||[]), ...((typeof buildClassFeatureRepBonuses === 'function') ? buildClassFeatureRepBonuses(char) : [])],
     // Armor Class: 10 base + size + DEX + def-bonus + natural + (future: armor, shield, deflection)
     ac:   [
@@ -11934,6 +12055,7 @@ function computeStatBlock(char, activeConditions) {
       ...(mgBon.ac||[]),  // v8.6.0 firm-wire: deflection rings et al.
       ...(aeBon.ac||[]),  // v8.42.0: transient wired buffs (Mental Barrier, Foresight…)
       ..._bdEntry,        // v8.65.0: Best Defense — the def spend reaches AC too
+      ...msLanes.def.map(b => ({...b, target:'ac'})),  // v8.67.0: Unnatural Prowess Def feeds AC like class def-bonus does
     ],
     // HP — baseline = class HD sum (first die max, rest averaged) + CON per level + feat bonuses.
     // We build per-class entries so the drilldown shows "Fighter HD: 32 (level 5)" etc.
@@ -12075,15 +12197,19 @@ function verifyParity(char) {
   // v8.16.0 Races pass: racial trait bonuses (Halfling +1 saves, Xeph…)
   // now reach the v8 save totals — subtract the unconditional portion the
   // same way feats/mutations/items do, keeping the class-only comparison.
-  const raBonP = buildRacialBonuses(char.race);
+  const raBonP = (typeof buildRacialBonusesFor === 'function') ? buildRacialBonusesFor(char) : buildRacialBonuses(char.race);
   const raContrib = (target) => (raBonP[target] || []).filter(b => !b.condition).reduce((s, b) => s + (b.value || 0), 0);
+  // v8.67.0 (Mutant sync): Unnatural Prowess/Resilience lanes subtract the
+  // same way feats/racials do — v7 knows only the class progression.
+  const msLanesP = (typeof buildMutantSubtypeLanes === 'function') ? buildMutantSubtypeLanes(char) : {};
+  const msContrib = (target) => (msLanesP[target] || []).reduce((s, b) => s + (b.value || 0), 0);
   const diffs = {};
   const checks = [
-    ['bab',  v7.bab, v8.bab.total - featContrib('bab') - cfContrib('bab') - raContrib('bab')],
-    ['def',  v7.def, v8.def.total - featContrib('def') - cfContrib('def') - raContrib('def')],
-    ['fort_class', v7.fort, v8.fort.total - am(effP[2]||10) - featContrib('fort') - mutContrib('fort') - mgContrib('fort') - cfContrib('fort') - raContrib('fort')],
-    ['ref_class',  v7.ref,  v8.ref.total  - am(effP[1]||10) - featContrib('ref')  - mutContrib('ref')  - mgContrib('ref')  - cfContrib('ref')  - raContrib('ref')],
-    ['will_class', v7.will, v8.will.total - am(effP[4]||10) - featContrib('will') - mutContrib('will') - mgContrib('will') - cfContrib('will') - raContrib('will')],
+    ['bab',  v7.bab, v8.bab.total - featContrib('bab') - cfContrib('bab') - raContrib('bab') - msContrib('bab')],
+    ['def',  v7.def, v8.def.total - featContrib('def') - cfContrib('def') - raContrib('def') - msContrib('def')],
+    ['fort_class', v7.fort, v8.fort.total - am(effP[2]||10) - featContrib('fort') - mutContrib('fort') - mgContrib('fort') - cfContrib('fort') - raContrib('fort') - msContrib('fort')],
+    ['ref_class',  v7.ref,  v8.ref.total  - am(effP[1]||10) - featContrib('ref')  - mutContrib('ref')  - mgContrib('ref')  - cfContrib('ref')  - raContrib('ref') - msContrib('ref')],
+    ['will_class', v7.will, v8.will.total - am(effP[4]||10) - featContrib('will') - mutContrib('will') - mgContrib('will') - cfContrib('will') - raContrib('will') - msContrib('will')],
     ['rep',  v7.rep, v8.rep.total - featContrib('rep')],
     ['totalLvl', v7.totalLvl, v8.totalLvl],
     ['ap',   v7.ap, v8.ap],
@@ -34068,6 +34194,14 @@ function updatePB(){
 // Get the currently-applied racial adjustment map for the named race.
 // Returns an array of 6 ints (one per attribute), all zero if race has no adj.
 function getRacialAdj(raceName){
+  // v8.68.0: a Hybrid's adjustments are the SUM of both parents' (all
+  // racial abilities of both — Adam's simple model), read from the form.
+  if (raceName === 'Hybrid') {
+    const a = document.getElementById('c-hyb-a')?.value || '';
+    const b = document.getElementById('c-hyb-b')?.value || '';
+    const aj = (RACES[a] || {}).adj || {}, bj = (RACES[b] || {}).adj || {};
+    return ATTR_NAMES.map(n => (aj[n] || 0) + (bj[n] || 0));
+  }
   const r = RACES[raceName];
   const adj = (r && r.adj) || {};
   return ATTR_NAMES.map(n => adj[n] || 0);
@@ -34085,10 +34219,20 @@ function applyRaceAdjustments(newRaceName){
       if (inp) inp.value = (parseInt(inp.value)||10) - oldAdj[i];
     }
   } else if (formBudget.racialApplied === newRaceName) {
-    // Same race; nothing to do
-    refreshAttrModifiers();
-    renderAttrBudget();
-    return;
+    // Same race; nothing to do — EXCEPT a Hybrid whose parents changed:
+    // reverse the previously-applied parent sum (snapshotted) and fall
+    // through to re-apply the fresh one (v8.68.0).
+    if (newRaceName === 'Hybrid') {
+      const prev = formBudget.hybridAdjApplied || [0,0,0,0,0,0];
+      for (let i = 0; i < 6; i++) {
+        const inp = document.getElementById('a'+i);
+        if (inp) inp.value = (parseInt(inp.value)||10) - prev[i];
+      }
+    } else {
+      refreshAttrModifiers();
+      renderAttrBudget();
+      return;
+    }
   }
   // Step 2: apply the new race's adjustments
   const newAdj = getRacialAdj(newRaceName);
@@ -34096,6 +34240,9 @@ function applyRaceAdjustments(newRaceName){
     const inp = document.getElementById('a'+i);
     if (inp) inp.value = (parseInt(inp.value)||10) + newAdj[i];
   }
+  // v8.68.0: snapshot the applied Hybrid parent-sum so a later parent swap
+  // can reverse exactly what was applied.
+  if (newRaceName === 'Hybrid') formBudget.hybridAdjApplied = newAdj;
   formBudget.racialApplied = newRaceName;
   refreshAttrModifiers();
   renderAttrBudget();
@@ -34156,12 +34303,57 @@ function renderAttrBudget(){
 
 
 // ========== RACE INFO ==========
+// v8.68.0: the Hybrid form helpers — populate the parent pickers once,
+// recompute the RLM line, and re-apply the summed adjustments on any change.
+function _hybridEligibleRaces() {
+  const barred = new Set(['Hybrid', 'Mutant/Hybrid', 'Other']);
+  return Object.keys(RACES).filter(n => !barred.has(n)).sort();
+}
+function _formHybridRlm() {
+  const a = document.getElementById('c-hyb-a')?.value || '';
+  const b = document.getElementById('c-hyb-b')?.value || '';
+  if (!a || !b) return 0;
+  const ov = document.getElementById('c-hyb-rlm')?.value;
+  if (ov !== '' && ov != null && !isNaN(parseInt(ov, 10))) return parseInt(ov, 10);
+  return ((RACES[a] || {}).ecl || 0) + ((RACES[b] || {}).ecl || 0) + 1;
+}
+function updateHybridForm() {
+  const a = document.getElementById('c-hyb-a')?.value || '';
+  const b = document.getElementById('c-hyb-b')?.value || '';
+  const info = document.getElementById('c-hyb-rlm-info');
+  if (info) {
+    if (a && b) {
+      const auto = ((RACES[a] || {}).ecl || 0) + ((RACES[b] || {}).ecl || 0) + 1;
+      const eff = _formHybridRlm();
+      info.innerHTML = `RLM: <b>+${eff}</b> ${eff === auto ? `(auto: ${(RACES[a]||{}).ecl||0} + ${(RACES[b]||{}).ecl||0} + 1)` : `<span style="color:#d4b870;">(GM override — auto would be +${auto})</span>`}`;
+    } else info.innerHTML = '<span style="color:#d4b870;">⚑ pick BOTH parents (GM approval — Humanoid / Monstrous Humanoid)</span>';
+  }
+  applyRaceAdjustments('Hybrid');
+  if (typeof updateDerived === 'function') updateDerived();
+}
 function updateRaceInfo(){
   const raceName = document.getElementById('c-race').value;
   const r = RACES[raceName] || {};
-  const adjs = Object.entries(r.adj||{}).map(([k,v])=>(v>0?'+':'')+v+' '+k).join(', ')||'None';
+  // v8.68.0: show/hide the Hybrid parent picker; populate once.
+  const hyRow = document.getElementById('hybrid-row');
+  if (hyRow) {
+    hyRow.style.display = raceName === 'Hybrid' ? '' : 'none';
+    if (raceName === 'Hybrid') {
+      const selA = document.getElementById('c-hyb-a'), selB = document.getElementById('c-hyb-b');
+      if (selA && !selA.options.length) {
+        const opts = '<option value="">— choose —</option>' + _hybridEligibleRaces().map(n => `<option>${escapeHTML(n)}</option>`).join('');
+        selA.innerHTML = opts; selB.innerHTML = opts;
+      }
+      updateHybridForm();
+    }
+  }
+  const adjArr = getRacialAdj(raceName);
+  const adjs = raceName === 'Hybrid'
+    ? (ATTR_NAMES.map((n, i) => adjArr[i] ? `${adjArr[i] > 0 ? '+' : ''}${adjArr[i]} ${n}` : '').filter(Boolean).join(', ') || 'None (pick the parents)')
+    : (Object.entries(r.adj||{}).map(([k,v])=>(v>0?'+':'')+v+' '+k).join(', ')||'None');
+  const eclShown = raceName === 'Hybrid' ? _formHybridRlm() : (r.ecl || 0);
   const cite = citeHTML('races', raceName);
-  document.getElementById('race-info').innerHTML=`<b style="color:var(--gold);font-family:'Epics Serif','Cinzel',serif;font-size:9px;letter-spacing:.1em;">ABILITY ADJUSTMENTS</b> ${cite}<br>${adjs} &nbsp;|&nbsp; <b style="color:var(--gold);font-family:'Epics Serif','Cinzel',serif;font-size:9px;">ECL MOD</b> +${r.ecl||0}<br><span style="font-size:12px;">${r.notes||''}</span>`;
+  document.getElementById('race-info').innerHTML=`<b style="color:var(--gold);font-family:'Epics Serif','Cinzel',serif;font-size:9px;letter-spacing:.1em;">ABILITY ADJUSTMENTS</b> ${cite}<br>${adjs} &nbsp;|&nbsp; <b style="color:var(--gold);font-family:'Epics Serif','Cinzel',serif;font-size:9px;">ECL MOD</b> +${eclShown}<br><span style="font-size:12px;">${r.notes||''}</span>`;
   // v8.1.1: apply the race's attribute adjustments to the input fields,
   // reversing any previously-applied racial mod first to keep base scores stable.
   applyRaceAdjustments(raceName);
@@ -35842,7 +36034,8 @@ function updateClassPreview(){
     html+=`<span style="color:var(--gold);">${e.name}</span> Lvl ${e.level} · d${cls.hd} · ${cls.sp}+Int SP/lvl${apHint}<span style="color:rgba(200,151,30,.5);">${tierLabel}</span>${flag}<br>`;
   }
   const totalLvl=formClasses.reduce((s,e)=>s+(e.level||0),0);
-  const eclMod=RACES[document.getElementById('c-race').value]?.ecl||0;
+  const _eclRace=document.getElementById('c-race').value;
+  const eclMod=_eclRace==='Hybrid'?((typeof _formHybridRlm==='function')?_formHybridRlm():0):(RACES[_eclRace]?.ecl||0);  // v8.68.0: Hybrid-aware
   html+=`<span style="color:rgba(200,151,30,.5);">Total Level: ${totalLvl} &nbsp;|&nbsp; ECL: ${totalLvl+eclMod}</span>`;
   prev.innerHTML=html;
   renderAllPrereqChecks();
@@ -36648,7 +36841,9 @@ async function saveCharacter(){
   syncFormHpRollsLength();
   formHpMode = getFormHpMode();
   const maxHP=computeMaxHPFromRolls(formClasses,formHpRolls,conM) + (naturalACForm * 5);
-  const ecl=s.totalLvl+(RACES[race]?.ecl||0);
+  // v8.68.0: Hybrid RLM from the form (refreshEclXp re-stamps post-merge).
+  const _raceEclForm = race === 'Hybrid' ? ((typeof _formHybridRlm === 'function') ? _formHybridRlm() : 0) : (RACES[race]?.ecl||0);
+  const ecl=s.totalLvl+_raceEclForm;
   // Deep-copy the form classes array so mutations don't leak back
   const classesCopy=formClasses.map(e=>Object.assign({},e));
   // Compute legacy slot mirrors so older code paths (sheet, roster, drilldown, print) keep working
@@ -36753,6 +36948,14 @@ async function saveCharacter(){
   const char={
     id:editId||genId(),name,player:document.getElementById('c-player').value,
     sex:document.getElementById('c-sex').value,race,
+    // v8.68.0: the Hybrid parent record (null for every other race).
+    hybrid: race === 'Hybrid' ? {
+      a: document.getElementById('c-hyb-a')?.value || '',
+      b: document.getElementById('c-hyb-b')?.value || '',
+      sizeFrom: document.getElementById('c-hyb-size')?.value || 'a',
+      rlmOverride: (() => { const v = document.getElementById('c-hyb-rlm')?.value; return (v !== '' && v != null && !isNaN(parseInt(v, 10))) ? parseInt(v, 10) : null; })(),
+      dropped: document.getElementById('c-hyb-dropped')?.value || '',
+    } : null,
     occ:occ1, occupations, occupationPicks,
     align:document.getElementById('c-align').value,
     allegiance:document.getElementById('c-allegiance').value,
@@ -36828,7 +37031,7 @@ async function saveCharacter(){
       // v8.5.4: LA-aware floor per GMG p.38 — reaching class level L with a
       // race Level Adjustment means having crossed the T(L + LA) threshold
       // (the drow example: a wholecloth class-2 drow has ≥ 6,000 XP).
-      const levelFloor = xpThreshold(s.totalLvl + (RACES[race]?.ecl || 0));
+      const levelFloor = xpThreshold(s.totalLvl + _raceEclForm);  // v8.68.0: Hybrid-aware
       return Math.max(existingXp, levelFloor);
     })(),
     // v8.5.4: refreshed ECL-aware (incl. Mutant Level) by refreshEclXp() after
@@ -36931,6 +37134,7 @@ async function saveCharacter(){
       reconcileAttributeMutations(char);
       reconcileGrantedFeats(char);  // v8.6.1: class-entry feat grants (Monk CMA/DMA) sync with the edited class array
       reconcileTalentHp(char);  // v8.8.0: Robust HP re-applies onto the fresh maxHP (talentHpApplied not preserved — same convention as mutNacHpApplied)
+      if (typeof reconcileMutantSubtype === 'function') reconcileMutantSubtype(char);  // v8.67.0: Unnatural Prowess/Resilience re-apply onto the fresh bab/def/maxHP (mutSubApplied not preserved — same convention)
       // v8.12.3 (Adam's Rhad retcon report): a class retcon can legitimately
       // SHRINK the recomputed maxHP (a d10 level traded for a d6 one) while
       // currentHP is preserved verbatim above — leaving impossibilities like
@@ -37055,6 +37259,17 @@ function editCurrentChar(){
   document.getElementById('c-langs').value=c.langs||'';
   document.getElementById('c-notes').value=c.notes||'';
   document.getElementById('c-race').value=c.race;
+  // v8.68.0: repopulate the Hybrid parent picker from the record BEFORE the
+  // race-info refresh (which reads the selects for the adj sum).
+  if (c.race === 'Hybrid' && c.hybrid) {
+    updateRaceInfo();  // shows + populates the row's selects
+    const _h = c.hybrid;
+    const _sa = document.getElementById('c-hyb-a'), _sb = document.getElementById('c-hyb-b');
+    if (_sa) _sa.value = _h.a || ''; if (_sb) _sb.value = _h.b || '';
+    const _ss = document.getElementById('c-hyb-size'); if (_ss) _ss.value = _h.sizeFrom || 'a';
+    const _sr2 = document.getElementById('c-hyb-rlm'); if (_sr2) _sr2.value = (_h.rlmOverride === 0 || _h.rlmOverride) ? _h.rlmOverride : '';
+    const _sd = document.getElementById('c-hyb-dropped'); if (_sd) _sd.value = _h.dropped || '';
+  }
   // v8.1.4: occupations as array; if legacy char has only c.occ, treat as single
   const occs = c.occupations && c.occupations.length ? c.occupations : (c.occ ? [c.occ] : []);
   document.getElementById('c-occ').value = occs[0] || 'Academic';
@@ -37197,7 +37412,7 @@ function editCurrentChar(){
       else if (s.type === BONUS_TYPES.ENHANCEMENT) bonusNACEdit += s.value;
     }
   } else {
-    racialNACEdit = (RACES[c.race]?.natAC) || 0;
+    racialNACEdit = racialNatACOf(c);
     bonusNACEdit = Math.max(0, (c.naturalAC || 0) - racialNACEdit);
   }
   if (racialEl) racialEl.value = racialNACEdit;
@@ -37241,6 +37456,11 @@ function clearForm(){
   formAttrBumps = [];
   ['c-name','c-player','c-sex','c-allegiance','c-langs','c-notes'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('c-race').value='Human';
+  // v8.68.0: clear the Hybrid picker remnants.
+  { const _hr = document.getElementById('hybrid-row'); if (_hr) _hr.style.display = 'none';
+    for (const hid of ['c-hyb-a','c-hyb-b','c-hyb-rlm','c-hyb-dropped']) { const el = document.getElementById(hid); if (el) el.value = ''; }
+    const _hs = document.getElementById('c-hyb-size'); if (_hs) _hs.value = 'a';
+    if (typeof formBudget === 'object' && formBudget) formBudget.hybridAdjApplied = null; }
   document.getElementById('c-occ').value='Academic';
   document.getElementById('c-occ2').value='';
   // New characters: occupations are editable (no lock); only an existing edit locks them
@@ -37598,7 +37818,7 @@ function applyRacialNatAC() {
   if (!curId) return;
   const c = chars.find(x => x.id === curId);
   if (!c) return;
-  const target = (RACES[c.race]?.natAC) || 0;
+  const target = racialNatACOf(c);
   // v8.3.5: read the effective current value via the source-aware computer,
   // so legacy scalar-only characters and source-list characters are handled
   // uniformly.
@@ -37646,7 +37866,7 @@ function dismissNatACBanner() {
   if (!curId) return;
   const c = chars.find(x => x.id === curId);
   if (!c) return;
-  const racialNatAC = (RACES[c.race]?.natAC) || 0;
+  const racialNatAC = racialNatACOf(c);
   c._natACDismissed = `${c.race}:${racialNatAC}`;
   save();
   renderSheet();
@@ -37664,6 +37884,9 @@ function renderSheet(){
   // so re-stamp on every Sheet render; matches the reconcileMissingHP
   // render-hook pattern.
   if (typeof refreshEclXp === 'function') { const _preEcl = c.ecl; refreshEclXp(c); if (c.ecl !== _preEcl) save(); }
+  // v8.67.0 (Mutant sync): Unnatural Prowess/Resilience bakes reconcile on
+  // every Sheet render (idempotent — same hook pattern as reconcileMissingHP).
+  if (typeof reconcileMutantSubtype === 'function' && reconcileMutantSubtype(c)) save();
   // v8.40.3 self-heal (Adam's Dutch dashboard report): records assembled
   // without the stored derived stats (v8.40.0–v8.40.2 Quickdraw skeletons)
   // rendered "Base Attack: undefined" and AP 0/0. c.bab === undefined is
@@ -37682,6 +37905,9 @@ function renderSheet(){
       const s = computeStatsFromClasses(c.classes);
       c.bab = s.bab; c.def = s.def; c.fort = s.fort; c.ref = s.ref; c.will = s.will; c.rep = s.rep;
       c.apMax = s.ap; c.ap = s.ap;
+      // v8.67.0: the stamp rebuilt bab/def from class tables — zero the
+      // Unnatural Prowess ledger halves so the reconciler re-applies.
+      if (c.mutSubApplied) { c.mutSubApplied.bab = 0; c.mutSubApplied.def = 0; if (typeof reconcileMutantSubtype === 'function') reconcileMutantSubtype(c); }
       if (c.currentHP === undefined && c.maxHP !== undefined) c.currentHP = c.maxHP;
       save();
     } catch (e) { /* heal is best-effort — never block the Sheet */ }
@@ -37807,7 +38033,7 @@ function renderSheet(){
   // characters (scalar present but no source list) cleanly. The banner does
   // NOT fire if the player has a structured racial source matching their
   // current race — the rule is "race is properly represented in your sources."
-  const racialNatAC = (RACES[c.race]?.natAC) || 0;
+  const racialNatAC = racialNatACOf(c);
   const natComputedForBanner = computeNaturalAC(c);
   const hasMatchingRacialSource = (c.naturalACSources || []).some(
     s => s.source === `race:${c.race}` && s.type === BONUS_TYPES.NATURAL
@@ -38115,8 +38341,13 @@ function renderSheet(){
       <div class="xp-txt">${prog.inLevel.toLocaleString()} / ${prog.bandSize.toLocaleString()} XP this level &nbsp;·&nbsp; ${prog.pct}% <span style="color:rgba(200,151,30,.45);">(${c.xp.toLocaleString()} total)</span></div>
     </div>`;
   const race=RACES[c.race]||{};
-  const radj=Object.entries(race.adj||{}).map(([k,v])=>(v>0?'+':'')+v+' '+k).join(', ')||'None';
-  let featuresHtml=`<b style="color:var(--gold);">${c.race}</b>${citeHTML('races', c.race)}<br>Ability Adj.: ${radj} &nbsp;|&nbsp; ECL Mod: +${race.ecl||0}<br>${race.notes||''}`;
+  // v8.68.0: Hybrids headline both parents, the effective RLM, the combined
+  // adjustments, and both parents' notes after the Hybrid framework note.
+  const _hyS = (typeof hybridInfo === 'function') ? hybridInfo(c) : null;
+  const radj = _hyS
+    ? (ATTR_NAMES.map((n, i) => { const v = ((_hyS.A.adj||{})[n]||0) + ((_hyS.B.adj||{})[n]||0); return v ? `${v>0?'+':''}${v} ${n}` : ''; }).filter(Boolean).join(', ') || 'None')
+    : (Object.entries(race.adj||{}).map(([k,v])=>(v>0?'+':'')+v+' '+k).join(', ')||'None');
+  let featuresHtml=`<b style="color:var(--gold);">${_hyS ? raceDisplayOf(c) : c.race}</b>${citeHTML('races', c.race)}<br>Ability Adj.: ${radj} &nbsp;|&nbsp; ${_hyS ? 'RLM' : 'ECL Mod'}: +${_hyS ? _hyS.rlm : (race.ecl||0)}${_hyS && _hyS.rlm !== _hyS.autoRlm ? ` <span style="font-size:10px;color:#d4b870;">(GM-tailored — auto would be +${_hyS.autoRlm}${_hyS.dropped ? '; dropped: ' + escapeHTML(_hyS.dropped) : ''})</span>` : ''}${_hyS ? ` &nbsp;|&nbsp; size &amp; movement: ${_hyS.sizeFrom}` : ''}<br>${race.notes||''}${_hyS ? `<br><span style="font-size:11px;"><b>${_hyS.a}:</b> ${_hyS.A.notes||''}<br><b>${_hyS.b}:</b> ${_hyS.B.notes||''}</span>` : ''}`;
   for(const e of classArr){
     const cls=getClassEntry(e); if(!cls)continue;
     const tierLabel={hero:'',basic:' (Basic Class)',advanced:' (Advanced Class)',prestige:` (Prestige Class, max ${cls.maxLvl||10})`}[e.tier]||'';
@@ -38788,7 +39019,11 @@ function renderSkills(){
   // v8.51.0: itemize the cross-class surcharge so overages explain themselves.
   let ccNote = '';
   try { const cc = crossClassPremiumOf(c); if (cc.prem > 0) ccNote = ` · incl. +${cc.prem} cross-class premium (${cc.items.join(', ')})`; } catch (e) {}
-  ptsInfoEl.innerHTML = `<span title="${sDisplay.label}" style="color:${sDisplay.color};">${sDisplay.icon}</span> Skill Points: ${spent} spent of ~${totalSP} total${sSuffix}${ccNote}`;
+  // v8.67.0 (Mutant sync): name the Unnatural Prowess SP in the budget line,
+  // with the Tech-0 restriction stated (table-enforced).
+  let muSpNote = '';
+  try { const _mlN = (typeof getMPState === 'function') ? (getMPState(c).mutantLevel || 0) : 0; if (_mlN > 0) muSpNote = ` · incl. +${2 * _mlN} Unnatural Prowess (Mutant +${_mlN} — <span style="cursor:help;" title="HH p.29: these bonus points may only buy TECH SCALE 0 skills (no Computer Use, Drive, Pilot, Repair and kin) — the table enforces the restriction.">Tech-0 skills only ⓘ</span>)`; } catch (e) {}
+  ptsInfoEl.innerHTML = `<span title="${sDisplay.label}" style="color:${sDisplay.color};">${sDisplay.icon}</span> Skill Points: ${spent} spent of ~${totalSP} total${sSuffix}${ccNote}${muSpNote}`;
   ptsInfoEl.style.color = sDisplay.color;
   ptsInfoEl.setAttribute('data-state', sState);
 
@@ -39122,7 +39357,18 @@ function computeSkillPointBudget(c) {
   //    additional level, demonstrating the human's natural versatility."
   // Note this is the only race with a skill-point-budget contribution in HH
   // and FF; if future races gain similar bonuses they go here.
-  if (c.race === 'Human' && levelCounter >= 1) {
+  // v8.67.0 (Mutant sync): Unnatural Prowess — 2 bonus skill points per +1
+  // Mutant level (HH p.29). Budget-integrated per Adam; the Tech Scale 0
+  // restriction is TABLE-ENFORCED (the first typed SP pool — the budget
+  // tracker stays one number, the restriction rides the advisory line on
+  // the Mutations tab and the budget note).
+  const _mlSP = (typeof getMPState === 'function') ? (getMPState(c).mutantLevel || 0) : 0;
+  if (_mlSP > 0 && levelCounter >= 1) totalSP += 2 * _mlSP;
+  // v8.68.0: a Human-parent Hybrid inherits the Human SP bonus ("all racial
+  // abilities of both parents" — Adam's simple model).
+  const _hySPh = (typeof hybridInfo === 'function') ? hybridInfo(c) : null;
+  const _isHumanish = c.race === 'Human' || (_hySPh && (_hySPh.a === 'Human' || _hySPh.b === 'Human'));
+  if (_isHumanish && levelCounter >= 1) {
     totalSP += 5;                         // L1 bonus
     if (levelCounter > 1) {
       totalSP += (levelCounter - 1);      // +1 per additional level
@@ -42593,7 +42839,7 @@ function reconcileMutantLevelXp(c) {
     return;
   }
   if (ml <= c.mlXpCompensatedTo) return;
-  const raceEcl = (RACES[c.race]?.ecl || 0);
+  const raceEcl = (typeof raceEclOf === 'function') ? raceEclOf(c) : (RACES[c.race]?.ecl || 0);  // v8.68.0: Hybrid-aware
   let grant = 0;
   for (let k = c.mlXpCompensatedTo + 1; k <= ml; k++) {
     const eclBefore = (c.totalLvl || 1) + raceEcl + (k - 1);
@@ -42613,7 +42859,7 @@ function reconcileMutantLevelXp(c) {
 function refreshEclXp(c) {
   if (!c) return;
   reconcileMutantLevelXp(c);
-  c.ecl = (c.totalLvl || 1) + (RACES[c.race]?.ecl || 0) + getMPState(c).mutantLevel;
+  c.ecl = (c.totalLvl || 1) + ((typeof raceEclOf === 'function') ? raceEclOf(c) : (RACES[c.race]?.ecl || 0)) + getMPState(c).mutantLevel;  // v8.68.0: Hybrid RLM (A+B+1, or the GM override)
   c.xpNext = xpThreshold(c.ecl + 1);
 }
 
@@ -42632,6 +42878,8 @@ function renderMutations() {
   // v8.6.0: migrate any attribute mutations that predate the mechanical
   // wiring (idempotent — flagged records are skipped).
   if (reconcileAttributeMutations(c)) { save(); toast('Mutation effects synced (ability scores / natural-AC hit points).'); }
+  // v8.67.0 (Mutant sync): the subtype bakes track MP/tier changes live.
+  if (typeof reconcileMutantSubtype === 'function' && reconcileMutantSubtype(c)) save();
 
   const st = getMPState(c);
   const pp = getSuperPPState(c);
@@ -42644,7 +42892,9 @@ function renderMutations() {
   document.getElementById('mu-ledger').innerHTML =
     `<span title="${escapeHTML(st.sources.join('\n') || 'no MP sources yet')}" style="cursor:help;">earned <b>${st.totalEarned}</b></span> · spent <b>${st.totalSpent}</b> · banked <b style="color:${st.balance < 0 ? '#d47070' : 'var(--gold)'};">${st.balance}</b> MP`
     + ` · Mutant level <b>+${st.mutantLevel}</b>${st.mutantLevel ? ' (+' + st.mutantLevel + ' ECL)' : ''}${tierSel}${ppBit}`
-    + ` <button class="btn btn-sm" style="font-size:9px;padding:1px 6px;" onclick="addMPGrantClick()">+ GM Grant</button>`;
+    + ` <button class="btn btn-sm" style="font-size:9px;padding:1px 6px;" onclick="addMPGrantClick()">+ GM Grant</button>`
+    // v8.67.0 (Mutant sync): the subtype's racial ability block — baked live.
+    + (st.mutantLevel > 0 ? `<div style="margin-top:4px;font-size:10.5px;color:rgba(196,153,212,.85);" title="HH p.29 — the Mutant subtype's racial abilities, all EXTRAORDINARY (fundamental physiology: a Null Power Field does not suppress them). Baked live from your Mutant level: Base Attack and Defense reach the cards, rows, Grapple and iteratives; HP adjusts max; saves ride the drilldowns; the skill points join the Skills-tab budget (Tech Scale 0 skills only — table-enforced).">🧬 <b>Mutant subtype (Ex):</b> Unnatural Prowess +${Math.floor(st.mutantLevel / 2)} Base Attack · +${Math.floor(st.mutantLevel / 3)} Defense · +${2 * st.mutantLevel} skill pts (Tech-0) — Unnatural Resilience +${st.mutantLevel * (5 + am(((c.attrs) || [10,10,10,10,10,10])[2]))} HP · +${Math.floor(st.mutantLevel / 2)} all saves — wired, baked live ⓘ</div>` : '');
 
   const owned = getCharMutations(c);
   const gmGrantRows = ((c.mpGrants) || []).map((g, gi) =>
@@ -46553,9 +46803,13 @@ function charProficiencyGrants(c, classArrOverride) {
       g.weapons.add(_normWeaponName(w));
     }
   }
-  for (const w of (RACE_WEAPON_PROFICIENCIES[(c && c.race) || ''] || [])) {
-    if (!g.weapons.has(_normWeaponName(w))) g.weaponsDisp.push(w + ' (racial)');
-    g.weapons.add(_normWeaponName(w));
+  // v8.68.0: Hybrids union both parents' racial weapon proficiencies.
+  const _hyWP = (typeof hybridInfo === 'function') ? hybridInfo(c) : null;
+  for (const rk of (_hyWP ? [_hyWP.a, _hyWP.b] : [(c && c.race) || ''])) {
+    for (const w of (RACE_WEAPON_PROFICIENCIES[rk] || [])) {
+      if (!g.weapons.has(_normWeaponName(w))) g.weaponsDisp.push(w + ` (racial${_hyWP ? ' — ' + rk : ''})`);
+      g.weapons.add(_normWeaponName(w));
+    }
   }
   return g;
 }
@@ -46670,7 +46924,11 @@ function reconcileGrantedFeats(c) {
     for (const n of (MUTATION_GRANTED_FEATS[m.name] || [])) expected.push({ name: n, by: m.name + ' (mutation)' });
   }
   // v8.16.0 Races pass: racial bonus feats (Merfolk's Alertness).
-  for (const n of ((RACES[c.race] || {}).grantsFeats || [])) expected.push({ name: n, by: c.race + ' (racial)' });
+  // v8.68.0: Hybrids inherit both parents' racial feat grants (union).
+  { const _hyGF = (typeof hybridInfo === 'function') ? hybridInfo(c) : null;
+    for (const rk of (_hyGF ? [_hyGF.a, _hyGF.b] : [c.race])) {
+      for (const n of ((RACES[rk] || {}).grantsFeats || [])) if (!expected.some(e => e.name === n)) expected.push({ name: n, by: rk + ' (racial)' });
+    } }
   // v8.55.0: homebrew-heritage child grants — the _hb-bearing entry on the
   // character is the source of truth (courier-safe: travels with the JSON,
   // independent of the GM's library). Without this, the count-aware removal
@@ -49353,6 +49611,10 @@ function lvlupCommit(skipBump) {
   if (typeof reconcileMcReserve === 'function') reconcileMcReserve(c);
   c.bab = s.bab; c.def = s.def; c.fort = s.fort; c.ref = s.ref; c.will = s.will; c.rep = s.rep;
   c.apMax = s.ap; c.ap = c.apMax;
+  // v8.67.0: level-up rebuilt bab/def — zero the Unnatural Prowess ledger
+  // halves (HP is incremental at level-up, its ledger half stands) and
+  // re-apply, so Mutant characters keep the subtype bonuses through gains.
+  if (c.mutSubApplied) { c.mutSubApplied.bab = 0; c.mutSubApplied.def = 0; if (typeof reconcileMutantSubtype === 'function') reconcileMutantSubtype(c); }
   // Refresh legacy slot mirrors so older code paths still work
   const heroEntry = c.classes.find(e => e.tier === 'hero');
   const basicEntry = c.classes.find(e => e.tier === 'basic');
@@ -49918,7 +50180,7 @@ function printSheet(){
       <div class="ps-sec">
         <div class="ps-sec-head">Race &amp; Class Features</div>
         <div class="ps-sec-body ps-classes">
-          <div class="ps-class-row"><span class="ps-class-nm">${c.race}</span><span class="ps-class-det">ECL +${RACES[c.race]?.ecl||0}</span></div>
+          <div class="ps-class-row"><span class="ps-class-nm">${c.race}</span><span class="ps-class-det">ECL +${(typeof raceEclOf==='function')?raceEclOf(c):(RACES[c.race]?.ecl||0)}</span></div>
           <div style="font-size:8pt;color:#555;margin-bottom:4px;">${RACES[c.race]?.notes||''}</div>
           ${classDetailRows}
           ${psChoiceRows}
