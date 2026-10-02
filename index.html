@@ -165,6 +165,13 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 .cite-GG{color:#b8843a;background:rgba(184,132,58,.1);border:1px solid rgba(184,132,58,.25)}
 .cite-FF{color:#9b9385;background:rgba(155,147,133,.1);border:1px solid rgba(155,147,133,.25)}
 .cite-approx{border-style:dashed}
+/* v8.71.0 (the Groomed Sheet): race-block drop-downs — native <details>
+   wearing the app's ▸/▾ collapse idiom. Collapsed by default. */
+details.hy-det{margin-top:3px;font-size:12px}
+details.hy-det>summary{cursor:pointer;color:rgba(200,151,30,.75);font-size:11.5px;list-style:none;user-select:none}
+details.hy-det>summary::-webkit-details-marker{display:none}
+details.hy-det>summary::before{content:'▸ '}
+details.hy-det[open]>summary::before{content:'▾ '}
 /* FEATS TABLE */
 .feat-entry{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start;padding:6px 8px;border-bottom:1px solid rgba(200,151,30,.08)}
 .feat-entry:hover{background:rgba(200,151,30,.03)}
@@ -296,7 +303,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.70.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.71.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -3914,7 +3921,7 @@ const ADVANCED_CLASSES = {
       [{type:'skill',name:'Knowledge (History)',min:4},{type:'skill',name:'Knowledge (Physical Sciences)',min:4},{type:'skill',name:'Knowledge (Theology & Philosophy)',min:4}],
       [{type:'skill',name:'Search',min:4}],
       [{type:'skill',name:'Survival',min:6}],
-      [{type:'feat',name:'Alertness'},{type:'feat',name:'Awareness'}],
+      [{type:'feat',name:'Alertness'},{type:'talent',name:'Aware',desc:'Aware talent (HH p.67 — the Explorer prereq line calls it “Awareness”; same talent)'}],  // v8.71.0: was feat:'Awareness' — unsatisfiable (it's the Dedicated Hero's Aware TALENT)
     ], apB:6},
   'Field Officer':{attr:'CHA',hd:8, sp:4,
     bab :[1,2,3,4,5,6,7,8,9,10],
@@ -3927,7 +3934,7 @@ const ADVANCED_CLASSES = {
       [{type:'bab',min:2}],
       [{type:'skill',name:'Diplomacy',min:6}],
       [{type:'skill',name:'Knowledge (Tactics)',min:6}],
-      [{type:'feat',name:'Skill Focus'},{type:'feat',name:'Coordinate'}],
+      [{type:'feat',name:'Skill Focus',desc:'Skill Focus (any Field Officer class skill — GM verifies the skill) feat'},{type:'talent',name:'Coordinate',desc:'Coordinate talent'}],  // v8.71.0: Coordinate is a Charismatic Hero TALENT, was typed feat (unsatisfiable)
     ], apB:6},
   'Infiltrator':  {attr:'DEX/CHA',hd:6, sp:6,
     bab :[0,1,1,2,2,3,3,4,4,5],
@@ -3954,7 +3961,7 @@ const ADVANCED_CLASSES = {
       [{type:'bab',min:2}],
       [{type:'skill',name:'Investigate',min:6}],
       [{type:'skill',name:'Sense Motive',min:6}],
-      [{type:'feat',name:'Skill Focus'},{type:'feat',name:'Empathy'}],
+      [{type:'feat',name:'Skill Focus',desc:'Skill Focus (any one Investigator class skill — GM verifies the skill) feat'},{type:'talent',name:'Empathy',desc:'Empathy talent'}],  // v8.71.0: Empathy is a Dedicated Hero TALENT, was typed feat (unsatisfiable)
     ], apB:6},
   'Marketeer':    {attr:'CHA',hd:6, sp:6,
     bab :[0,1,1,2,2,3,3,4,4,5],
@@ -3979,8 +3986,8 @@ const ADVANCED_CLASSES = {
     prereqs:[
       [{type:'bab',min:3}],
       [{type:'skill',name:'Concentration',min:6}],
-      [{type:'feat',name:'Combat Martial Arts'},{type:'feat',name:'Melee Smash'}],
-      [{type:'feat',name:'Defensive Martial Arts'},{type:'note',text:'or Damage Reduction (Tough Talent)'}],
+      [{type:'feat',name:'Combat Martial Arts'},{type:'talent',name:'Melee Smash',desc:'Melee Smash talent'}],  // v8.71.0: Melee Smash is a Strong Hero TALENT, was typed feat (unsatisfiable)
+      [{type:'feat',name:'Defensive Martial Arts'},{type:'talent',namePrefix:'Damage Reduction',desc:'Damage Reduction talent (any tier)'}],  // v8.71.0: was a GM-verify note — now checks the DR 1/-..3/- ladder
     ], apB:6},
   'Personality':  {attr:'CHA',hd:6, sp:6,
     bab :[0,1,1,2,2,3,3,4,4,5],
@@ -4030,8 +4037,8 @@ const ADVANCED_CLASSES = {
       [{type:'def',min:2}],
       [{type:'skill',name:'Sense Motive',min:6}],
       [{type:'skill',name:'Survival',min:6}],
-      [{type:'feat',name:'Dodge'},{type:'feat',name:'Evasion'}],
-      [{type:'feat',name:'Toughness'},{type:'talent',tree:'Tough'}],
+      [{type:'feat',name:'Dodge'},{type:'talent',name:'Evasion',desc:'Evasion talent'},{type:'classAbility',name:'Evasion'}],  // v8.71.0: "Dodge feat or Evasion talent / class ability" (HH) — Evasion was typed feat (unsatisfiable)
+      [{type:'feat',name:'Toughness'},{type:'talent',heroClass:'Tough Hero',desc:'any Tough Hero talent'}],  // v8.71.0: the tree-stub never checked; heroClass matches the book's "any Tough Talent"
     ], apB:7},
   'Tactician':    {attr:'INT',hd:8, sp:6,
     bab :[0,1,2,3,3,4,5,6,6,7],
@@ -4044,7 +4051,14 @@ const ADVANCED_CLASSES = {
       [{type:'skill',name:'Gather Information',min:6}],
       [{type:'skill',name:'Knowledge (Tactics)',min:6}],
       [{type:'skill',name:'Sense Motive',min:6}],
-      [{type:'feat',name:'Skill Focus'},{type:'feat',name:'Savant'},{type:'note',text:'or Skill Emphasis (Knowledge [Tactics])'}],
+      // v8.71.0 (Adam's Hellfire/Compass report): the full HH p.137 entry is
+      // param-specific AND types each option — "Skill Focus (Knowledge
+      // [tactics]) feat or Savant (Knowledge [tactics]) talent or Skill
+      // Emphasis (Knowledge [tactics]) talent." Savant was typed as a feat
+      // (unsatisfiable); Skill Emphasis was an unchecked note.
+      [{type:'featParamIs',name:'Skill Focus',param:'Knowledge (Tactics)',desc:'Skill Focus (Knowledge [Tactics]) feat'},
+       {type:'talent',name:'Savant',param:'Knowledge (Tactics)',desc:'Savant (Knowledge [Tactics]) talent'},
+       {type:'talent',name:'Skill Emphasis',param:'Knowledge (Tactics)',desc:'Skill Emphasis (Knowledge [Tactics]) talent'}],
     ], apB:6},
   'Techsmith':    {attr:'INT',hd:6, sp:6,
     bab :[0,1,2,3,3,4,5,6,6,7],
@@ -4057,7 +4071,7 @@ const ADVANCED_CLASSES = {
       [{type:'skill',name:'Computer Use',min:6,note:'Tech 5+ scenarios only'}],
       [{type:'skillFamily',family:'Craft',min:6}],
       [{type:'skill',name:'Knowledge (Physical Sciences)',min:6},{type:'skill',name:'Knowledge (Technology)',min:6}],
-      [{type:'feat',name:'Builder'},{type:'feat',name:'Savant'}],
+      [{type:'feat',name:'Builder'},{type:'talent',name:'Savant',paramPrefixes:['Computer Use','Craft (','Disable Device','Knowledge (Physical Sciences)','Knowledge (Technology)','Navigate','Search'],desc:'Savant (any Techsmith class skill) talent'}],  // v8.71.0: Savant is a TALENT, was typed feat (unsatisfiable); param held to Techsmith class skills per the full HH entry
     ], apB:6},
   'Weaponmaster': {attr:'STR/DEX',hd:10, sp:4,
     bab :[1,2,3,4,5,6,7,8,9,10],
@@ -5168,7 +5182,7 @@ function checkClassPrereqsFromArray(className, existingClasses, charSkills, char
         optDesc = `${opt.family} (any) ${opt.min} ranks`;
         optMet = SKILLS.some(sk => sk.family === opt.family && (charSkills[sk.n] || 0) >= opt.min);
       } else if (opt.type === 'feat') {
-        optDesc = `feat: ${opt.name}`;
+        optDesc = opt.desc || `feat: ${opt.name}`;  // v8.71.0: honor authored desc (book restrictions the check can't enforce)
         optMet = charFeats.some(fn => fn.toLowerCase().startsWith(opt.name.toLowerCase()));
       } else if (opt.type === 'attr') {
         optDesc = `${opt.name} ${opt.min}+`;
@@ -5180,6 +5194,14 @@ function checkClassPrereqsFromArray(className, existingClasses, charSkills, char
       } else if (opt.type === 'classAbility') {
         optDesc = `class ability: ${opt.name}`;
         optMet = hasClassAbility(opt.name);
+        // v8.71.0 (Survivor's "Evasion talent / class ability"): Evasion's
+        // real granting map is the unified evasionTier (class features +
+        // the Rogue SA pick + Fast Hero talents, v8.64.0) — CLASS_ABILITIES
+        // never listed it. Consult the unified source when a saved
+        // character threads through.
+        if (!optMet && opt.name === 'Evasion' && _fullChar && typeof evasionTier === 'function') {
+          optMet = !!evasionTier(_fullChar);
+        }
       } else if (opt.type === 'tierLevel') {
         const tierLabel = {hero:'Hero',ordinary:'Ordinary',basic:'Basic',advanced:'Advanced',prestige:'Prestige'}[opt.tier]||opt.tier;
         optDesc = `${opt.min}+ level${opt.min===1?'':'s'} in any ${tierLabel} class`;
@@ -5229,8 +5251,32 @@ function checkClassPrereqsFromArray(className, existingClasses, charSkills, char
         optDesc = labels.join(' or ') + ' scenario';
         optMet = opt.options.some(o => (sixLevels[o.axis] || 0) >= o.min);
       } else if (opt.type === 'talent') {
-        optDesc = `${opt.tree} talent (GM-verify)`;
-        optMet = false;
+        // v8.71.0 (Adam's Hellfire/Compass report — "FEAT: Savant"): this
+        // was a never-satisfiable GM-verify stub, and six classes dodged it
+        // by mistyping their talent prereqs as feats (equally unsatisfiable
+        // — c.feats never contains a talent). Now a real check against the
+        // saved record's talents: by name (+ exact param / paramPrefixes
+        // when given), by name prefix (the Damage Reduction 1/-..3/-
+        // ladder), by tree, or by hero class ("any Tough Hero talent").
+        // Degrades to GM-verify when no character threads through ctx.char
+        // (the creation form — talents can't exist there anyway).
+        const tl = _fullChar ? (_fullChar.talents || []) : null;
+        const tdOf = (nm) => (typeof TALENTS_DB !== 'undefined') ? TALENTS_DB.find(x => x.n === nm) : null;
+        let tMatch = () => false;
+        if (opt.name || opt.namePrefix) {
+          optDesc = opt.desc || `${opt.name || opt.namePrefix}${opt.param ? ` (${opt.param})` : ''} talent`;
+          tMatch = (t) => (opt.name ? t.name === opt.name : (t.name || '').startsWith(opt.namePrefix))
+            && (!opt.param || t.param === opt.param)
+            && (!opt.paramPrefixes || opt.paramPrefixes.some(p => (t.param || '').startsWith(p)));
+        } else if (opt.heroClass) {
+          optDesc = opt.desc || `any ${opt.heroClass} talent`;
+          tMatch = (t) => { const td = tdOf(t.name); return !!(td && td.hero_class === opt.heroClass); };
+        } else if (opt.tree) {
+          optDesc = opt.desc || `a talent from the ${opt.tree} tree`;
+          tMatch = (t) => { const td = tdOf(t.name); return !!(td && td.tree && (td.tree === opt.tree || td.tree.startsWith(opt.tree + ' '))); };
+        }
+        if (tl) { optMet = tl.some(tMatch); }
+        else { optDesc += ' (GM-verify)'; optMet = false; }
       } else if (opt.type === 'powerAccess') {
         // "Able to cast/manifest Nth-level spells/powers" — met when a listed
         // pool's max castable power level (derived from EAL/EDL/EPL; super
@@ -8527,6 +8573,15 @@ function computeGrapple(c) {
   if (_dG.pa + _dG.ce > 0) {
     total -= (_dG.pa + _dG.ce);
     parts.push(`declared stance (PA ${_dG.pa} · CE ${_dG.ce}) −${_dG.pa + _dG.ce}`);
+  }
+  // v8.71.0 (found wiring the Tracker's Grapple drop-down): Improved
+  // Grapple's +4 is UNCONDITIONAL — "a +4 bonus on all grapple checks,
+  // regardless of whether you started the grapple" (HH p.224) — so it
+  // belongs in the stat, not at the table. Sheet cell, drilldown, print,
+  // and the new drop-down all inherit from here.
+  if ((c.feats || []).some(f => (f.name || f.n) === 'Improved Grapple')) {
+    total += 4;
+    parts.push('Improved Grapple +4');
   }
   // v8.63.1 (Adam's redirect): Reckless Offense RIDES Grapple — "a grapple
   // check is like a melee attack roll" and starting one "requires a
@@ -14514,7 +14569,16 @@ function _compassAnnotate(c, o, totalLvl, stats) {
     } else if (t === 'allegiance' || t === 'alignment') {
       a.kind = 'gm';
       a.advice = 'character identity — declare via ✎ Edit (GM adjudicates)';
-    } else if (t === 'note' || t === 'talent') {
+    } else if (t === 'talent') {
+      // v8.71.0 (Adam's Hellfire/Compass report): a talent is a BUILD
+      // choice, not a story gate — it rode the note-handler while the
+      // engine's talent check was a stub. Progress and bound now read the
+      // talent budget: an open slot is pickable immediately (entry next
+      // level-up); otherwise the next Hero level brings one (best case).
+      let rem = 0; try { const tb = getTalentBudget(c); rem = (tb.totalOwed || 0) - (tb.totalPicked || 0); } catch (e) {}
+      a.earliest = (rem > 0 ? totalLvl : totalLvl + 1) + 1;
+      a.advice = rem > 0 ? 'you have an open talent slot right now' : 'pick it with your next Hero-class talent slot';
+    } else if (t === 'note') {
       a.kind = 'gm';
       a.advice = 'story gate — talk to your GM';
     }
@@ -37563,6 +37627,25 @@ function editCurrentChar(){
     const baseTotal = attrsForBudget.reduce((sum, v, i) => sum + (v - adj[i]), 0);
     formBudget = { method: 'manual', baseTotal, racialApplied: c.race || '' };
   }
+  // v8.71.0 (Adam's Hellfire report — the Hybrid adj STACKED on edit-save):
+  // the applyRaceAdjustments same-race branch carries a Hybrid exception
+  // (reverse the snapshotted parent sum, re-apply the fresh one, so parent
+  // swaps work). But this edit-populate path never snapshotted — the
+  // updateRaceInfo() below reversed hybridAdjApplied of NULL (zeros) and
+  // applied the parent sum AGAIN on top of attrsBase, which already bakes
+  // it in. One extra +2 Con/−2 Cha per edit session. Seed the ledger with
+  // the parent sum the saved record already carries (the selects were
+  // repopulated above, so getRacialAdj reads the real pair); the same-race
+  // reverse/re-apply then nets to zero, while parent swaps still work.
+  // Non-Hybrids were always safe behind the same-race early-return.
+  formBudget.hybridAdjApplied = (c.race === 'Hybrid') ? getRacialAdj('Hybrid') : null;
+  // Same hardening, second branch: a record missing c.racialApplied (older
+  // saves, imports) restored racialApplied:'' — applyRaceAdjustments would
+  // then take the different-race path (reverse '' = zeros, apply on top:
+  // the same stack). The inputs were just populated from attrsBase, which
+  // by the v8.1.1 convention bakes the race's adj in — so what's applied
+  // is, always and exactly, the record's race.
+  if (c.race) formBudget.racialApplied = c.race;
   updateRaceInfo();
   renderAttrBudget();
   renderClassList();
@@ -38526,11 +38609,36 @@ function renderSheet(){
   const race=RACES[c.race]||{};
   // v8.68.0: Hybrids headline both parents, the effective RLM, the combined
   // adjustments, and both parents' notes after the Hybrid framework note.
+  // v8.71.0 (Adam's grooming pass — the run-on "read like a dog's
+  // breakfast"): the Hybrid block is now a tidy headline + three drop-downs.
+  // The framework exposition demotes to a hover pop-up on the title; the
+  // technicalese (net adjustments, RLM, size & movement) and each parent's
+  // racial abilities fold into collapsed-by-default .hy-det rows.
   const _hyS = (typeof hybridInfo === 'function') ? hybridInfo(c) : null;
   const radj = _hyS
     ? (ATTR_NAMES.map((n, i) => { const v = ((_hyS.A.adj||{})[n]||0) + ((_hyS.B.adj||{})[n]||0); return v ? `${v>0?'+':''}${v} ${n}` : ''; }).filter(Boolean).join(', ') || 'None')
     : (Object.entries(race.adj||{}).map(([k,v])=>(v>0?'+':'')+v+' '+k).join(', ')||'None');
-  let featuresHtml=`<b style="color:var(--gold);">${_hyS ? raceDisplayOf(c) : c.race}</b>${citeHTML('races', c.race)}<br>Ability Adj.: ${radj} &nbsp;|&nbsp; ${_hyS ? 'RLM' : 'ECL Mod'}: +${_hyS ? _hyS.rlm : (race.ecl||0)}${_hyS && _hyS.rlm !== _hyS.autoRlm ? ` <span style="font-size:10px;color:#d4b870;">(GM-tailored — auto would be +${_hyS.autoRlm}${_hyS.dropped ? '; dropped: ' + escapeHTML(_hyS.dropped) : ''})</span>` : ''}${_hyS ? ` &nbsp;|&nbsp; size &amp; movement: ${_hyS.sizeFrom}` : ''}${!_hyS && c.race === 'Hybrid' ? ' <span style="color:#d4b870;font-size:11px;">⚑ parents not chosen — ✎ Edit this character and pick BOTH Humanoid parents (the RLM, adjustments, and inherited abilities all key off them)</span>' : ''}<br>${race.notes||''}${_hyS ? `<br><span style="font-size:11px;"><b>${_hyS.a}:</b> ${_hyS.A.notes||''}<br><b>${_hyS.b}:</b> ${_hyS.B.notes||''}</span>` : ''}`;
+  let featuresHtml;
+  if (_hyS) {
+    const hyBlurb = 'The child of two Humanoid parent races, blended with the GM’s approval. A Hybrid inherits ALL the racial abilities of both parents, while size and movement follow ONE chosen parent. Racial Level Modifier = parent A’s + parent B’s + 1 — the classic Half-Elf is 0 + 0 + 1 = +1. GM-tailored builds may trade away specific abilities for a GM-adjusted RLM. (HH pp.29–30)';
+    const _szIdx = (typeof raceSizeIndex === 'function') ? raceSizeIndex(c) : 4;
+    const _szName = _szIdx === 3 ? 'Small' : _szIdx === 5 ? 'Large' : 'Medium';
+    const _szDef = RACES[_hyS.sizeFrom] || {};
+    const _walk = _szDef.speed != null ? _szDef.speed
+      : (typeof RACE_BASE_SPEED !== 'undefined' && RACE_BASE_SPEED[_hyS.sizeFrom] != null) ? RACE_BASE_SPEED[_hyS.sizeFrom]
+      : (_szIdx === 3 ? 20 : 30);
+    const _modes = (_szDef.modes || []).map(m => `${m.type} ${m.speed}′${m.note ? ' (' + m.note + ')' : ''}`).join(' · ');
+    featuresHtml = `<b style="color:var(--gold);cursor:help;" title="${escapeHTML(hyBlurb)}">${raceDisplayOf(c)}</b>${citeHTML('races', c.race)}
+      <details class="hy-det"><summary>Hybrid mechanics — adjustments, RLM, size &amp; movement</summary><div style="padding:3px 0 2px 14px;line-height:1.65;">
+        Ability Adj.: ${radj} <span style="font-size:10px;color:rgba(200,151,30,.5);">(both parents combined, applied at creation)</span><br>
+        RLM: +${_hyS.rlm}${_hyS.rlm !== _hyS.autoRlm ? ` <span style="font-size:10px;color:#d4b870;">(GM-tailored — auto would be +${_hyS.autoRlm}${_hyS.dropped ? '; dropped: ' + escapeHTML(_hyS.dropped) : ''})</span>` : ` <span style="font-size:10px;color:rgba(200,151,30,.5);">(${_hyS.a} ${_hyS.A.ecl || 0} + ${_hyS.b} ${_hyS.B.ecl || 0} + 1)</span>`}<br>
+        Size &amp; movement (from ${escapeHTML(_hyS.sizeFrom)}): ${_szName}, base speed ${_walk}′${_modes ? ' · ' + escapeHTML(_modes) : ''} <span style="font-size:10px;color:rgba(200,151,30,.5);">— final speed with talents &amp; armor reads off the Speed card</span>
+      </div></details>
+      <details class="hy-det"><summary>${escapeHTML(_hyS.a)} — racial abilities</summary><div style="padding:3px 0 2px 14px;line-height:1.55;font-size:12px;">${_hyS.A.notes || '—'}</div></details>
+      <details class="hy-det"><summary>${escapeHTML(_hyS.b)} — racial abilities</summary><div style="padding:3px 0 2px 14px;line-height:1.55;font-size:12px;">${_hyS.B.notes || '—'}</div></details>`;
+  } else {
+    featuresHtml = `<b style="color:var(--gold);">${c.race}</b>${citeHTML('races', c.race)}<br>Ability Adj.: ${radj} &nbsp;|&nbsp; ECL Mod: +${race.ecl||0}${c.race === 'Hybrid' ? ' <span style="color:#d4b870;font-size:11px;">⚑ parents not chosen — ✎ Edit this character and pick BOTH Humanoid parents (the RLM, adjustments, and inherited abilities all key off them)</span>' : ''}<br>${race.notes||''}`;
+  }
   for(const e of classArr){
     const cls=getClassEntry(e); if(!cls)continue;
     const tierLabel={hero:'',basic:' (Basic Class)',advanced:' (Advanced Class)',prestige:` (Prestige Class, max ${cls.maxLvl||10})`}[e.tier]||'';
@@ -38755,7 +38863,14 @@ function renderSheet(){
   if (characterIsEntitledToTalents(c)) {
     const tBudget = getTalentBudget(c);
     const ownedTalents = c.talents || [];
-    let talentsHtml = `<br><br><b style="color:var(--gold);">Talents</b> <span style="font-size:10px;color:rgba(200,151,30,.55);">(${tBudget.totalPicked} / ${tBudget.totalOwed})</span>`;
+    // v8.71.0 (Adam's grooming pass): the Gift's retired Sheet banner lives
+    // on as a chip here when assigned to 'talent'. The model never records
+    // WHICH talent is the Gift (the budget just carries +1), so the chip
+    // crowns the section, not a specific pick.
+    const _giftTalentChip = (!isLegacyCharacter(c) && c.heroesGiftChoice === 'talent')
+      ? ` <span style="font-size:9px;color:#c499d4;border:1px solid rgba(196,153,212,.45);background:rgba(196,153,212,.1);padding:1px 5px;border-radius:2px;margin-left:4px;cursor:help;" title="Hero's Gift — assigned as a Talent: +1 talent in this budget. Which specific talent is the Gift isn't tracked; the budget carries it. To reassign (feat ↔ talent), retcon via ✎ Edit — downstream prereq chains may break; the GM-exception ledger records any breaks detected.">⬟ incl. Hero's Gift</span>`
+      : '';
+    let talentsHtml = `<br><br><b style="color:var(--gold);">Talents</b> <span style="font-size:10px;color:rgba(200,151,30,.55);">(${tBudget.totalPicked} / ${tBudget.totalOwed})</span>${_giftTalentChip}`;
     if (!ownedTalents.length) {
       talentsHtml += `<br><span style="font-size:11px;color:rgba(200,151,30,.45);font-style:italic;">None selected. Use the Talents tab to add.</span>`;
     } else {
@@ -46455,13 +46570,38 @@ function renderFeatList(c){
   if (g.shield) bits.push('shields');
   if (g.towerShield) bits.push('tower shields');
   if (g.weaponsDisp.length) bits.push('specific: ' + g.weaponsDisp.join(', '));
-  const grantBanner = `<div style="padding:6px 10px;margin-bottom:6px;font-size:11px;color:rgba(120,175,205,.85);border:1px solid rgba(120,175,205,.25);border-radius:3px;">
+  let grantBanner = `<div style="padding:6px 10px;margin-bottom:6px;font-size:11px;color:rgba(120,175,205,.85);border:1px solid rgba(120,175,205,.25);border-radius:3px;">
     <b>Class &amp; racial proficiencies</b> <span style="opacity:.6;">(granted on entry — no feat slots used)</span>: ${escapeHTML(bits.join(' · '))}</div>`;
+  // v8.71.0 (Adam's grooming pass): the Sheet's assigned-state Gift banner
+  // retired — the ⬟ honor now sits on the occupying feat itself, read off
+  // the herosGift slot ledger. When the Gift is assigned to 'feat' but the
+  // slot sits unfilled (picks made above 1st level never auto-fill it), a
+  // one-line note keeps the +1 budget honest instead of a phantom chip.
+  const _giftAssigned = !isLegacyCharacter(c) && c.heroesGiftChoice === 'feat';
+  const _giftSlot = (_giftAssigned && Array.isArray(c.firstLevelSlots))
+    ? c.firstLevelSlots.find(s => s.kind === 'herosGift') : null;
+  // Two ways a feat wears the ⬟ chip: it fills the herosGift slot (the
+  // v8.4.0 ledger), or it carries an explicit origin:"Hero's Gift" tag
+  // (hand-built / imported records that never passed through the L1
+  // slot-fill path — the Loreseeker Prototype's convention).
+  const _giftTagged = (f) =>
+    (_giftSlot && _giftSlot.filled === f.name && (_giftSlot.filledParam || null) === (f.param || null)) ||
+    (typeof f.origin === 'string' && /^Hero[’']s Gift$/.test(f.origin));
+  const _anyGiftTag = _giftAssigned && feats.some(_giftTagged);
+  const GIFT_CHIP_TIP = "Hero's Gift — this feat fills the Hero-class Gift slot (+1 bonus feat, Hero feat list). To reassign the Gift (feat ↔ talent), retcon via ✎ Edit — downstream prereq chains may break; the GM-exception ledger records any breaks detected.";
+  if (_giftAssigned && !_anyGiftTag) {
+    grantBanner += `<div style="padding:5px 10px;margin-bottom:6px;font-size:11px;color:#c499d4;border:1px solid rgba(196,153,212,.3);border-radius:3px;" title="${escapeHTML(GIFT_CHIP_TIP)} 1st-level picks fill the slot automatically; feats taken at higher levels count against the budget without a slot tag (cosmetic only).">⬟ <b>Hero's Gift (feat)</b> — +1 feat budget; no feat tagged to the slot yet.</div>`;
+  }
   if(!feats.length){
     fl.innerHTML=grantBanner+`<div style="padding:1rem;font-size:13px;color:rgba(200,151,30,.4);text-align:center;">No feats yet — click "⌕ Browse Feats" above to add.</div>`;
     return;
   }
   fl.innerHTML = grantBanner + feats.map((f,i) => {
+    // v8.71.0: ⬟ chip on the feat occupying the Hero's Gift slot.
+    const _isGiftFeat = _giftAssigned && _giftTagged(f);
+    const giftChip = _isGiftFeat
+      ? ` <span style="font-size:9px;color:#c499d4;border:1px solid rgba(196,153,212,.45);background:rgba(196,153,212,.1);padding:1px 5px;border-radius:2px;margin-left:6px;cursor:help;" title="${escapeHTML(GIFT_CHIP_TIP)}">⬟ Hero's Gift</span>`
+      : '';
     const data = getFeatData(f.name);
     if (!data) {
       // Unknown feat — either custom (legacy) or pre-v8.1 entry
@@ -46471,7 +46611,7 @@ function renderFeatList(c){
       const d = leg.d ? `<div class="feat-desc">${escapeHTML(leg.d)}</div>` : '';
       return `<div class="feat-entry">
         <div>
-          <div class="feat-nm">${escapeHTML(f.name)}${f.param?' ('+escapeHTML(f.param)+')':''} <span class="feat-type ft-${fam.toLowerCase()}">${fam}</span> <span style="font-size:9px;color:rgba(200,151,30,.45);font-style:italic;">custom</span></div>
+          <div class="feat-nm">${escapeHTML(f.name)}${f.param?' ('+escapeHTML(f.param)+')':''} <span class="feat-type ft-${fam.toLowerCase()}">${fam}</span> <span style="font-size:9px;color:rgba(200,151,30,.45);font-style:italic;">custom</span>${giftChip}</div>
           ${pre}${d}
         </div>
         <button class="btn btn-sm btn-danger" onclick="removeFeat(${i})" style="margin-top:2px;">✕</button>
@@ -46513,7 +46653,7 @@ function renderFeatList(c){
       : '';
     return `<div class="feat-entry">
       <div>
-        <div class="feat-nm">${escapeHTML(data.n)}${citeHTML('feats', data.n)}${paramText}${paramFixBtn} <span class="feat-type ft-${fam.toLowerCase()}">${fam}</span>${slotTag}${grantTag}${badge}</div>
+        <div class="feat-nm">${escapeHTML(data.n)}${citeHTML('feats', data.n)}${paramText}${paramFixBtn} <span class="feat-type ft-${fam.toLowerCase()}">${fam}</span>${slotTag}${giftChip}${grantTag}${badge}</div>
         ${data.d?`<div class="feat-desc">${escapeHTML(data.d)}</div>`:''}
       </div>
       ${f.grantedBy ? '' : `<button class="btn btn-sm btn-danger" onclick="removeFeat(${i})" style="margin-top:2px;">✕</button>`}
@@ -48111,8 +48251,33 @@ function renderCombatOptions(c) {
     chip('Withdraw', '×2 move, safe first hex', 'Full-round action: move up to double speed; leaving your STARTING hex provokes no AoO (later hexes do).'),
     chip('Delay / Ready', 'shift initiative', 'Delay: act later in the order (your initiative changes). Ready: prepare a standard/move/swift action against a trigger; it goes off before the trigger completes.'),
     chip('5-ft Step', 'free, no AoO', 'Once per round when you move no other distance: step 5 ft without provoking. Not while using a movement-forbidding full-round action.'),
-    chip('Grapple', 'see the Sheet stat', 'Your Grapple modifier (incl. the special ±4-per-size-step) is a headline stat on the Sheet; the start-a-grapple sequence (AoO → touch attack → opposed check) is in the HH combat chapter.'),
   ].join('');
+  // v8.71.0 (Adam's call — "one of the most contentious parts of melee
+  // combat"): the Grapple chip graduates to a full drop-down. Condensed
+  // from HH pp.372-374 with the load-bearing numbers verbatim; live check
+  // modifier from computeGrapple (stances, buffs, size all ride along).
+  const gr = (typeof computeGrapple === 'function') ? computeGrapple(c) : null;
+  const ownsFeat = (n) => (c.feats || []).some(f => (f.name || f.n) === n);
+  const impGrap = ownsFeat('Improved Grapple');
+  const eaRanks = (typeof getLiveSkillRanks === 'function') ? (getLiveSkillRanks(c, 'Escape Artist') || 0) : 0;
+  const gH = (t) => `<div style="margin-top:5px;color:rgba(212,184,112,.9);font-weight:bold;">${t}</div>`;
+  host.innerHTML += `
+    <details class="hy-det" style="margin-top:6px;"><summary>Grapple — the full sequence (HH pp.372–374)${gr ? ` · your check: d20 ${gr.total >= 0 ? '+' : ''}${gr.total}` : ''}</summary>
+    <div style="padding:4px 0 2px 14px;line-height:1.55;font-size:11px;color:rgba(200,200,160,.85);">
+      <b>The check:</b> 1d20 + base attack bonus + Str modifier + special size modifier — "a grapple check is like a melee attack roll." Special size modifier: Colossal +16, Gargantuan +12, Huge +8, Large +4, Medium +0, Small −4, Tiny −8, Diminutive −12, Fine −16 (±4 per step, in place of the normal attack-roll size modifier).${gr ? ` <span style="color:rgba(156,195,218,.85);">Yours: ${gr.parts.join(' · ')}.</span>` : ''}
+      ${gH('Starting a grapple (standard action — one attempt per iterative, at successively lower BA)')}
+      <b>1. AoO:</b> the target gets an attack of opportunity against you${impGrap ? ' — <span style="color:rgba(156,195,218,.85);">waived: you have Improved Grapple (+4 on all grapple checks, already in your total)</span>' : ' (waived by Improved Grapple)'}; if it deals damage, the attempt fails.<br>
+      <b>2. Grab:</b> melee touch attack; miss = fail.<br>
+      <b>3. Hold:</b> opposed grapple check (free action); win = you are grappling and deal unarmed-strike damage. You automatically lose vs a target two or more size categories larger. Ties go to the higher modifier.<br>
+      <b>4. Maintain:</b> move into the target's space (free movement — provokes from OTHER threateners, never the target). Can't move in → you must let go.
+      ${gH('While grappling (both of you)')}
+      You threaten no hexes · you lose your Dex bonus to AC against opponents you are NOT grappling · no normal movement. Each of the following takes the place of ONE attack (iteratives apply):
+      <b>Attack</b> with unarmed strike, natural weapon, or LIGHT weapon at −4 (never two weapons) · <b>Damage</b> via opposed check — unarmed-strike nonlethal (−4 on the check to make it lethal) · <b>Pin</b> via opposed check (1 round) · <b>Escape</b> via opposed check — or an Escape Artist check${eaRanks ? ` <span style="color:rgba(156,195,218,.85);">(your ranks: ${eaRanks})</span>` : ''} as a standard action; you must beat EVERY holder, then finish adjacent · <b>Move</b> half speed, everyone comes along (standard action, beat all; +4 to move a lone PINNED opponent) · <b>Draw a light weapon</b> (move action + check) · <b>Use the opponent's light weapon</b> (opposed check, then attack at −4; no possession) · <b>Break another's pin</b> (opposed check) · <b>Cast/manifest</b> only ≤ 1 standard action, no somatic components, materials in hand, Concentration DC 20 + spell level · activate non-spell-completion magic items and retrieve a component (full round) freely.
+      ${gH('Pinned')}
+      Held immobile 1 round (not helpless): −4 AC against everyone EXCEPT the pinner; the pinner may silence you. Escape the pin with an opposed check (or Escape Artist, standard action) — success leaves you still grappling. The PINNER may damage you, use your weapon, or move the grapple — but can't draw/use weapons, escape another's grapple, pin another, or break pins; releasing you is a free action; disarming your secured gear gives you +4 to resist.
+      ${gH('Joining & multiples')}
+      Joining an existing grapple: no AoO against you and the grab auto-succeeds — the opposed check still decides. Up to FOUR can grapple one target (a size smaller counts half; one larger counts double; two+ larger quadruple). Against several opponents you pick ONE to oppose — except escaping, which must beat them all.
+    </div></details>`;
 }
 
 // ============================================================================
@@ -48348,15 +48513,14 @@ function renderHerosGiftPanel(c){
         </div>
       </div>`;
   } else {
-    // Assigned — read-only display + retcon-info copy.
-    const label = (choice === 'feat') ? 'Feat' : 'Talent';
-    el.innerHTML = `
-      <div style="padding:8px 12px;background:rgba(196,153,212,.05);border:1px solid rgba(196,153,212,.22);border-radius:3px;border-left-width:3px;border-left-color:#c499d4;">
-        <div style="font-family:'Epics Serif','Cinzel',serif;font-size:11px;color:#c499d4;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;">⬟ Hero's Gift — Assigned to ${label}</div>
-        <div style="font-size:11.5px;color:rgba(200,151,30,.7);line-height:1.45;">
-          Your Hero's Gift +1 ${label.toLowerCase()} slot is allocated. To change this assignment, use <b>Edit</b> — note that retconning may break prereq chains for downstream picks (the GM exception records any breaks detected).
-        </div>
-      </div>`;
+    // v8.71.0 (Adam's grooming pass): the assigned-state panel retires — the
+    // banner shouldn't linger once the Gift is spent. The honor moves to the
+    // inventory of the chosen type: a ⬟ chip on the occupying feat (Feats
+    // tab, via the herosGift slot ledger) or on the Sheet's Talents header.
+    // The retcon copy rides those chips' pop-ups; the retcon panel itself
+    // still lives in ✎ Edit.
+    el.style.display = 'none';
+    el.innerHTML = '';
   }
 }
 
