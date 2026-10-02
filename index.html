@@ -296,7 +296,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.60.2</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.61.2</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1052,7 +1052,9 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
       <table class="sk-tbl"><thead><tr><th style="min-width:110px;">Slot</th><th>Item</th></tr></thead><tbody id="gear-equipped-rows"></tbody></table>
     </div>
 
-    <div class="sec-head sm">Equipped Weapons — Attack &amp; Damage</div>
+    <div class="sec-head sm">Equipped Weapons — Attack &amp; Damage
+      <button id="melee-opts-btn" class="btn btn-sm" style="font-size:9px;padding:1px 8px;margin-left:10px;text-transform:none;font-weight:normal;letter-spacing:0;" onclick="toggleMeleeOpts()" title="Show the special-attack maneuvers (Disarm, Trip, Feint, Bull Rush, Overrun, Sunder) with live numbers on every melee row. Anyone may attempt them — the ⚠ tags carry the cost. Maneuvers whose Improved feat you own stay visible even when this is off.">⚔ Expanded Melee Options</button>
+    </div>
     <div class="panel" style="overflow-x:auto;margin-bottom:.9rem;">
       <table class="sk-tbl"><thead><tr><th>Weapon</th><th title="The bracketed sequence is the Full Attack action: one extra swing per 5 points of Base Attack, each at a cumulative −5 (five swings at BA +20, the cap).">Attack (Full Atk)</th><th>Damage</th><th>Damage Type</th><th>Alt. Modes</th></tr></thead><tbody id="gear-weapon-summary"></tbody></table>
     </div>
@@ -8601,6 +8603,188 @@ async function weaponSpikeUse(feat, dice, path) {
   if (typeof renderGear === 'function') renderGear();
 }
 
+// ============================================================================
+// v8.61.0 — ⚔ EXPANDED MELEE OPTIONS + COMBAT RIDERS (Adam's Tier A, §182).
+// The HH's special attacks are MELEE-ATTACK SUBSTITUTES (Table: Actions in
+// Combat, footnote 4): Disarm, Trip, and Grapple replace any melee attack —
+// any swing of the Full Attack ladder, even an AoO. Feint is a standard
+// action (move with Improved Feint); Bull Rush an attack or charge part;
+// Overrun a standard action taken during the move (the printed exception);
+// Sunder a melee attack. Anyone may attempt any of them — the uninitiated's
+// tax is the ⚠ tags (AoOs, counter-attempts). Visibility (Adam's design):
+// the global "Expanded Melee Options" toggle shows every maneuver on every
+// melee row; toggled off, a maneuver persists only where its Improved feat
+// (or Combat Throw) is owned.
+// WEAPON SPECIAL PROPERTIES (v8.61.1 — Adam's pp.280-282 pointer). The HH
+// DOES carry property prose, in the per-Tech-Scale weapon description
+// blocks: the TS1 exotics are fully specified (Bolas, Spiked Chain, Net,
+// Whip, bastard sword — pp.280-282), and the Charge rules (p.371) canonize
+// set-vs-charge for spears/tridents and the lance's mounted double. The
+// MARTIAL POLEARMS and flails have NO description lines — that narrower
+// book gap stays flagged for the Word pass; their 3.5-canon properties are
+// carried here marked `proposed` per house doctrine (3.5 fills E&E silence).
+const WEAPON_SPECIALS = {
+  // ---- BOOK-CANON ----
+  'Bolas':          { rangedTrip: true, src: 'HH p.280', note: 'Ranged TRIP attack — and you can’t be counter-tripped during your own attempt.' },
+  'Spiked Chain':   { trip: true, dropToAvoid: true, disarmBonus: 2, reach: '10 ft AND adjacent foes', finesse: true, src: 'HH p.280' },
+  'Net':            { entangle: true, src: 'HH pp.280-281', note: 'Ranged TOUCH attack (max 10 ft, targets within one size category): hit = ENTANGLED (−2 attacks, −4 Dex, half speed, no charge/run; spellcasting needs Concentration DC 15). Control the trailing rope with an opposed Str check to limit their movement. Escape: Escape Artist DC 20 or burst Str DC 25 (full-round; net has 5 HP). Must be folded to throw well — unfolded throws take −4; refolding takes 2 rounds (4 unproficient).' },
+  'Whip':           { trip: true, dropToAvoid: true, disarmBonus: 2, reach: '15 ft (does NOT threaten; usable adjacent)', finesse: true, src: 'HH p.282', note: 'Nonlethal damage; deals NO damage to targets with armor bonus +1 or natural armor +3 or higher. Using a whip provokes an AoO, like a ranged weapon.' },
+  'Sword, bastard': { src: 'HH p.281', note: 'Exotic one-handed — but usable TWO-HANDED as a martial weapon (no exotic proficiency needed that way).' },
+  'Spear':          { setVsCharge: true, src: 'HH p.371' },
+  'Trident':        { setVsCharge: true, src: 'HH p.371' },
+  'Longspear':      { setVsCharge: true, reachOnly: '10 ft — not adjacent', src: 'HH p.371 (charge); reach proposed' },
+  'Lance':          { chargeDouble: true, src: 'HH p.371', note: 'Double damage when used by a MOUNTED character in a charge.' },
+  // ---- OGL-VERIFIED (3.5 SRD Equipment — Open Game Content; the HH's own
+  // description inserts are queued on Adam's TODO [v8.61.2]. The `proposed`
+  // flag here means "not yet PRINTED in the HH", and keeps the asterisk.) ----
+  'Guisarme':       { trip: true, dropToAvoid: true, reachOnly: '10 ft — not adjacent', proposed: true, src: 'OGL 3.5 SRD' },
+  'Halberd':        { trip: true, dropToAvoid: true, setVsCharge: true, proposed: true, src: 'OGL 3.5 SRD' },
+  'Glaive':         { reachOnly: '10 ft — not adjacent', proposed: true, src: 'OGL 3.5 SRD' },
+  'Ranseur':        { disarmBonus: 2, reachOnly: '10 ft — not adjacent', proposed: true, src: 'OGL 3.5 SRD' },
+  'Flail':          { trip: true, dropToAvoid: true, disarmBonus: 2, proposed: true, src: 'OGL 3.5 SRD' },
+  'Flail, heavy':   { trip: true, dropToAvoid: true, disarmBonus: 2, proposed: true, src: 'OGL 3.5 SRD ("Flail or Heavy Flail" — one shared entry)' },
+  'Scythe':         { trip: true, dropToAvoid: true, proposed: true, src: 'OGL 3.5 SRD' },
+  'Sickle':         { trip: true, dropToAvoid: true, proposed: true, src: 'OGL 3.5 SRD' },
+  'Quarterstaff':   { proposed: true, src: 'OGL 3.5 SRD', note: 'Double weapon: fight as if with two weapons (one-handed + light, all TWF penalties). One-handed, only one end can strike.' },
+  'Sling':          { proposed: true, src: 'OGL 3.5 SRD', note: 'Your Strength modifier applies to damage. Fire (not load) one-handed; loading is a move action needing two hands and provokes AoOs.' },
+};
+// v8.61.2 amendments to canon entries: the SRD adds Lance reach + the
+// one-handed-while-mounted clause on top of the HH p.371 charge double.
+WEAPON_SPECIALS['Lance'].reachOnly = '10 ft — not adjacent';
+WEAPON_SPECIALS['Lance'].note = 'Double damage when used by a MOUNTED character in a charge. While mounted, you can wield a lance one-handed. (Reach clause: OGL 3.5 SRD — HH insert queued.)';
+function weaponSpecialsOf(name) { return WEAPON_SPECIALS[name] || null; }
+// Specials → rider-style chips for the row's sub-line.
+function weaponSpecialRiders(name) {
+  const sp = weaponSpecialsOf(name);
+  if (!sp) return [];
+  const tag = sp.proposed ? ` [${sp.src || 'OGL 3.5 SRD'} — Open Game Content; the HH's own description insert is queued on the TODO]` : (sp.src ? ` (${sp.src})` : '');
+  const r = [];
+  if (sp.reach) r.push([`Reach ${sp.reach}`, `This weapon strikes at ${sp.reach}.${tag}`]);
+  if (sp.reachOnly) r.push([`Reach ${sp.reachOnly}`, `This weapon strikes at ${sp.reachOnly} — it cannot strike adjacent foes.${tag}`]);
+  if (sp.rangedTrip) r.push(['Ranged trip', `${sp.note}${tag}`]);
+  if (sp.entangle) r.push(['Entangle', `${sp.note}${tag}`]);
+  if (sp.setVsCharge) r.push(['Set vs charge', `Ready (set) this weapon against a charge to deal DOUBLE damage to the charging foe.${tag}`]);
+  if (sp.chargeDouble) r.push(['Mounted charge ×2', `${sp.note}${tag}`]);
+  if (sp.note && !sp.rangedTrip && !sp.entangle && !sp.chargeDouble) r.push(['Special', `${sp.note}${tag}`]);
+  return r;
+}
+function meleeOptsOn() { return storeGet('dxd20v2_ui_meleeOpts') === '1'; }
+function toggleMeleeOpts() {
+  storeSet('dxd20v2_ui_meleeOpts', meleeOptsOn() ? '0' : '1');
+  if (typeof renderGear === 'function') renderGear();
+}
+function quickSkillTotal(c, name, attrIdx) {
+  try {
+    const ranks = (typeof getLiveSkillRanks === 'function') ? (getLiveSkillRanks(c, name) || 0) : 0;
+    let misc = 0;
+    if (typeof computeSkillMiscBonuses === 'function') {
+      const m = computeSkillMiscBonuses(c)[name];
+      misc = (typeof m === 'number') ? m : ((m && m.total) || 0);
+    }
+    return ranks + am(effAttrs(c)[attrIdx]) + misc;
+  } catch (e) { return null; }
+}
+function computeManeuvers(c, ctx) {
+  const owns = (n) => ownsFeatN(c, n);
+  const strM = am(effAttrs(c)[0]);
+  const szStr = (effectiveSizeIndex(c) - 4) * 4;  // maneuver checks: ±4 per size category vs Medium
+  const show = meleeOptsOn();
+  const fmt = (n) => `${n >= 0 ? '+' : ''}${n}`;
+  const out = [];
+  {
+    const iD = owns('Improved Disarm');
+    if (show || iD) {
+      const spD = ctx.isUnarmed ? null : weaponSpecialsOf(ctx.weaponName);
+      const wB = (spD && spD.disarmBonus) || 0;
+      const mod = ctx.attackBonus + (ctx.wield2H ? 4 : 0) + ((ctx.isLight || ctx.isUnarmed) ? -4 : 0) + wB;
+      out.push({ n: 'Disarm', display: `${fmt(mod)} opposed${wB ? ` (incl. weapon +${wB}${spD.proposed ? '*' : ''})` : ''}${iD ? ' · no AoO' : ' · ⚠ AoO'}`,
+        label: `Disarm — replaces any melee attack (any Full Attack swing, even an AoO). Opposed ATTACK rolls; your roll ${fmt(mod)}${ctx.wield2H ? ' (two-handed +4 included)' : ''}${(ctx.isLight || ctx.isUnarmed) ? ' (light weapon −4 included — an unarmed strike counts as light)' : ''}${wB ? ` (${ctx.weaponName} +${wB} on disarm rolls, including the roll to avoid being counter-disarmed${spD.proposed ? ' — OGL 3.5 SRD; HH insert queued' : ` — ${spD.src}`})` : ''}; ±4 per size-category difference at the table. ${iD ? 'Improved Disarm: you provoke NO attack of opportunity.' : '⚠ Provokes an AoO from the target — if its damage lands, your attempt fails. If you fail the opposed roll, the defender may immediately try to disarm YOU.'} Succeed unarmed: their weapon is in your hand. Succeed armed: it lands in their hex. Locked gauntlets resist at +10; spiked gauntlets can't be disarmed.` });
+    }
+  }
+  {
+    const iT = owns('Improved Trip'), cT = owns('Combat Throw'), icT = owns('Improved Combat Throw');
+    const spT = ctx.isUnarmed ? null : weaponSpecialsOf(ctx.weaponName);
+    const tripW = !!(spT && spT.trip);
+    const tripProposed = !!(spT && spT.trip && spT.proposed);
+    if (show || iT || cT || icT) {
+      const strCheck = strM + szStr + (cT ? 2 : 0);
+      out.push({ n: 'Trip', display: `touch ${fmt(ctx.attackBonus)} → Str ${fmt(strCheck)}${(iT || tripW) ? ' · no AoO' : ' · ⚠ AoO if unarmed'}${tripW ? ` · trip weapon${tripProposed ? '*' : ''}` : ''}`,
+        label: `Trip — replaces any melee attack; only vs targets up to one size larger. Melee TOUCH attack at ${fmt(ctx.attackBonus)}, then opposed Str check at ${fmt(strCheck)}${cT ? ' (Combat Throw +2 included)' : ''} (size ${fmt(szStr)} included) vs the defender's Str OR Dex (their choice); defender +4 if more than two legs or exceptionally stable. Win: target is PRONE (standing up costs them a move action). Lose: they may immediately counter-trip you.${iT ? ' Improved Trip: no AoO, and you get a free attack of opportunity against the tripped target.' : (tripW ? ` *${ctx.weaponName} is a trip weapon (${tripProposed ? 'OGL 3.5 SRD — Open Game Content; the HH description insert is queued' : (spT.src || 'HH')}): the touch attack is made WITH the weapon, no AoO${spT.dropToAvoid ? ', and you may DROP the weapon to avoid a counter-trip' : ''}.` : ' ⚠ An unarmed trip attempt provokes an AoO.')}${icT ? ' Improved Combat Throw: when an opponent misses you in melee, you may take an AoO to attempt a trip.' : ''} Mounted targets: their Ride check may replace their opposed check; win pulls them from the mount.` });
+    }
+  }
+  {
+    const iF = owns('Improved Feint');
+    if (show || iF) {
+      const bluff = quickSkillTotal(c, 'Bluff', 5);
+      const shown = bluff != null ? fmt(bluff + (iF ? 2 : 0)) : '(Skills tab)';
+      out.push({ n: 'Feint', display: `Bluff ${shown} · ${iF ? 'move action' : 'standard action'} · no AoO`,
+        label: `Feint — ${iF ? 'a MOVE action (Improved Feint; its +2 is included)' : 'a standard action'}; never provokes. Your Bluff vs the target's Sense Motive + their base attack bonus. Success: your NEXT melee attack against them (made by the end of your next turn) denies their Dex bonus to AC. −4 vs nonhumanoids, −8 vs animal Intelligence (1–2), impossible vs nonintelligent creatures.` });
+    }
+  }
+  {
+    const iB = owns('Improved Bull Rush');
+    if (show || iB) out.push({ n: 'Bull Rush', display: `Str ${fmt(strM + szStr + (iB ? 4 : 0))}${iB ? ' · no AoO (defender)' : ' · ⚠ AoOs'}`,
+      label: `Bull Rush — an attack (standard action) or part of a charge (+2 on the check if charging); only vs targets up to one size larger. Moving into their space ⚠ provokes AoOs from everyone threatening you${iB ? ' EXCEPT the defender (Improved Bull Rush; its +4 is included)' : ' — and stray AoOs have a 25% chance of striking the other combatant instead'}. Opposed Str checks at ${fmt(strM + szStr + (iB ? 4 : 0))} (size ${fmt(szStr)} included); stable/multi-legged defenders +4. Win: push them back 5 ft, +5 ft per 5 points of margin (move with them if you wish, within your movement). Lose: you bounce back 5 ft.` });
+    const iO = owns('Improved Overrun');
+    if (show || iO) out.push({ n: 'Overrun', display: `Str ${fmt(strM + szStr + (iO ? 4 : 0))}${iO ? ' · can’t avoid you' : ''} · ⚠ AoO`,
+      label: `Overrun — a standard action taken DURING your move (the printed exception); one attempt per round; only vs targets up to one size larger. ⚠ Provokes an AoO from the defender. ${iO ? 'Improved Overrun (+4 included): the defender may NOT simply avoid you.' : 'The defender may simply avoid you (costs neither of you anything).'} If they block: opposed Str at ${fmt(strM + szStr + (iO ? 4 : 0))} vs their Str OR Dex (stable +4, ±4/size). Win: they're PRONE and you continue your move. Lose: they may counter-knock YOU prone; either way you fall back 5 ft.` });
+    const iS = owns('Improved Sunder');
+    if (show || iS) {
+      const mod = ctx.attackBonus + (ctx.wield2H ? 4 : 0) + ((ctx.isLight || ctx.isUnarmed) ? -4 : 0);
+      out.push({ n: 'Sunder', display: `${fmt(mod)} opposed${iS ? ' · no AoO' : ' · ⚠ AoO'}`,
+        label: `Sunder — a melee attack with a slashing or bludgeoning weapon against a HELD weapon or shield. ${iS ? 'No AoO (Improved Sunder).' : '⚠ Provokes an AoO — any damage it deals becomes an equal penalty on your opposed roll.'} Opposed attack rolls at ${fmt(mod)} (two-handed +4 / light −4 included; ±4/size at the table), AND your roll must also reach the defender's Touch AC. Win: roll weapon damage against the item (blades hardness 10, hafted 5 — HH table). Worn/carried objects use a straight attack vs AC 10 + size + their Defense + Dex instead.` });
+    }
+  }
+  return out;
+}
+// Row-level COMBAT RIDERS — owned feats whose whole mechanic is one line on
+// this attack row. Every line verified against the HH feat table (pp.197-199).
+function combatRiders(c, kind) {
+  const owns = (n) => ownsFeatN(c, n);
+  const r = [];
+  if (kind === 'ranged') {
+    if (owns('Improved Precise Shot')) r.push(['Improved Precise Shot', 'Ignore anything less than total cover or total concealment; strike into a grapple accurately.']);
+    if (owns('Skip Shot')) r.push(['Skip Shot', 'You can try to ricochet a shot into an opponent behind cover (see the feat — GM adjudicates the surface).']);
+    if (owns('Shot on the Run')) r.push(['Shot on the Run', 'Attack with this ranged weapon mid-move: move, shoot, keep moving.']);
+    if (owns('Manyshot')) r.push(['Manyshot', 'Bows: fire multiple arrows as a single standard action (see the feat).']);
+  } else {
+    if (owns('Blind-Fight')) r.push(['Blind-Fight', 'Reroll melee misses caused by concealment — the second result stands.']);
+    if (owns('Spring Attack')) r.push(['Spring Attack', 'Attack with this melee weapon mid-move: move, strike, keep moving.']);
+    if (owns('Reckless Offense')) r.push(['Reckless Offense', 'You may take −4 AC until your next turn for +2 on melee attack rolls (declared per round at the table).']);
+    if (owns('Cleave')) r.push(['Cleave', 'Drop a foe → one immediate free melee attack vs an adjacent foe at the same bonus, once per round. No 5-ft step first.']);
+    if (owns('Great Cleave')) r.push(['Great Cleave', 'As Cleave, with no per-round limit.']);
+    if (owns('Supernatural Strike')) r.push(['Supernatural Strike', 'You may threaten criticals even against targets normally immune to them.']);
+  }
+  if (kind === 'unarmed') {
+    if (owns('Improved Knockout Punch')) r.push(['Improved Knockout Punch', 'Your FIRST unarmed attack against a flat-footed opponent is an automatic ×3 critical.']);
+    else if (owns('Knockout Punch')) r.push(['Knockout Punch', 'Your FIRST unarmed attack against a flat-footed opponent is an automatic ×2 critical.']);
+    if (owns('Nerve Pinch')) r.push(['Nerve Pinch', 'Standard action: an unarmed attack that can paralyze the target (see the feat).']);
+    if (owns('Stunning Fist')) r.push(['Stunning Fist', 'Attempt to stun with an unarmed attack — 1/day per 4 character levels.']);
+  }
+  return r;
+}
+// DEFENSE RIDERS — one footer line on the combat dashboard (the ⚔⚔ TWF-row
+// idiom): owned defensive feats and the parry/dodge ready-action ladders.
+function defenseRiders(c) {
+  const owns = (n) => ownsFeatN(c, n);
+  const r = [];
+  if (owns('Deflect Arrows')) r.push(['Deflect Arrows', 'Free parry vs one ranged non-ballistic attack per round (one hand free).']);
+  if (owns('Snatch Arrows')) r.push(['Snatch Arrows', 'Catch a deflected thrown weapon — and you may counterattack with it.']);
+  if (owns('Elusive Target')) r.push(['Elusive Target', '+4 AC vs ranged attacks while you are engaged in melee.']);
+  if (owns('Sidestep Charge')) r.push(['Sidestep Charge', '+4 dodge AC vs charging foes.']);
+  if (owns('Stand Still')) r.push(['Stand Still', 'Your attack of opportunity can STOP an opponent’s movement through your threatened area.']);
+  if (owns('Unbalance Opponent')) r.push(['Unbalance Opponent', 'One opponent per round loses their Str modifier on melee attacks against you.']);
+  if (owns('Mobility')) r.push(['Mobility', '+4 dodge AC vs attacks of opportunity provoked by your movement.']);
+  if (owns('Combat Reflexes')) r.push(['Combat Reflexes', `Up to ${am(effAttrs(c)[1]) + 1} attacks of opportunity per round (Dex mod + 1), even while flat-footed.`]);
+  if (owns('Improved Combat Throw')) r.push(['Improved Combat Throw', 'When an opponent misses you in melee, take an AoO to attempt a trip.']);
+  if (owns('Shield Parry')) r.push(['Shield Parry', 'Parry one attack with your shield as an immediate action.']);
+  const pTier = owns('Advanced Defensive Martial Arts') ? 'immediate free action' : owns('Improved Defensive Martial Arts') ? 'free action' : owns('Defensive Martial Arts') ? 'swift action' : null;
+  if (pTier) r.push(['Parry ready', `Ready a parry as a ${pTier} — the opposed roll uses your Parry stat.`]);
+  const dTier = owns('Advanced Dodge') ? 'immediate free action' : owns('Improved Dodge') ? 'free action' : owns('Dodge') ? 'swift action' : null;
+  if (dTier) r.push(['Dodge ready', `Ready a dodge as a ${dTier} — the opposed Reflex uses your Dodge stat.`]);
+  return r;
+}
+
 function computeEquippedWeaponSummaries(c) {
   const out = [];
   const twf = twfStatus(c);
@@ -8900,6 +9084,22 @@ function computeEquippedWeaponSummaries(c) {
       const sp = weaponSpikeInfo(c, isRangedWeapon(def) ? 'ranged' : 'melee', attackBonus);
       if (sp) altModes.push(sp);
     }
+    // v8.61.0: Dead Aim (ranged) and Whirlwind Attack (melee) as alt modes.
+    if (isRangedWeapon(def) && ownsFeatN(c, 'Dead Aim')) {
+      altModes.push({ name: 'Aimed Shot', atk: attackBonus + 2, dmgMult: 1,
+        display: `${attackBonus + 2 >= 0 ? '+' : ''}${attackBonus + 2} after a full-round aim`,
+        label: 'Dead Aim: spend a full-round action drawing a bead to gain +2 on your NEXT single ranged attack with this weapon.' });
+    }
+    if (!isRangedWeapon(def) && ownsFeatN(c, 'Whirlwind Attack')) {
+      altModes.push({ name: 'Whirlwind Attack', atk: attackBonus, dmgMult: 1,
+        display: `${attackBonus >= 0 ? '+' : ''}${attackBonus} vs EVERY adjacent foe`,
+        label: 'Whirlwind Attack (full attack action): one melee attack at your full base attack bonus against every opponent you threaten. You forgo your iterative attacks to strike everyone at once.' });
+    }
+    // v8.61.0: Expanded Melee Options (maneuver branches) + combat riders.
+    const maneuvers = isRangedWeapon(def) ? [] : computeManeuvers(c, {
+      attackBonus, wield2H, isLight: def.kind === 'light', isUnarmed: false, weaponName: def.n || it.ref });
+    const riders = [...combatRiders(c, isRangedWeapon(def) ? 'ranged' : 'melee'),
+      ...weaponSpecialRiders(def.n || it.ref)];  // v8.61.1: book-canon weapon properties
     // v8.6.1: off-hand attack sequence (1 base; 2nd at −5 with Improved TWF;
     // 3rd at −10 with Greater/Advanced) + the half-Str damage reminder for
     // melee off-hand hits (d20: off-hand adds only ½ the Str bonus).
@@ -8928,6 +9128,7 @@ function computeEquippedWeaponSummaries(c) {
     out.push({
       itemId: it.id, name: enchantDisplayName(it), slot: it.slot, hand: twfHand,
       fullAttack, gripBothHands: wield2H && def.kind !== 'two-handed',
+      maneuvers, riders,
       enchantOverCap: !!(it.enchant && it.enchant.overCap),
       typeLabel: classifiedDamageLabel(it, def),
       vsObjects: damageVsObjectsNote(def),
@@ -9074,6 +9275,12 @@ function computeEquippedWeaponSummaries(c) {
     // v8.59.0: Power Fist spike on the unarmed row (Monk's granted copies at
     // 8th/14th arrive as real feat records, so they qualify automatically).
     { const spU = weaponSpikeInfo(c, 'unarmed', attackBonus); if (spU) altModes.push(spU); }
+    // v8.61.0: Whirlwind rides the unarmed row too (it's a melee attack).
+    if (ownsFeatN(c, 'Whirlwind Attack')) {
+      altModes.push({ name: 'Whirlwind Attack', atk: attackBonus, dmgMult: 1,
+        display: `${attackBonus >= 0 ? '+' : ''}${attackBonus} vs EVERY adjacent foe`,
+        label: 'Whirlwind Attack (full attack action): one melee attack at your full base attack bonus against every opponent you threaten.' });
+    }
     const monkLvl = migrateLegacyClasses(c).filter(e => e.name === 'Monk').reduce((s, e) => s + (e.level || 0), 0);
     if (monkLvl > 0 && !wearingArmorCategory(c)) {
       altModes.push({
@@ -9110,6 +9317,9 @@ function computeEquippedWeaponSummaries(c) {
       damageLabel: DamageResolver.renderLabel(pseudo), resistances: DamageResolver.applicableResistances(pseudo),
       // v8.60.0: the unarmed strike iterates like any weapon attack.
       fullAttack: (() => { const fa = []; const nAtk = Math.min(5, 1 + Math.floor((c.bab || 0) / 5)); for (let i = 0; i < nAtk; i++) fa.push(attackBonus - 5 * i); return fa; })(),
+      // v8.61.0: unarmed maneuvers (counts light; trips provoke) + riders.
+      maneuvers: computeManeuvers(c, { attackBonus, wield2H: false, isLight: true, isUnarmed: true, weaponName: 'Unarmed strike' }),
+      riders: [...combatRiders(c, 'melee'), ...combatRiders(c, 'unarmed')],
       proficient: true, mods, altModes, unarmed: true,
       unarmedNote: `Light weapon; can't be disarmed. ${hasCMA ? 'Counts as ARMED (Combat Martial Arts) — no attack of opportunity.' : 'Unarmed attacks provoke attacks of opportunity (no martial-arts feat).'}`,
     });
@@ -10866,6 +11076,13 @@ function renderGear() {
     const twd = twfNow.hasTwoWeaponDefense ? ' · Two-Weapon Defense: +1 shield bonus to AC while dual-wielding (apply manually)' : '';
     return `<tr><td colspan="5" style="font-size:10.5px;color:rgba(120,175,205,.85);padding:4px 8px;">⚔⚔ <b>Two-weapon fighting</b> — ${escapeHTML(why.join(' · '))} · ${escapeHTML(extras)}${escapeHTML(twd)} <span style="opacity:.55;">(off-hand melee damage adds ½ Str bonus)</span></td></tr>`;
   })() : '';
+  // v8.61.0: toggle label state + the defensive-riders footer row.
+  { const mb = document.getElementById('melee-opts-btn');
+    if (mb) { const on = meleeOptsOn(); mb.textContent = `⚔ Expanded Melee Options: ${on ? 'ON' : 'OFF'}`; mb.style.borderColor = on ? 'rgba(212,184,112,.6)' : ''; mb.style.color = on ? 'rgba(212,184,112,.95)' : ''; } }
+  const defR = defenseRiders(c);
+  const defRow = defR.length
+    ? `<tr><td colspan="5" style="font-size:10.5px;color:rgba(156,195,218,.8);padding:4px 8px;">🛡 <b>Defensive riders</b> — ${defR.map(d => `<span title="${escapeHTML(d[1])}" style="cursor:help;white-space:nowrap;">${escapeHTML(d[0])}</span>`).join(' · ')}</td></tr>`
+    : '';
   document.getElementById('gear-weapon-summary').innerHTML = summaries.length
     ? summaries.map(s => {
         const atkTip = s.mods.map(m => `${m.label}: ${m.value >= 0 ? '+' : ''}${m.value}`).join('\n');
@@ -10892,9 +11109,16 @@ function renderGear() {
       + `<td style="font-size:10px;opacity:.8;cursor:help;" title="Resisted by: ${escapeHTML(s.resistances.join('; ') || '—')}${s.vsObjects ? escapeHTML('\nVs objects: ' + s.vsObjects) : ''}${(((s.typeLabel||'').toLowerCase().includes('ballistic')) || (s.damageTypes||[]).includes('ballistic')) ? escapeHTML('\n\nOverpenetration (Ballistic — ruled 2026-09-24): critical confirmations roll 2d20, keep the better. A confirmed critical that deals damage passes through the target: apply the same attack roll against the next target directly behind along the line of fire, which takes normal (non-critical) weapon damage. One pass-through per attack. A shooter with Precise Shot never endangers allies this way — a pass-through that would strike an ally is wasted instead.') : ''}">${escapeHTML(s.typeLabel || (s.damageTypes || []).join('/') || '—')}</td>`
       + `<td style="font-size:10px;">${s.altModes.length ? s.altModes.map(m => m.spike
           ? `<div title="${escapeHTML(m.label)}" style="color:${m.path ? 'rgba(220,205,138,.95)' : 'rgba(220,205,138,.4)'};white-space:nowrap;cursor:help;">↳ ⚡ ${escapeHTML(m.name)}: ${escapeHTML(m.display)}${m.path ? ` <button class="btn btn-sm" style="font-size:9px;padding:0 5px;margin-left:4px;" onclick="weaponSpikeUse('${escapeHTML(m.dispFeat)}','${m.dice}','${m.path}')">Expend Focus</button>` : ''}</div>`
-          : `<div title="${escapeHTML(m.label)}" style="color:rgba(120,175,205,.9);cursor:help;white-space:nowrap;">↳ ${escapeHTML(m.name)}: ${m.display ? escapeHTML(m.display) : `${m.atk >= 0 ? '+' : ''}${m.atk} atk / ×${m.dmgMult} dmg${m.roundsCost ? ` <span style="opacity:.55;">(${m.roundsCost} rds)</span>` : ''}`}</div>`).join('') : '<span style="opacity:.4;">—</span>'}</td></tr>`;
-      }).join('') + twfRow + rangerRow
-    : `<tr><td colspan="5" style="opacity:.5;text-align:center;">No weapons equipped.</td></tr>` + rangerRow;
+          : `<div title="${escapeHTML(m.label)}" style="color:rgba(120,175,205,.9);cursor:help;white-space:nowrap;">↳ ${escapeHTML(m.name)}: ${m.display ? escapeHTML(m.display) : `${m.atk >= 0 ? '+' : ''}${m.atk} atk / ×${m.dmgMult} dmg${m.roundsCost ? ` <span style="opacity:.55;">(${m.roundsCost} rds)</span>` : ''}`}</div>`).join('') : '<span style="opacity:.4;">—</span>'}</td></tr>`
+      // v8.61.0: the maneuvers + riders sub-row (Expanded Melee Options).
+      + (((s.maneuvers && s.maneuvers.length) || (s.riders && s.riders.length))
+          ? `<tr><td colspan="5" style="padding:2px 8px 7px 20px;font-size:10px;border-bottom:1px solid rgba(200,151,30,.08);line-height:1.9;">`
+            + (s.maneuvers || []).map(m => `<span title="${escapeHTML(m.label)}" style="cursor:help;color:rgba(212,184,112,.9);margin-right:12px;white-space:nowrap;">⚔ ${m.n}: ${escapeHTML(m.display)}</span>`).join('')
+            + (s.riders || []).map(r => `<span title="${escapeHTML(r[1])}" style="cursor:help;color:rgba(120,175,205,.65);margin-right:12px;white-space:nowrap;">• ${escapeHTML(r[0])}</span>`).join('')
+            + `</td></tr>`
+          : '');
+      }).join('') + twfRow + defRow + rangerRow
+    : `<tr><td colspan="5" style="opacity:.5;text-align:center;">No weapons equipped.</td></tr>` + defRow + rangerRow;
 
   document.getElementById('gear-inv-weapons').innerHTML = renderInventoryList(c.items.filter(i => i.catalogue === 'weapon'), techScale, 'weapon');
   document.getElementById('gear-inv-armor').innerHTML = renderInventoryList(c.items.filter(i => i.catalogue === 'armor'), techScale, 'armor');
@@ -37525,7 +37749,14 @@ function renderSheet(){
   ].map(s=>{
     const total = sbSaves[s.k].total;
     const other = total - (s.base||0) - s.mod;
-    return `<div class="stat-cell drillable" onclick="showStatBreakdown('${s.k}')"><span class="sc-lbl">${s.l}</span><span class="sc-val">${(total>=0?'+':'')+total}</span><span style="display:block;font-size:10px;color:rgba(200,151,30,.5);margin-top:2px;">base ${s.base||0} + ${s.attr} ${s.mod>=0?'+':''}${s.mod}${other?` ${other>0?'+':'−'} ${Math.abs(other)} other`:''}</span></div>`;
+    // v8.61.0: Evasion rider on the Reflex card (talent — Fast Hero/Monk et al.).
+    let evTag = '';
+    if (s.k === 'ref') {
+      const hasIE = (c.talents || []).some(t => (t.name || t.n) === 'Improved Evasion');
+      const hasE = hasIE || (c.talents || []).some(t => (t.name || t.n) === 'Evasion');
+      if (hasE) evTag = `<span style="display:block;font-size:9px;color:#9cc3da;font-style:italic;margin-top:2px;cursor:help;" title="${hasIE ? 'Improved Evasion: a successful Reflex save against a half-damage effect means NO damage — and a failed save means only half.' : 'Evasion: a successful Reflex save against a half-damage effect (fireball, explosions…) means NO damage instead of half. Light or no armor only.'}">${hasIE ? 'Improved Evasion' : 'Evasion'}</span>`;
+    }
+    return `<div class="stat-cell drillable" onclick="showStatBreakdown('${s.k}')"><span class="sc-lbl">${s.l}</span><span class="sc-val">${(total>=0?'+':'')+total}</span><span style="display:block;font-size:10px;color:rgba(200,151,30,.5);margin-top:2px;">base ${s.base||0} + ${s.attr} ${s.mod>=0?'+':''}${s.mod}${other?` ${other>0?'+':'−'} ${Math.abs(other)} other`:''}</span>${evTag}</div>`;
   }).join('');
   // v8.3.16: Caster & Manifester Levels strip removed. The Powers & Spells
   // panel below shows CL/ML per pool with full context (save DC, max power
