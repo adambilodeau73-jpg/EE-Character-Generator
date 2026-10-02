@@ -303,7 +303,7 @@ details.hy-det[open]>summary::before{content:'▾ '}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.71.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.72.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1076,9 +1076,13 @@ details.hy-det[open]>summary::before{content:'▾ '}
     <!-- v8.7.0 Wealth panel (Adam, 2026-09-02). Starting Wealth Score = 20 +
          occupation bonus(es) + 1 (Profession ranks) + Windfall + 2d4 (HH
          p.44), converted to CONCRETE funds via the p.45 table. Every item
-         add is Purchased (deducts) or Acquired (free) from here on. -->
-    <div class="sec-head sm">Wealth</div>
-    <div class="panel" style="margin-bottom:.9rem;padding:8px 12px;" id="gear-wealth-panel"></div>
+         add is Purchased (deducts) or Acquired (free) from here on.
+         v8.72.0 (Adam): collapses to ONE line — Score + Funds ride the
+         header for at-a-glance reference; the controls (± Adjust, 🔍 price
+         check, ⚄ roll) live in the expanded panel. Collapsed by default;
+         renderWealthPanel keeps the header summary live either way. -->
+    <div class="sec-head sm" onclick="toggleGearWealth()" style="cursor:pointer;user-select:none;"><span id="gear-wealth-chev" style="font-size:9px;color:var(--bronze);">▸</span> Wealth <span id="gear-wealth-summary" style="font-weight:400;font-size:11px;text-transform:none;letter-spacing:0;color:rgba(200,151,30,.85);margin-left:8px;"></span></div>
+    <div class="panel" style="margin-bottom:.9rem;padding:8px 12px;display:none;" id="gear-wealth-panel"></div>
 
     <div class="sec-head sm">Equipped — Held &amp; Worn</div>
     <div class="panel" style="overflow-x:auto;margin-bottom:.9rem;">
@@ -1131,10 +1135,14 @@ details.hy-det[open]>summary::before{content:'▾ '}
          v8.56.0 (playtest issue #3c): moved BELOW the personal-scale
          inventories and ABOVE the motor pool — mundane kit first, magic
          next, vehicles last. -->
-    <div class="sec-head sm">Inventory — Enchanted &amp; Imbued Items</div>
+    <!-- v8.72.0 (Adam): the magic shelf was camouflaged in the drop-down
+         stack — give it air (a gap and hairline above and below) and the
+         house arcane purple so it reads as THE magic section at a glance. -->
+    <div style="margin:1.5rem 0 1.1rem;border-top:1px solid rgba(196,153,212,.3);"></div>
+    <div class="sec-head sm" style="color:#c499d4;">✨ Inventory — Enchanted &amp; Imbued Items</div>
     <div id="gear-inv-magic" style="margin-bottom:.6rem;"></div>
     <div class="btn-row" style="margin-bottom:.6rem;">
-      <button id="magic-browse-toggle" class="btn btn-sm" onclick="toggleMagicBrowse()">⌕ Browse Enchanted &amp; Imbued Items (706)</button>
+      <button id="magic-browse-toggle" class="btn btn-sm" style="border-color:rgba(196,153,212,.55);color:#c499d4;background:rgba(196,153,212,.07);" onclick="toggleMagicBrowse()">⌕ Browse Enchanted &amp; Imbued Items (706)</button>
     </div>
     <div id="magic-browse-wrap" style="display:none;margin-bottom:1rem;">
       <div style="margin-bottom:.6rem;display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:11px;">
@@ -1153,6 +1161,8 @@ details.hy-det[open]>summary::before{content:'▾ '}
       </div>
       <div id="magic-browse-list" style="border:1px solid rgba(200,151,30,.15);border-radius:3px;"></div>
     </div>
+    <!-- v8.72.0: the magic shelf's closing hairline — the matching gap below. -->
+    <div style="margin:1.1rem 0 1.5rem;border-top:1px solid rgba(196,153,212,.3);"></div>
 
     <!-- v8.13.x Segment A (Adam's mecha/starship pass): vehicles purchase here
          (one economy — Wealth, market TS, provenance), operate on the gated
@@ -7199,9 +7209,24 @@ function setPriceCheckTs(v) {
   _priceCheckTs = v === '' ? null : parseInt(v, 10);
   renderGear();
 }
+// v8.72.0 (Adam): the Wealth section's expand/collapse — same idiom as the
+// body-slot map. The header one-liner stays live in both states.
+function toggleGearWealth() {
+  const w = document.getElementById('gear-wealth-panel'), ch = document.getElementById('gear-wealth-chev');
+  const open = w.style.display === 'none';
+  w.style.display = open ? 'block' : 'none';
+  if (ch) ch.textContent = open ? '▾' : '▸';
+}
 function renderWealthPanel(c) {
   const el = document.getElementById('gear-wealth-panel'); if (!el) return;
   const ts = scenarioTechScale(c);
+  // v8.72.0: the always-visible header summary — Score + Funds at a glance.
+  const sum = document.getElementById('gear-wealth-summary');
+  if (sum) {
+    sum.innerHTML = c.wealthScore == null
+      ? `<span style="opacity:.6;">— untracked · expand to roll starting wealth</span>`
+      : `— Score <b style="color:var(--gold);">${c.wealthScore}</b> · <b style="color:${c.funds < 0 ? '#d47070' : 'var(--gold)'};">${escapeHTML(fundsLabel(c.funds, ts))}</b>${c.funds < 0 ? ' <span style="font-size:10px;color:#d47070;">(in debt)</span>' : ''}`;
+  }
   if (c.wealthScore == null) {
     const parts = startingWealthBreakdown(c);
     const fixed = parts.reduce((s, p) => s + p.v, 0);
@@ -48253,16 +48278,23 @@ function renderCombatOptions(c) {
     chip('5-ft Step', 'free, no AoO', 'Once per round when you move no other distance: step 5 ft without provoking. Not while using a movement-forbidding full-round action.'),
   ].join('');
   // v8.71.0 (Adam's call — "one of the most contentious parts of melee
-  // combat"): the Grapple chip graduates to a full drop-down. Condensed
-  // from HH pp.372-374 with the load-bearing numbers verbatim; live check
-  // modifier from computeGrapple (stances, buffs, size all ride along).
+  // combat"): the Grapple drop-down, condensed from HH pp.372-374 with the
+  // load-bearing numbers verbatim; live check from computeGrapple (stances,
+  // buffs, size all ride along).
+  // v8.72.0 (Adam's CDO, justly triggered): Grapple REJOINS the uniform
+  // chip rank — soft blue title, quick blurb — so it catches the eye like
+  // its siblings; the full rules fold below as the Grappling Rules Summary.
   const gr = (typeof computeGrapple === 'function') ? computeGrapple(c) : null;
   const ownsFeat = (n) => (c.feats || []).some(f => (f.name || f.n) === n);
   const impGrap = ownsFeat('Improved Grapple');
   const eaRanks = (typeof getLiveSkillRanks === 'function') ? (getLiveSkillRanks(c, 'Escape Artist') || 0) : 0;
   const gH = (t) => `<div style="margin-top:5px;color:rgba(212,184,112,.9);font-weight:bold;">${t}</div>`;
+  host.innerHTML = [
+    host.innerHTML,
+    chip('Grapple', `d20 ${gr ? (gr.total >= 0 ? '+' : '') + gr.total : '+ mods'} — special modifiers &amp; options; see details below`, `Grapple check = d20 + BAB + Str mod + special size modifier (±4 per size step)${impGrap ? ' + Improved Grapple +4' : ''}${gr ? `. Yours: ${gr.parts.join(' · ')}.` : '.'} The full start-a-grapple sequence, in-grapple actions, pins, and multi-grappler rules are in the Grappling Rules Summary directly below.`),
+  ].join('');
   host.innerHTML += `
-    <details class="hy-det" style="margin-top:6px;"><summary>Grapple — the full sequence (HH pp.372–374)${gr ? ` · your check: d20 ${gr.total >= 0 ? '+' : ''}${gr.total}` : ''}</summary>
+    <details class="hy-det" style="margin-top:6px;"><summary>Grappling Rules Summary (HH pp.372–374)${gr ? ` · your check: d20 ${gr.total >= 0 ? '+' : ''}${gr.total}` : ''}</summary>
     <div style="padding:4px 0 2px 14px;line-height:1.55;font-size:11px;color:rgba(200,200,160,.85);">
       <b>The check:</b> 1d20 + base attack bonus + Str modifier + special size modifier — "a grapple check is like a melee attack roll." Special size modifier: Colossal +16, Gargantuan +12, Huge +8, Large +4, Medium +0, Small −4, Tiny −8, Diminutive −12, Fine −16 (±4 per step, in place of the normal attack-roll size modifier).${gr ? ` <span style="color:rgba(156,195,218,.85);">Yours: ${gr.parts.join(' · ')}.</span>` : ''}
       ${gH('Starting a grapple (standard action — one attempt per iterative, at successively lower BA)')}
