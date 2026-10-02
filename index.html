@@ -296,7 +296,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.61.2</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.63.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1461,10 +1461,27 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
                condition, if an extreme one). Populated by renderConds for
                Su-bearing characters only. -->
           <span id="tr-nullify"></span>
+          <!-- v8.63.0: ⚡ Reckless Offense declared stance (feat-gated).
+               Populated by renderConds for feat owners only. -->
+          <span id="tr-reckless"></span>
         </div>
         <!-- v8.3.20: persistent mechanical-effects panel populated when any
              condition is active. Hidden when there are no conditions. -->
         <div id="tr-cond-effects" style="display:none;margin-top:10px;"></div>
+      </div>
+      <!-- v8.62.0 (Tier B): 🎭 TALENT ACTIONS — computed reference cards for
+           the at-will action talents (the Charisma suite, Strategy suite,
+           Effort chain, Empathic). E&E dropped the d20M daily limits: these
+           are at-will checks, so they get live numbers, not counters. -->
+      <div class="panel" id="tr-talent-actions-panel" style="display:none;">
+        <div class="sec-head sm">🎭 Talent Actions</div>
+        <div id="tr-talent-actions" style="font-size:11.5px;line-height:1.6;"></div>
+      </div>
+      <!-- v8.62.0 (Tier B): ⚔ UNIVERSAL COMBAT OPTIONS — the book's always-
+           available actions, Tumble-rank-aware. -->
+      <div class="panel">
+        <div class="sec-head sm">⚔ Universal Combat Options</div>
+        <div id="tr-combat-options" style="font-size:11px;line-height:1.7;"></div>
       </div>
     </div>
     <!-- v8.3.27: Action History — structured AP/FP audit log. Separate from
@@ -8302,10 +8319,19 @@ function computeGrapple(c) {
   // PA/CE trade SPENDS Base Attack itself (feat table: "reduce Base Attack
   // modifier") — Grapple is BA-keyed, so the full declared total applies.
   // Fixing it HERE means the Sheet cell, drilldowns, and print all inherit.
-  const _dG = (typeof combatDecl === 'function') ? combatDecl(c) : { pa: 0, ce: 0 };
+  const _dG = (typeof combatDecl === 'function') ? combatDecl(c) : { pa: 0, ce: 0, ro: false };
   if (_dG.pa + _dG.ce > 0) {
     total -= (_dG.pa + _dG.ce);
     parts.push(`declared stance (PA ${_dG.pa} · CE ${_dG.ce}) −${_dG.pa + _dG.ce}`);
+  }
+  // v8.63.1 (Adam's redirect): Reckless Offense RIDES Grapple — "a grapple
+  // check is like a melee attack roll" and starting one "requires a
+  // successful melee attack roll" (HH grapple rules), so the +2 applies.
+  // What RO never does: touch ranged, or mint extra attempts (attempt count
+  // keys off the iterative ladder from PRINTED Base Attack, untouched).
+  if (_dG.ro) {
+    total += 2;
+    parts.push('Reckless Offense (declared) +2');
   }
   return { total, parts, sizeIdx };
 }
@@ -8513,7 +8539,11 @@ function weaponRangeRule(def, it) {
 function ownsFeatN(c, n) { return (c && c.feats || []).some(f => (f.name || f.n) === n); }
 function combatDecl(c) {
   const d = (c && c.combatDecl) || {};
-  return { pa: Math.max(0, d.pa || 0), ce: Math.max(0, d.ce || 0) };
+  // v8.63.0 (Adam's ruling): Reckless Offense is a declared stance too, but
+  // it NEVER touches Base Attack — "+2 on melee attack rolls" is a bonus to
+  // the rolls themselves: no ranged, no extra iteratives. v8.63.1 redirect:
+  // Grapple DOES ride it ("a grapple check is like a melee attack roll").
+  return { pa: Math.max(0, d.pa || 0), ce: Math.max(0, d.ce || 0), ro: !!d.ro };
 }
 function combatDeclCaps(c) {
   const bab = (c && c.bab) || 0;
@@ -8750,7 +8780,7 @@ function combatRiders(c, kind) {
   } else {
     if (owns('Blind-Fight')) r.push(['Blind-Fight', 'Reroll melee misses caused by concealment — the second result stands.']);
     if (owns('Spring Attack')) r.push(['Spring Attack', 'Attack with this melee weapon mid-move: move, strike, keep moving.']);
-    if (owns('Reckless Offense')) r.push(['Reckless Offense', 'You may take −4 AC until your next turn for +2 on melee attack rolls (declared per round at the table).']);
+    if (owns('Reckless Offense')) r.push(['Reckless Offense', 'Take −4 AC for +2 on melee attack rolls — now a declared stance: toggle ⚡ Reckless on the Tracker Conditions shelf and the rows, Grapple, and Defense cells update live. Attack rolls only — Grapple included (a grapple check is like a melee attack roll), but never Base Attack: no ranged, no extra iterative attacks.']);
     if (owns('Cleave')) r.push(['Cleave', 'Drop a foe → one immediate free melee attack vs an adjacent foe at the same bonus, once per round. No 5-ft step first.']);
     if (owns('Great Cleave')) r.push(['Great Cleave', 'As Cleave, with no per-round limit.']);
     if (owns('Supernatural Strike')) r.push(['Supernatural Strike', 'You may threaten criticals even against targets normally immune to them.']);
@@ -9010,6 +9040,13 @@ function computeEquippedWeaponSummaries(c) {
         else dmgParts.push({ label: 'Power Attack (declared)', value: _decl.pa });
       }
     }
+    // v8.63.0 (Adam's ruling): Reckless Offense — +2 on melee ATTACK ROLLS,
+    // −4 AC, never Base Attack (no extra iteratives; Grapple rides it in
+    // computeGrapple — a grapple check is like a melee attack roll).
+    if (!isRangedWeapon(def) && _decl.ro) {
+      attackBonus += 2;
+      mods.push({ label: 'Reckless Offense (declared — AC −4)', value: 2 });
+    }
     // v8.5.2: alternate-attack-mode feats (Burst Fire, Double Tap) — gated on
     // owning the feat AND the equipped weapon's parsed rof[] supporting it
     // (Burst Fire needs 'A', Double Tap needs 'S'; see build_weapons.mjs).
@@ -9204,6 +9241,8 @@ function computeEquippedWeaponSummaries(c) {
           if (_declN.pa) { modsN.push({ label: 'Power Attack (declared stance)', value: -_declN.pa }); dmgPartsN.push({ label: 'Power Attack (declared — natural weapon, full bonus)', value: _declN.pa }); }
           if (_declN.ce) modsN.push({ label: `Combat Expertise (declared — Defense +${_declN.ce})`, value: -_declN.ce });
         }
+        // v8.63.0: Reckless Offense — natural weapons are melee attacks too.
+        if (_declN.ro) { atkN += 2; modsN.push({ label: 'Reckless Offense (declared — AC −4)', value: 2 }); }
         const dmgSumN = dmgPartsN.reduce((s, p) => s + p.value, 0);
         let dmgN = die + (dmgSumN ? `${dmgSumN > 0 ? '+' : ''}${dmgSumN}` : '');
         const isBite = /bite/i.test(natName) || m.name === 'Fangs';
@@ -9265,6 +9304,8 @@ function computeEquippedWeaponSummaries(c) {
       if (_declU.pa) { mods.push({ label: 'Power Attack (declared stance)', value: -_declU.pa }); dmgParts.push({ label: 'Power Attack (declared — unarmed, full bonus)', value: _declU.pa }); }
       if (_declU.ce) mods.push({ label: `Combat Expertise (declared — Defense +${_declU.ce})`, value: -_declU.ce });
     }
+    // v8.63.0: Reckless Offense — the unarmed strike is a melee attack.
+    if (_declU.ro) { attackBonus += 2; mods.push({ label: 'Reckless Offense (declared — AC −4)', value: 2 }); }
     const dmgSum = dmgParts.reduce((s, p) => s + p.value, 0);
     const sumSufx = dmgSum ? `${dmgSum > 0 ? '+' : ''}${dmgSum}` : '';
     let damage = `${nlDie}${sumSufx} nonlethal` + (hasCMA ? ` / ${cmaDie}${sumSufx} lethal (CMA${maLvl >= 1 ? ' — Living Weapon' : ''})` : '');
@@ -9543,6 +9584,25 @@ function toggleNullified() {
   save(); renderSheet(); renderGear(); renderSkills();
   try { if (typeof renderConds === 'function' && document.getElementById('tr-nullify')) renderConds(c); } catch (e) {}  // v8.60.2: refresh the Tracker toggle
   toast(c.nullified ? '⊘ Supernatural modifiers suppressed.' : '✦ Supernatural modifiers restored.');
+}
+
+// v8.63.0 (Adam's ruling): toggle the Reckless Offense declared stance.
+// Attack ROLLS only — Base Attack and the iterative ladder are expressly
+// untouched ("in the strictest of terms it doesn't touch BA, so it
+// shouldn't suffer the attendant trickle-down effects"). v8.63.1 redirect:
+// Grapple rides the +2 — a grapple check is like a melee attack roll, and
+// starting one requires a successful melee attack roll (HH grapple rules).
+function toggleRecklessOffense() {
+  const c = chars.find(x => x.id === curId); if (!c) return;
+  if (!ownsFeatN(c, 'Reckless Offense')) { toast('Reckless Offense requires the feat.'); return; }
+  if (!c.combatDecl) c.combatDecl = {};
+  c.combatDecl.ro = !c.combatDecl.ro;
+  logAct(c.combatDecl.ro
+    ? '⚡ RECKLESS OFFENSE declared — +2 on melee attack rolls (Grapple included), −4 AC (HH p.239). Base Attack and the iterative ladder untouched. Holds until re-declared.'
+    : '⚔ Reckless Offense withdrawn — the stance ends; AC and melee attack rolls return to normal.');
+  save(); renderSheet(); renderGear();
+  try { if (typeof renderConds === 'function' && document.getElementById('tr-reckless')) renderConds(c); } catch (e) {}
+  toast(c.combatDecl.ro ? '⚡ Reckless Offense: +2 melee attacks / −4 AC.' : '⚔ Reckless Offense withdrawn.');
 }
 
 // ============================================================================
@@ -16344,7 +16404,7 @@ const TALENTS_DB = [
 
   // === Charismatic Hero ===
   {n:'Charm',family:'Charismatic Hero — Charm Tree',hero_class:'Charismatic Hero',tree:'Charm Tree',tier:'Talent',d:'The Charismatic Hero gets a competence bonus on all Charisma-based skill checks made to influence others. The bonus is equal to the character’s Charismatic level (minimum +1). A Charismatic Hero can only use their Charm bonus on Gamemaster characters with attitudes of indifferent or better. The Charm bonus can’t be used against characters who are unfriendly or hostile.'},
-  {n:'Favor',family:'Charismatic Hero — Charm Tree',hero_class:'Charismatic Hero',tree:'Charm Tree',tier:'Talent',prereqs:[[{type:'talent',name:'Charm'}]],prereqs_text:'Charm',d:'The Charismatic Hero has the ability to acquire minor aid from anyone they meet. By making a Favor check, a Charismatic Hero can gain important information without going through the time and trouble of doing a lot of research. Favors can also be used to acquire the loan of equipment or documents, or to receive other minor assistance in the course of an adventure. A Charismatic Hero spends 1 Action Point to activate this talent. To make a Favor check, roll a d20 and add the character’s Favor bonus, equal to the character’s Charismatic level (minimum +1). The GM sets the DC based on the scope of the favor being requested. The DC ranges from 10 for a simple favor to as high as 30 for formidable and highly dangerous, expensive, or illegal favors. A Charismatic Hero can’t take 10 or take 20 on this check, nor can the hero retry the check for the same (or virtually the same) favor. Favors should help advance the plot of an adventure. A favor that would enable a character to avoid an adventure altogether should always be unavailable to the character, regardless of the result of a Favor check. The GM should carefully monitor a Charismatic Hero’s use of favors to ensure that this ability isn’t abused. The success or failure of a mission typically shouldn’t hinge on the use of a favor, and getting a favor shouldn’t replace good roleplaying or the use of other skills. The GM may disallow any Favor deemed to be disruptive to the game.'},
+  {n:'Favor',family:'Charismatic Hero — Charm Tree',hero_class:'Charismatic Hero',tree:'Charm Tree',tier:'Talent',ap_cost:1,prereqs:[[{type:'talent',name:'Charm'}]],prereqs_text:'Charm',d:'The Charismatic Hero has the ability to acquire minor aid from anyone they meet. By making a Favor check, a Charismatic Hero can gain important information without going through the time and trouble of doing a lot of research. Favors can also be used to acquire the loan of equipment or documents, or to receive other minor assistance in the course of an adventure. A Charismatic Hero spends 1 Action Point to activate this talent. To make a Favor check, roll a d20 and add the character’s Favor bonus, equal to the character’s Charismatic level (minimum +1). The GM sets the DC based on the scope of the favor being requested. The DC ranges from 10 for a simple favor to as high as 30 for formidable and highly dangerous, expensive, or illegal favors. A Charismatic Hero can’t take 10 or take 20 on this check, nor can the hero retry the check for the same (or virtually the same) favor. Favors should help advance the plot of an adventure. A favor that would enable a character to avoid an adventure altogether should always be unavailable to the character, regardless of the result of a Favor check. The GM should carefully monitor a Charismatic Hero’s use of favors to ensure that this ability isn’t abused. The success or failure of a mission typically shouldn’t hinge on the use of a favor, and getting a favor shouldn’t replace good roleplaying or the use of other skills. The GM may disallow any Favor deemed to be disruptive to the game.'},
   {n:'Captivate',family:'Charismatic Hero — Charm Tree',hero_class:'Charismatic Hero',tree:'Charm Tree',tier:'Talent',prereqs:[[{type:'talent',name:'Charm'}],[{type:'talent',name:'Favor'}]],prereqs_text:'Charm, Favor',d:'The Charismatic Hero has the ability to temporarily beguile a target through the use of words and bearing. The target must have an Intelligence score of 3 or higher to be susceptible to a captivate attempt, must be within 30 feet of the hero, must be flat-footed or not in combat, and must be able to see, hear, and understand the hero. To Captivate a target, the hero must use an attack action and make a Charisma check (DC 15), adding their Charismatic level as a bonus. If the Charisma check succeeds, the target can try to resist. The target resists the captivation attempt by making a Will saving throw (DC 10 + Charismatic Hero’s class level [minimum +1] + Charismatic hero’s Cha bonus). If the saving throw fails, the target becomes fascinated with the hero, who becomes the target’s sole focus. The target pays no attention to anyone else for 1 round and remains flat-footed. This focusing of the target’s attention allows other characters to take actions of which the captivated target is unaware. The effect ends immediately if the target is attacked or threatened. A Charismatic hero can concentrate to keep a target captivated for additional rounds. The Charismatic Hero concentrates all their effort on the task, and the target gets to make a new Will save each round. The effect ends when the hero stops concentrating, or when the target succeeds on the save. This is a Mind-Affecting ability.'},
   {n:'Animal Magnetism',family:'Charismatic Hero — Charm Tree',hero_class:'Charismatic Hero',tree:'Charm Tree',tier:'Super-Talent',prereqs:[[{type:'talent',name:'Charm'}],[{type:'feat',name:'Supernatural Mutation'}],[{type:'mp',amount:3}]],prereqs_text:'Charm, Supernatural Mutation, 3 MP',mp_cost:3,d:'The Charismatic Hero with Animal Magnetism can Charm any creature with which they can communicate, as an extraordinary ability. The target must have an Intelligence score of 1 or higher to be susceptible to a Charm attempt, must be within 30 feet of the hero, and must be able to see, hear, and understand the hero. If the hero has Favor, then they can also make a Suggestion to a Charmed target 1/day. If the hero has Captivate, then the Will save DC to resist being captivated is increased by +4.'},
   {n:'Fast-Talk',family:'Charismatic Hero — Fast-Talk Tree',hero_class:'Charismatic Hero',tree:'Fast-Talk Tree',tier:'Talent',d:'The Charismatic Hero has a way with words when attempting to con and deceive. With this talent, they apply their Charismatic level as a competence bonus on any Bluff, Diplomacy, or Gamble checks the hero makes while attempting to lie, cheat, or otherwise bend the truth.'},
@@ -37573,6 +37633,9 @@ function renderSheet(){
   const _dclSpent = _dcl.pa + _dcl.ce;
   const _effBA = (c.bab || 0) - _dclSpent;
   const _ceTag = _dcl.ce ? `<span style="display:block;font-size:9px;color:#78afcd;" title="Combat Expertise declared stance — this +${_dcl.ce} dodge bonus also applies to TOUCH AC (HH p.207). Lasts until re-declared.">+${_dcl.ce} CE (declared)</span>` : '';
+  // v8.63.0: Reckless Offense's −4 AC rides the same display convention as
+  // the CE tag (attack rolls carry the +2; BA/Grapple expressly untouched).
+  const _roTag = _dcl.ro ? `<span style="display:block;font-size:9px;color:#d47070;" title="Reckless Offense declared — −4 AC until your next turn for +2 on melee attack rolls, Grapple included (HH p.239; a grapple check is like a melee attack roll). Base Attack and the iterative ladder untouched (Adam's ruling). Lasts until re-declared.">−4 RO (declared)</span>` : '';
   const statCells = [
     {l:'Base Attack',
      v: _dclSpent ? `${_effBA >= 0 ? '+' : ''}${_effBA}` : (c.bab>=0?'+':'')+c.bab,
@@ -37581,9 +37644,9 @@ function renderSheet(){
      extraHtml: _dclOwn ? `<span style="display:block;margin-top:2px;white-space:nowrap;"><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_dclSpent >= ((c.bab)||0) ? 'opacity:.35;' : ''}" title="Assign a point of Base Attack to Power Attack / Combat Expertise" onclick="event.stopPropagation();baDeclAdjust(-1)">▼</button><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_dclSpent <= 0 ? 'opacity:.35;' : ''}" title="Return a point of Base Attack" onclick="event.stopPropagation();baDeclAdjust(1)">▲</button>${_dclSpent ? `<span style="font-size:9px;color:#d4b870;margin-left:4px;">PA ${_dcl.pa} · CE ${_dcl.ce}</span>` : ''}</span>` : ''},
     {l:'Defense Bonus',v:(c.def>=0?'+':'')+c.def,k:'def'},
     ...(grap ? [{l:'Grapple', v:(grap.total>=0?'+':'')+grap.total, tooltip: grap.parts.join(' + ') + ' — size uses the effective category (Super-Strong riders included).'}] : []),
-    {l:acDisp.label, v:acDisp.value, k:'ac', extraHtml:_ceTag},
-    {l:'Parry', v:(parry.total>=0?'+':'')+parry.total, k:'parry', extraHtml:_ceTag},
-    {l:'Dodge', v:(dodge.total>=0?'+':'')+dodge.total, k:'dodge', extraHtml:_ceTag},
+    {l:acDisp.label, v:acDisp.value, k:'ac', extraHtml:_ceTag + _roTag},
+    {l:'Parry', v:(parry.total>=0?'+':'')+parry.total, k:'parry', extraHtml:_ceTag + _roTag},
+    {l:'Dodge', v:(dodge.total>=0?'+':'')+dodge.total, k:'dodge', extraHtml:_ceTag + _roTag},
   ];
   if (natHardness > 0) statCells.push({l:'Nat. Hardness', v:natHardness, k:'natHardness', tooltip:natTooltip});
   // v8.8.2 (Adam's Basic-class pass): Spell Resistance — a caster must beat
@@ -42727,8 +42790,73 @@ function memorizeKnownAt(idx) {
   });
 }
 
+// v8.63.0 (Adam's B3 ruling): the decorated-name grammar — Magic-feat
+// prefixes stack leftward in META_FEAT_DEFS order ("Quickened Extended
+// Fireball"); Heighten wears its degree ("Heightened Fireball (to 5th)").
+const META_PREP_PREFIX = { 'Enlarge Spell': 'Enlarged', 'Extend Spell': 'Extended', 'Empower Spell': 'Empowered', 'Widen Spell': 'Widened', 'Maximize Spell': 'Maximized', 'Quicken Spell': 'Quickened' };
+function ordinalOf(n) { return n + (n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'); }
+function prepDecoratedName(base, decl) {
+  let n = base;
+  if (decl.hl) n = `Heightened ${n} (to ${ordinalOf(decl.hl)})`;
+  for (const m of (decl.chosen || [])) { const p = META_PREP_PREFIX[m.name]; if (p) n = `${p} ${n}`; }
+  return n;
+}
+// The cast-time receipt for a memorized augment spend — mirrors the live
+// path's v8.44.0 math exactly; the PP themselves moved at dawn.
+function prepAugFx(spell, extra, augPicks) {
+  if (!extra) return null;
+  const aug = parseAugmentSpec(spell);
+  if (!aug) return null;
+  const augFx = { extra, text: aug.text, dice: null, dcAdd: 0, label: aug.diceLabel, optBits: null };
+  const defs = (typeof AUGMENT_OPTIONS !== 'undefined' && AUGMENT_OPTIONS[spell.name]) || null;
+  if (defs && augPicks) {
+    augFx.optBits = [];
+    for (const o of defs) {
+      const n = augPicks[o.id] || 0;
+      if (!n) continue;
+      if (o.kind === 'dice') { augFx.dice = { n: n * o.dice.n, d: o.dice.d }; augFx.label = 'damage'; if (o.dcEveryDice) augFx.dcAdd = Math.floor(augFx.dice.n / o.dcEveryDice); }
+      else if (o.kind === 'count') augFx.optBits.push(`+${n} ${o.noun}${n === 1 ? '' : 's'}`);
+      else if (o.kind === 'flag') augFx.optBits.push(o.label);
+      else if (o.kind === 'duration') augFx.optBits.push(`+${n * (o.rounds || 1)} round${n * (o.rounds || 1) === 1 ? '' : 's'} duration`);
+      else if (o.kind === 'bonus') augFx.optBits.push(`+${n} ${o.label.replace(/^\+1 /, '')}`);
+    }
+  } else if (aug.dice && aug.step) {
+    const steps = Math.floor(extra / aug.step);
+    augFx.dice = { n: steps * aug.dice.n, d: aug.dice.d };
+    if (aug.dcEveryDice) augFx.dcAdd = Math.floor(augFx.dice.n / aug.dcEveryDice);
+    else if (aug.dcEveryStep) augFx.dcAdd = steps;
+  }
+  return augFx;
+}
+
 async function doPrepare(c, pc, e, free) {
-  const cost = free ? 0 : e.cost;
+  // v8.63.0 (Adam's B3 ruling): the declaration stage — "any further costs
+  // accrued from applying known Magic feats need to be paid at the time of
+  // spell selection." Heighten, metamagic and augment PP all land HERE, per
+  // instance; the cast later releases everything pre-paid (a Quickened
+  // instance as a swift action). Free specialty slots stay plain — the free
+  // slot is the school's standard spell.
+  const featSet = new Set((c.feats || []).map(f => f.name));
+  const metas = META_FEAT_DEFS.spell.filter(m => featSet.has(m.name));
+  const canHeighten = featSet.has('Heighten Spell') && e.lvl < 9;
+  const aug = parseAugmentSpec(e.spell);
+  const cap = computeCasterLevels(c)[pc.poolName] || 1;
+  let decl = { extra: 0, hl: 0, oc: 0, chosen: [], base: e.cost, total: e.cost, augPicks: null };
+  if (!free && (metas.length || canHeighten || aug)) {
+    const picked = await openCastOptions({ c, spell: e.spell, pool: pc.poolName, lvl: e.lvl, baseCost: e.cost, cap, aug, metas, canHeighten, canOverchannel: false, ocMax: 0, spont: { any: false, all: false }, isBuff: false, prep: true });
+    if (!picked) return;
+    decl = picked;
+  }
+  const declared = !!(decl.chosen.length || decl.hl || decl.extra);
+  const dispName = declared ? prepDecoratedName(e.dispName, decl) : e.dispName;
+  const cost = free ? 0 : decl.total;
+  // The caster-level PP cap governs the memorized total ("as long as the
+  // caster has the PP limit via their caster level to pay the total cost of
+  // the multi-augmented spell" — Adam; stacking to the cap is legal).
+  if (!free && cost > cap) {
+    if (!(await confirmModal(`${dispName} would memorize at ${cost} PP total, over the ${POOL_EFF_LEVEL[pc.poolName].abbr} cap of ${cap} ("you can spend only a total number of points on a power equal to your manifester level" — HH p.403).\n\nMemorize anyway as a GM-approved exception?`))) return;
+    logPowerException(c, e.spell.name, `memorized at ${cost} PP over the ${POOL_EFF_LEVEL[pc.poolName].abbr} cap of ${cap}`);
+  }
   if (!c.ppCurrent) c.ppCurrent = {};
   if (!c.ppCurrent[pc.poolName]) c.ppCurrent[pc.poolName] = {};
   const cur = c.ppCurrent[pc.poolName][pc.ctrKey] ?? pc.budget;
@@ -42749,7 +42877,7 @@ async function doPrepare(c, pc, e, free) {
   }
   if (cost > cur + blendCovered) {
     if (!(await confirmModal(
-      `Preparing ${e.dispName} costs ${cost} PP, but ${pc.ctr.class} ${pc.ctr.level} has only ${cur} PP unallocated${blendCovered ? ` (+${blendCovered} drawable from the blended pool)` : ''}.\n\nPrepare anyway as a GM-approved exception? (Available PP drains to 0.)`))) return;
+      `Preparing ${dispName} costs ${cost} PP, but ${pc.ctr.class} ${pc.ctr.level} has only ${cur} PP unallocated${blendCovered ? ` (+${blendCovered} drawable from the blended pool)` : ''}.\n\nPrepare anyway as a GM-approved exception? (Available PP drains to 0.)`))) return;
     logPowerException(c, e.spell.name, `prepared at ${cost} PP with only ${cur + blendCovered} available (${pc.ctr.class} ${pc.ctr.level}${blendCovered ? ', blended' : ''})`);
   }
   c.ppCurrent[pc.poolName][pc.ctrKey] = Math.max(0, cur - cost);
@@ -42765,10 +42893,14 @@ async function doPrepare(c, pc, e, free) {
   // NOTE: unprepare refunds to this contributor's own ledger, capped at its
   // budget — blend-drawn PP past the cap is not re-routed (rest restores all).
   const list = getPreparedList(c, pc.poolName, pc.ctrKey);
-  const existing = list.find(r => r.name === e.spell.name && !!r.free === !!free);
+  // v8.63.0: instances stack only with IDENTICAL declarations — a plain
+  // Fireball and a Quickened Fireball are separate rows, per instance.
+  const declKey = declared ? `${decl.hl || 0}|${decl.extra || 0}|${decl.chosen.map(m => m.name).join('+')}|${decl.augPicks ? JSON.stringify(decl.augPicks) : ''}` : '';
+  const existing = list.find(r => r.name === e.spell.name && !!r.free === !!free && (r.declKey || '') === declKey);
   if (existing) existing.qty = (existing.qty || 0) + 1;
-  else list.push({ name: e.spell.name, dispName: e.dispName, lvl: e.lvl, cost: e.cost, qty: 1, cast: 0, free: !!free });
-  if (typeof logAct === 'function') logAct(`Prepared ${e.dispName}${free ? ' (free specialty slot)' : ` (${cost} PP)`} — ${pc.ctr.class} ${pc.ctr.level}`);
+  else list.push({ name: e.spell.name, dispName, lvl: decl.hl || e.lvl, baseLvl: e.lvl, cost: free ? e.cost : cost, qty: 1, cast: 0, free: !!free,
+    declKey, metas: decl.chosen.map(m => m.name), hl: decl.hl || 0, aug: decl.extra || 0, augPicks: decl.augPicks || null });
+  if (typeof logAct === 'function') logAct(`Prepared ${dispName}${free ? ' (free specialty slot)' : ` (${cost} PP${declared ? ', Magic-feat/augment costs paid at memorization' : ''})`} — ${pc.ctr.class} ${pc.ctr.level}`);
   save(); renderPowers();
 }
 
@@ -42801,19 +42933,23 @@ function finishPrepCast(c, pc, rec, spell, element) {
     const concrete = DamageResolver.expandTemplate(atom).find(x => x.type === element);
     if (concrete) { atom = concrete; displayName = concrete.name; }
   }
+  // v8.63.0 (Adam's B3 ruling): the cast releases everything PRE-PAID at
+  // memorization — metamagic, Heighten and augment all ride the record.
+  const metasApplied = (rec.metas || []).map(n => META_FEAT_DEFS.spell.find(m => m.name === n)).filter(Boolean);
+  const quickened = (rec.metas || []).includes('Quicken Spell');
+  const augFx = prepAugFx(spell, rec.aug || 0, rec.augPicks || null);
   const attrMod = pc.ctr.attrMod ?? ((computeCasterStats(c)[pc.poolName] || {}).bestAttrMod || 0);
   const dcBonus = schoolDcBonus(c, spell);
-  const saveDC = (spell.save && !/none/i.test(spell.save)) ? 10 + rec.lvl + attrMod + dcBonus : null;
+  const saveDC = (spell.save && !/none/i.test(spell.save)) ? 10 + rec.lvl + attrMod + dcBonus + (augFx ? augFx.dcAdd : 0) : null;
   const after = getPoolPPState(c, pc.poolName);
-  renderCastResult({ name: displayName, baseName: spell.name, pool: pc.poolName, lvl: rec.lvl, cost: 0, spent: 0, after, atom, saveDC, dcBonus, spell, buff: false, prepaid: true });
-  if (typeof logAct === 'function') logAct(`Cast prepared ${displayName} (${pc.ctr.class} ${pc.ctr.level}) → ${rec.qty - rec.cast} of ${rec.qty} left`);
+  renderCastResult({ name: displayName, baseName: spell.name, pool: pc.poolName, lvl: rec.lvl, baseLvl: rec.baseLvl ?? rec.lvl, cost: 0, spent: 0, after, atom, saveDC, dcBonus, spell, buff: false, prepaid: true,
+    metasApplied, augFx, heightened: (rec.hl || 0) > 0 });
+  if (typeof logAct === 'function') logAct(`Cast prepared ${displayName}${quickened ? ' — SWIFT action (Quickened, paid at memorization)' : ''} (${pc.ctr.class} ${pc.ctr.level}) → ${rec.qty - rec.cast} of ${rec.qty} left`);
   // v8.60.1 (Adam's Animal Affinity report): PREPARED casts wire curated
-  // buffs too — this path never called applyWiredBuff, so every ✨ buff cast
-  // from the Prepared panel silently skipped the sheet since the v8.57.0
-  // memorize-first surgery. Augment PP is 0 here: preparation fixes the
-  // level, and there is no cast-time augment stage (rules question for the
-  // book: may a prepared caster pay augment PP at release? — flagged).
-  if (typeof applyWiredBuff === 'function') applyWiredBuff(c, spell.name, pc.poolName, 0, null);
+  // buffs too. v8.63.0: the flagged rules question (augment at release?) is
+  // ANSWERED by the B3 ruling — augment PP is paid at memorization and rides
+  // the record, so the wired buff now computes from the declared spend.
+  if (typeof applyWiredBuff === 'function') applyWiredBuff(c, spell.name, pc.poolName, rec.aug || 0, rec.augPicks || null);
   save(); renderPowers();
 }
 
@@ -42825,7 +42961,11 @@ async function castPreparedAt(pi, idx) {
   if ((rec.cast || 0) >= (rec.qty || 0)) { toast('All prepared instances of that spell are spent for today.'); return; }
   const spell = SPELLS_DB.find(s => s.name === rec.name);
   if (!spell) { toast('Catalogue entry not found.'); return; }
-  if (!(await instantGateOK(c, spell, pc.poolName))) return;  // v8.57.0 instantaneous-resolution gate
+  // v8.63.0: a QUICKENED instance casts as a swift action (paid at
+  // memorization), so it passes the instantaneous-resolution gate the same
+  // way any swift cast does — everything else still queues behind it.
+  const quickened = (rec.metas || []).includes('Quicken Spell');
+  if (!quickened && !(await instantGateOK(c, spell, pc.poolName))) return;  // v8.57.0 instantaneous-resolution gate
   if (spell.damage && spell.damage.is_template) {
     const elements = spell.damage.elements || ['acid', 'cold', 'electricity', 'fire', 'sonic'];
     openChoiceModal(`${rec.dispName || spell.name} — choose the energy type`, elements.map(x => x[0].toUpperCase() + x.slice(1)), (sel) => finishPrepCast(c, pc, rec, spell, sel.toLowerCase()));
@@ -44709,7 +44849,7 @@ function renderPrepPanel(c) {
   if (!host) return;
   _prepCtrs = prepContributorsOf(c);
   if (!_prepCtrs.length) { host.innerHTML = ''; return; }
-  let html = `<div class="sec-head sm">Prepared Spells <span style="font-weight:400;font-size:10px;opacity:.6;">(memorized at dawn — PP spent at preparation, casting is free)</span></div>`;
+  let html = `<div class="sec-head sm">Prepared Spells <span style="font-weight:400;font-size:10px;opacity:.6;">(memorized at dawn — PP, Magic-feat and augment costs ALL paid at preparation, per instance; casting is free)</span></div>`;
   html += `<div style="border:1px solid rgba(220,205,138,.25);border-radius:3px;margin-bottom:1rem;">`;
   _prepCtrs.forEach((pc, pi) => {
     const c2 = chars.find(x => x.id === curId);
@@ -44741,7 +44881,7 @@ function renderPrepPanel(c) {
       ? list.map((r, idx) => {
           const left = (r.qty || 0) - (r.cast || 0);
           return `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11.5px;padding:3px 0 3px 12px;${left <= 0 ? 'opacity:.45;' : ''}">
-            <div><b>${escapeHTML(r.dispName || r.name)}</b> <span style="font-size:10px;opacity:.6;">lvl ${r.lvl}${r.free ? ' · FREE specialty' : ` · ${r.cost} PP`}</span>
+            <div><b>${escapeHTML(r.dispName || r.name)}</b> <span style="font-size:10px;opacity:.6;">lvl ${r.lvl}${r.free ? ' · FREE specialty' : ` · ${r.cost} PP`}</span>${(r.metas || []).includes('Quicken Spell') ? ' <span style="font-size:9px;color:#c499d4;border:1px solid rgba(196,153,212,.4);border-radius:3px;padding:0 3px;" title="Quickened at memorization — this instance casts as a SWIFT action (no AoO, one per round).">swift</span>' : ''}
               <span style="font-size:10px;color:${left > 0 ? '#6dba88' : '#d47070'};margin-left:6px;">${left}/${r.qty} left${r.cast ? ` (${r.cast} cast)` : ''}</span></div>
             <div>
               <button class="btn btn-sm" style="font-size:10px;${left <= 0 ? 'opacity:.5;' : 'border-color:rgba(120,175,205,.5);color:rgba(120,175,205,.95);'}" title="Cast a prepared instance (no PP)" onclick="castPreparedAt(${pi},${idx})">⚡ Cast</button>
@@ -44839,7 +44979,11 @@ function openCastOptions(ctx) {
   return new Promise((resolve) => {
     let host = document.getElementById('cast-opt-modal');
     if (!host) { host = document.createElement('div'); host.id = 'cast-opt-modal'; document.body.appendChild(host); }
-    const { c, spell, pool, lvl, baseCost, cap, aug, metas, canHeighten, canOverchannel, ocMax, spont, isBuff } = ctx;
+    // v8.63.0 (Adam's B3 ruling): ctx.prep repurposes this dialog as the
+    // MEMORIZATION declaration stage — all Magic-feat (and augment) costs
+    // are paid at spell selection, per instance ("a Quickened spell is
+    // memorized in the morning, and... cast as a swift action" thereafter).
+    const { c, spell, pool, lvl, baseCost, cap, aug, metas, canHeighten, canOverchannel, ocMax, spont, isBuff, prep } = ctx;
     const capLabel = POOL_EFF_LEVEL[pool] ? POOL_EFF_LEVEL[pool].abbr : pool;
     const metaRows = metas.map((m, i) => {
       const ok = m.chk(spell);
@@ -44868,15 +45012,16 @@ function openCastOptions(ctx) {
       <div style="font-size:10.5px;color:rgba(200,151,30,.7);max-height:70px;overflow:auto;margin-top:2px;">${escapeHTML(aug.text)}</div></div>` : '';
     host.innerHTML = `<div style="position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9000;display:flex;align-items:center;justify-content:center;" onclick="if(event.target===this)__coDone(false)">
       <div style="background:#161210;border:1px solid rgba(200,151,30,.5);border-radius:6px;padding:14px 18px;max-width:520px;width:92%;max-height:82vh;overflow:auto;">
-        <div style="font-family:'Epics Serif','Cinzel',serif;color:var(--gold);font-size:15px;margin-bottom:6px;">⚡ ${escapeHTML(spell.name)} — cast options</div>
+        <div style="font-family:'Epics Serif','Cinzel',serif;color:var(--gold);font-size:15px;margin-bottom:6px;">${prep ? '📜' : '⚡'} ${escapeHTML(spell.name)} — ${prep ? 'memorization options' : 'cast options'}</div>
         <div style="font-size:11.5px;color:rgba(200,151,30,.7);margin-bottom:6px;">Base ${baseCost} PP (level ${lvl}${isBuff ? ', Buff — 0 PP unaugmented' : ''}) · cap: total ≤ ${capLabel} ${cap}<span id="co-capnote"></span></div>
+        ${prep ? `<div style="font-size:10.5px;color:#d4b870;margin-bottom:6px;">Prepared casting: ALL Magic-feat and augment costs are paid NOW, at memorization — this particular instance then casts at no PP with everything baked in (a Quickened instance casts as a swift action). Other instances of the same spell memorize at their standard cost unless likewise declared.</div>` : ''}
         ${augRow}${metaRows ? `<div style="margin:4px 0;"><div style="font-size:10px;color:var(--bronze);text-transform:uppercase;letter-spacing:.05em;">${pool === 'psionic' || pool === 'super' ? 'Power feats (one per manifestation — one focus)' : 'Magic feats'}</div>${metaRows}</div>` : ''}
         ${heightenRow}${ocRow}
         ${spont.any && (pool === 'arcane' || pool === 'divine') ? `<div style="font-size:10.5px;color:#d4b870;margin:4px 0;">Spontaneous casting (Saint/Sorcerer/Bard): any Magic feat escalates the cast to a full-round action; Quicken Spell is barred on spontaneous casts (HH pp.238/340).</div>` : ''}
         <div id="co-total" style="font-size:13px;margin:8px 0 4px;color:var(--gold);"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button class="btn btn-sm" onclick="__coDone(false)">Cancel</button>
-          <button class="btn btn-sm btn-pri" id="co-cast" onclick="__coDone(true)">⚡ Cast</button>
+          <button class="btn btn-sm btn-pri" id="co-cast" onclick="__coDone(true)">${prep ? '📜 Memorize' : '⚡ Cast'}</button>
         </div>
       </div></div>`;
     const state = () => {
@@ -46790,7 +46935,7 @@ function renderTracker(){
   if(reconcileMissingHP(c)){save();toast(`HP auto-assigned (${c.maxHP} — average Hit Dice); GM may override via ⚙ HP Mode.`);}  // v8.6.0 C5
   prompt.style.display='none';cont.style.display='block';
   document.getElementById('tr-nm').textContent=c.name+' — Combat Tracker';
-  renderHPBar(c);renderAPBar(c);renderPPRecovery(c);renderPerDiem(c);if(typeof renderArmorIntegrity==='function')renderArmorIntegrity(c);renderXPBar(c);renderConds(c);renderLog(c);
+  renderHPBar(c);renderAPBar(c);renderPPRecovery(c);renderPerDiem(c);if(typeof renderArmorIntegrity==='function')renderArmorIntegrity(c);renderXPBar(c);renderConds(c);renderTalentActions(c);renderCombatOptions(c);renderLog(c);
   // v8.3.27: action log panel renders alongside the free-text session journal.
   renderActionLog(c);
 }
@@ -47179,6 +47324,73 @@ function renderXPBar(c){
 // Forward-compatibility note: this function reads tier metadata from
 // CONDITION_TIER_STYLE. Adding a new tier requires only extending that table —
 // no changes here.
+// ============================================================================
+// v8.62.0 (Tier B) — 🎭 TALENT ACTIONS: computed reference cards for the
+// at-will action talents. Book verification corrected the sift's design:
+// E&E's rewrites DROPPED the d20M daily limits — Charm is an always-on
+// gated bonus, Favor costs 1 ACTION POINT per use (now ap_cost:1 — the
+// Layer-2 ⚡ Spend-AP button on the Talents tab picks it up as pure data),
+// and Captivate/Dazzle/Taunt/Trick are AT-WILL checks. So: live numbers,
+// not counters. All values transcribed from HH pp.63-71 full text.
+function renderTalentActions(c) {
+  const host = document.getElementById('tr-talent-actions');
+  const panel = document.getElementById('tr-talent-actions-panel');
+  if (!host || !panel) return;
+  const owned = new Set((c.talents || []).map(t => t.name || t.n));
+  const countOf = (n) => (c.talents || []).filter(t => (t.name || t.n) === n).length;
+  const lvlOf = (cls) => migrateLegacyClasses(c).filter(e => e.name === cls).reduce((s, e) => s + (e.level || 0), 0);
+  const chaLvl = Math.max(1, lvlOf('Charismatic Hero'));
+  const smartLvl = Math.max(1, lvlOf('Smart Hero'));
+  const chaM = effAm(c, 5), intM = effAm(c, 3);
+  const fmt = (n) => `${n >= 0 ? '+' : ''}${n}`;
+  const cards = [];
+  const card = (name, body, tip) => cards.push(`<div style="padding:4px 0;border-bottom:1px solid rgba(200,151,30,.08);" title="${escapeHTML(tip || '')}"><b style="color:rgba(212,184,112,.9);cursor:help;">${name}</b> — ${body}</div>`);
+  // ---- Charisma suite ----
+  if (owned.has('Charm')) card('Charm', `+${chaLvl} competence on Charisma-based checks made to INFLUENCE others`, 'Only against targets with attitudes of indifferent or better — never vs unfriendly or hostile (GM adjudicates attitude).');
+  if (owned.has('Fast-Talk')) card('Fast-Talk', `+${chaLvl} competence on Bluff, Diplomacy, and Gamble while lying, cheating, or bending the truth${owned.has('Silver Tongue') ? ' — Silver Tongue extends this to Gather Information and Intimidate, and lets you spend an AP to reroll (keep the second roll)' : ''}`, 'Applies when attempting to con or deceive.');
+  if (owned.has('Favor')) card('Favor', `spend 1 AP (⚡ on the Talents tab) → Favor check d20 ${fmt(chaLvl)} vs GM DC 10–30`, 'No take 10 or 20; no retry for the same favor; the GM may disallow disruptive favors.');
+  if (owned.has('Captivate')) card('Captivate', `attack action: Cha check d20 ${fmt(chaLvl + chaM)} vs DC 15 → target Will save DC ${10 + chaLvl + chaM + (owned.has('Animal Magnetism') ? 4 : 0)}${owned.has('Animal Magnetism') ? ' (incl. Animal Magnetism +4)' : ''} or FASCINATED 1 round (flat-footed, sole focus)`, 'Target: Int 3+, within 30 ft, flat-footed or out of combat, must see/hear/understand you. Concentrate to extend (new save each round); breaks if the target is attacked or threatened. Mind-affecting.');
+  if (owned.has('Dazzle')) { const dz = owned.has('Silver Tongue') ? Math.max(1, chaM) : countOf('Dazzle'); card('Dazzle', `attack action: Cha check d20 ${fmt(chaLvl + chaM)} vs DC 15 → Will save DC ${10 + chaLvl + chaM} or −${dz} on attacks, checks, and saves for ${Math.max(1, chaLvl)} rounds${owned.has('Silver Tongue') ? ' (Silver Tongue: penalty = your Cha modifier)' : (countOf('Dazzle') > 1 ? ` (taken ×${countOf('Dazzle')})` : '')}`, 'Target: Int 3+, 30 ft, must see/hear/understand you. Selectable multiple times — each take worsens the penalty by 1. Mind-affecting.'); }
+  if (owned.has('Taunt')) card('Taunt', `${owned.has('Silver Tongue') ? 'MOVE action (Silver Tongue)' : 'standard action'}: Cha check d20 ${fmt(chaLvl + chaM)} vs DC 15 → Will save DC ${10 + chaLvl + chaM} or the target FIXATES its next action on you`, 'Target: Int 3+, 30 ft, must hear and understand you. Mind-affecting.');
+  if (owned.has('Coordinate')) card('Coordinate', `full round + Cha check DC 10 (yours: d20 ${fmt(chaM)}) → ${owned.has('Inspiring Aura') ? Math.max(1, chaM) : Math.max(1, Math.floor(chaLvl / 2))} allies gain +1${owned.has('Inspiring Aura') ? ' (stacks with the Aura’s standing +1)' : ''} on attacks and skill checks for ${Math.max(1, chaM)} rounds`, `Allies within 30 ft.${owned.has('Inspiring Aura') ? ' Inspiring Aura: allies within 30 ft ALWAYS have +1 attacks/skills; Coordinate reaches Cha-mod allies.' : ''}`);
+  if (owned.has('Inspiration') || owned.has('Greater Inspiration')) { const gi = owned.has('Greater Inspiration'); card(gi ? 'Inspiration (Greater)' : 'Inspiration', `full round${owned.has('Inspiring Aura') && owned.has('Inspiration') ? ' (standard action w/ Inspiring Aura)' : ''} + Cha check DC 10 → ${Math.max(1, Math.floor(chaLvl / 2))} allies gain +${gi ? (owned.has('Inspiring Aura') ? 4 : 3) : 2} morale on saves, attacks, and damage for ${Math.max(1, chaM)} rounds`, 'The ally must listen and observe for a full round. You cannot inspire yourself.'); }
+  // ---- Strategy suite (Smart Hero) ----
+  if (owned.has('Exploit Weakness')) card('Exploit Weakness', `after 1 round of combat — move action: Int check d20 ${fmt(smartLvl + intM)} vs DC 15 → use your INT modifier (${fmt(intM)}) on attack rolls instead of Str/Dex for the rest of the combat vs that opponent`, owned.has('Master Strategist') ? 'Master Strategist: reroll any Strategy-tree Int check (keep the better).' : '');
+  if (owned.has('Plan')) card('Plan', `1 minute of prep (never when surprised) + Int check d20 ${fmt(smartLvl + intM)} vs DC 10 → +1 (10–14) / +2 (15–24) / +3 (25+) circumstance on skill checks and attacks for you and allies — full value 3 rounds, then −1/round`, `No take 10 or 20.${owned.has('Master Strategist') ? ' Master Strategist: reroll the check.' : ''}`);
+  if (owned.has('Trick')) card('Trick', `full-round action: Int check d20 ${fmt(smartLvl + intM)} vs DC 15 → Will save DC ${10 + smartLvl + intM} or DAZED 1 round`, `Target: Int 3+, 30 ft, must hear and understand you. Once per target per encounter — afterwards they're wary and immune.${owned.has('Master Strategist') ? ' Master Strategist: reroll the check.' : ''}`);
+  if (owned.has('Intuition')) card('Intuition', `Will save DC 15 → an honest hunch about imminent trouble (or its absence)`, 'The Dedicated Hero senses trouble in the air; the GM answers truthfully through the hunch.');
+  // ---- Effort chain (Strong Hero) ----
+  {
+    const tiers = ['Extreme Effort', 'Improved Extreme Effort', 'Advanced Extreme Effort'].filter(n => owned.has(n)).length;
+    if (tiers > 0) {
+      const bonus = owned.has('Supreme Effort') ? tiers * 5 : tiers * 2;
+      card(owned.has('Supreme Effort') ? 'Supreme Effort' : 'Extreme Effort', `move action (declare before rolling): +${bonus} on a Strength check or Strength-based skill check`, owned.has('Supreme Effort') ? 'Supreme Effort: +5 per Effort tier owned instead of +2.' : 'Tiers stack: +2 / +4 / +6.');
+    }
+  }
+  panel.style.display = cards.length ? '' : 'none';
+  host.innerHTML = cards.join('');
+}
+// v8.62.0 (Tier B): ⚔ Universal combat options — always available, no feat
+// required (HH combat chapter; Tumble-rank upgrades per the skill's Special).
+function renderCombatOptions(c) {
+  const host = document.getElementById('tr-combat-options');
+  if (!host) return;
+  const tumble = (typeof getLiveSkillRanks === 'function') ? (getLiveSkillRanks(c, 'Tumble') || 0) : 0;
+  const t5 = tumble >= 5;
+  const chip = (name, body, tip) => `<span style="display:inline-block;margin:1px 10px 1px 0;white-space:nowrap;cursor:help;" title="${escapeHTML(tip)}"><b style="color:rgba(156,195,218,.85);">${name}</b> <span style="opacity:.8;">${body}</span></span>`;
+  host.innerHTML = [
+    chip('Aid Another', 'attack vs AC 10 → ally +2', 'Standard action, in melee reach of an opponent engaging your ally: hit AC 10 to grant the ally +2 on their next attack against that opponent OR +2 AC against its next attack (before your next turn). Bonuses from multiple aiders stack. Also usable to assist skill checks.'),
+    chip('Fight Defensively', `−4 attacks / +${t5 ? 3 : 2} Defense${t5 ? ' (Tumble 5+)' : ''}`, 'Declare with an attack or full attack action; lasts until your next action. With 5+ ranks of Tumble the dodge bonus is +3 instead of +2.'),
+    chip('Total Defense', `+${t5 ? 6 : 4} Defense${t5 ? ' (Tumble 5+)' : ''}, no attacks`, 'Standard action: +4 dodge bonus to AC (+6 with 5+ ranks of Tumble) until your next action. You can’t combine it with attacking or with Combat Expertise.'),
+    chip('Charge', '+2 attack, −2 AC, ×2 move', 'Full-round action: move at least 10 ft (up to double speed) straight to the closest attackable space; ONE melee attack at +2; −2 AC until your next turn. Set spears/tridents deal double damage against you; a mounted lance deals double damage to its target.'),
+    chip('Ready Dodge / Parry', 'move action', 'Ready a dodge or parry against a declared opponent (move action; feat chains upgrade this to swift/free/immediate-free — see the 🛡 Defensive riders line on Gear). Resolve as opposed rolls using your Dodge or Parry stat.'),
+    chip('Withdraw', '×2 move, safe first hex', 'Full-round action: move up to double speed; leaving your STARTING hex provokes no AoO (later hexes do).'),
+    chip('Delay / Ready', 'shift initiative', 'Delay: act later in the order (your initiative changes). Ready: prepare a standard/move/swift action against a trigger; it goes off before the trigger completes.'),
+    chip('5-ft Step', 'free, no AoO', 'Once per round when you move no other distance: step 5 ft without provoking. Not while using a movement-forbidding full-round action.'),
+    chip('Grapple', 'see the Sheet stat', 'Your Grapple modifier (incl. the special ±4-per-size-step) is a headline stat on the Sheet; the start-a-grapple sequence (AoO → touch attack → opposed check) is in the HH combat chapter.'),
+  ].join('');
+}
+
 function renderConds(c){
   const el=document.getElementById('tr-conds');
   const effectsEl=document.getElementById('tr-cond-effects');
@@ -47195,6 +47407,15 @@ function renderConds(c){
         || (c.powers || []).some(p => p.pool === 'super');
       nfEl.innerHTML = hasSu
         ? `<button class="ilbtn" style="${c.nullified ? 'border-color:rgba(212,112,112,.7);color:#d47070;' : 'opacity:.7;'}" title="${c.nullified ? 'Null Power Field active — all Supernatural modifiers suppressed (Su ability bakes, Bulletproof, Hyper-Speed, Energy Immunity, Super-Smash, ✨ buffs). Click to restore.' : 'Simulate a Null Power Field: suppress ALL Supernatural modifiers, reducing the character to natural + Extraordinary. Rage still works (Ex).'}" onclick="toggleNullified()">⊘ Nullified${c.nullified ? ' ✓' : '?'}</button>`
+        : '';
+    }
+    // v8.63.0: ⚡ Reckless Offense declared stance — feat-gated, lit red
+    // while active (same idiom as ⊘ Nullified). Attack rolls only (Adam).
+    const roEl = document.getElementById('tr-reckless');
+    if (roEl) {
+      const roOn = (typeof combatDecl === 'function') && combatDecl(c).ro;
+      roEl.innerHTML = (typeof ownsFeatN === 'function' && ownsFeatN(c, 'Reckless Offense'))
+        ? `<button class="ilbtn" style="${roOn ? 'border-color:rgba(212,112,112,.7);color:#d47070;' : 'opacity:.7;'}" title="${roOn ? 'Reckless Offense declared — +2 on melee attack rolls incl. Grapple (a grapple check is like a melee attack roll), −4 AC (HH p.239). Base Attack and the iterative ladder untouched. Click to withdraw the stance.' : 'Declare Reckless Offense: take −4 AC for +2 on melee attack rolls (HH p.239) — Grapple included; never ranged. A set-point stance — holds until re-declared. Never touches Base Attack (no extra iterative attacks).'}" onclick="toggleRecklessOffense()">⚡ Reckless${roOn ? ' ✓' : '?'}</button>`
         : '';
     }
   }
