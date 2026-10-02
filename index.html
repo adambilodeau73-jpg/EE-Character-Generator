@@ -296,7 +296,7 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.63.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.65.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1483,6 +1483,20 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
         <div class="sec-head sm">⚔ Universal Combat Options</div>
         <div id="tr-combat-options" style="font-size:11px;line-height:1.7;"></div>
       </div>
+      <!-- v8.65.0 (Tier B, Adam's go): 🎵 BARDIC MUSIC — computed performance
+           cards (level + Perform-rank gated, HH pp.77-78); uses counter lives
+           on the per-diem panel. Hidden for the Bard-less. -->
+      <div class="panel" id="tr-bardic-panel" style="display:none;">
+        <div class="sec-head sm">🎵 Bardic Music</div>
+        <div id="tr-bardic" style="font-size:11.5px;line-height:1.6;"></div>
+      </div>
+      <!-- v8.65.0 (Tier B, Adam's go): 🔥 ELEMENTAL ARSENAL — the
+           Elementalist's AT-WILL attack forms with live math, variant-aware
+           (GMG pp.165-167). Hidden for the Elementalist-less. -->
+      <div class="panel" id="tr-elemental-panel" style="display:none;">
+        <div class="sec-head sm">🔥 Elemental Arsenal</div>
+        <div id="tr-elemental" style="font-size:11.5px;line-height:1.6;"></div>
+      </div>
     </div>
     <!-- v8.3.27: Action History — structured AP/FP audit log. Separate from
          the Session Log below (which is the free-text journal). This panel
@@ -2104,7 +2118,7 @@ const CLASS_FEATURES = {
     {lvl:7, name:'Windfall',            page:74, desc:'The Windfall feat as a bonus feat, at 7th and again at 13th level (wealth system: +3 Wealth each).', kind:'meta'},
     {lvl:9, name:'Leadership',          page:74, desc:'The Leadership feat as a bonus feat (a confidante / 2nd-in-command).', kind:'meta'},
     {lvl:11, name:'Renown',             page:75, desc:'The Renown feat as a bonus feat (+3 Reputation).', kind:'meta'},
-    {lvl:19, name:'Land & Title',       page:75, desc:'Granted land (+4 Wealth score) and title (+1 Reputation) plus a Steward — a second Cohort with 1+ level of Bodyguard (domestic) or Ambassador (foreign).', kind:'unimplemented'},
+    {lvl:19, name:'Land & Title',       page:75, desc:'Granted land (+4 Wealth score) and title (+1 Reputation) plus a Steward — a second Cohort with 1+ level of Bodyguard (domestic) or Ambassador (foreign). — the +1 Reputation is WIRED (v8.64.0); land, +4 Wealth, and the Steward are manual', kind:'meta'},
   ],
   // Bard: the v8.3.1 'Sneak Attack +1d6' entry was DRIFT — the E&E Bard has
   // no sneak attack. Real feature set verified against HH pp.75–78.
@@ -2123,19 +2137,19 @@ const CLASS_FEATURES = {
     {lvl:12, name:'Song of Freedom',   page:78, desc:'(15+ Perform ranks, Sp) Break Enchantment (CL = Bard level) on one target within 30 ft; 1 minute of uninterrupted music. Not on self.', kind:'active'},
     {lvl:15, name:'Inspire Heroics',   page:78, desc:'(19+ Perform ranks, Su) Self or 1 willing ally (+1 per 3 levels beyond 15th): +4 morale on saves, +4 dodge AC; full-round action to start.', kind:'active'},
     {lvl:18, name:'Mass Suggestion',   page:78, desc:'(20+ Perform ranks, Sp) As Suggestion but on any number of fascinated creatures.', kind:'active'},
-    {lvl:19, name:'Magnum Opus',       page:78, desc:'Equivalent of the Renown feat, plus +2 circumstance to all Cha-based skill checks with anyone who recognizes the Bard as the ballad’s author.', kind:'unimplemented'},
+    {lvl:19, name:'Magnum Opus',       page:78, desc:'Equivalent of the Renown feat, plus +2 circumstance to all Cha-based skill checks with anyone who recognizes the Bard as the ballad’s author. — the +3 Reputation is WIRED (v8.64.0); the +2 circumstance is a table call', kind:'passive'},
   ],
   'Berserker': [
-    {lvl:1, name:'Fast Movement',         page:79, desc:'+10 ft. land speed when wearing light/medium/no armor.', kind:'unimplemented'},
+    {lvl:1, name:'Fast Movement',         page:79, desc:'+10 ft. land speed when wearing light/medium/no armor. — wired into Speed (v8.8.2: armor-gated, load caveat in the tooltip)', kind:'passive'},
     {lvl:1, name:'Rage',                  page:79, desc:'X/day: +4 STR, +4 CON, +2 morale Will saves, –2 AC, lasts 3+CON-mod rounds. Fatigued after.', kind:'active'},
-    {lvl:2, name:'Uncanny Dodge',         page:80, desc:'Retain Dex bonus to AC when flat-footed or struck by invisible attacker.', kind:'unimplemented'},
+    {lvl:2, name:'Uncanny Dodge',         page:80, desc:'Retain Dex bonus to AC when flat-footed or struck by invisible attacker. — wired as the Defense-cell tag (v8.64.0, unified sources incl. the second-class auto-upgrade)', kind:'passive'},
     {lvl:3, name:'Trap Sense',            page:80, desc:'+1 Ref save vs traps, +1 dodge AC vs trap attacks; +1 more at L6/9/12/15/18.', kind:'unimplemented'},
-    {lvl:5, name:'Improved Uncanny Dodge', page:80, desc:'Cannot be flanked (Rogue must be 4+ levels higher to sneak-attack).', kind:'unimplemented'},
+    {lvl:5, name:'Improved Uncanny Dodge', page:80, desc:'Cannot be flanked (Rogue must be 4+ levels higher to sneak-attack). — wired as the Defense-cell tag (v8.64.0)', kind:'passive'},
     {lvl:7, name:'Damage Reduction',      page:80, desc:'DR 1/—. Improves to DR 2/— at L10, 3/— at L13, etc.', kind:'unimplemented'},
-    {lvl:11, name:'Greater Rage',         page:80, desc:'Rage bonuses increase to +6 STR/CON, +3 Will.', kind:'unimplemented'},
+    {lvl:11, name:'Greater Rage',         page:80, desc:'Rage bonuses increase to +6 STR/CON, +3 Will. — wired (rageTier: the toggle scales automatically)', kind:'passive'},
     {lvl:14, name:'Indomitable Intent',   page:80, desc:'+4 Will vs enchantment while raging.', kind:'unimplemented'},
-    {lvl:17, name:'Tireless Rage',        page:80, desc:'No longer fatigued after rage.', kind:'unimplemented'},
-    {lvl:20, name:'Mighty Rage',          page:80, desc:'Rage bonuses increase to +8 STR/CON, +4 Will.', kind:'unimplemented'},
+    {lvl:17, name:'Tireless Rage',        page:80, desc:'No longer fatigued after rage. — wired (toggleRage skips the fatigue at 17+)', kind:'passive'},
+    {lvl:20, name:'Mighty Rage',          page:80, desc:'Rage bonuses increase to +8 STR/CON, +4 Will. — wired (rageTier: the toggle scales automatically)', kind:'passive'},
   ],
   'Cleric': [
     {lvl:1, name:'Divine Spells',         page:83, desc:'Divine prepared caster. See Powers & Spells panel for PP budget, CL, save DC, and prepared spells.', kind:'passive'},
@@ -2157,7 +2171,7 @@ const CLASS_FEATURES = {
     // any feat that fits and notes "from Expert bonus" in their sheet.
     {lvl:1, name:'Bonus Expert Feat', page:84, desc:'At every odd Expert level: one bonus feat from the Expert feat list (HH p.195).', kind:'meta',
      effect:{type:'bonusFeats', formula:'expertOddLevels', restriction:'Expert feat list'}},
-    {lvl:2, name:'Superior Competence', page:85, desc:'At every even Expert level: +1 competence bonus to any Expert class skill — the SAME skill may be chosen repeatedly (instances stack, and stack with other competence bonuses).', kind:'unimplemented'},
+    {lvl:2, name:'Superior Competence', page:85, desc:'At every even Expert level: +1 competence bonus to any Expert class skill — the SAME skill may be chosen repeatedly (instances stack, and stack with other competence bonuses). — wired via the Class Choices picker', kind:'meta'},
     {lvl:5, name:'Artisan',             page:85, desc:'Pick an Expert class skill (not Concentration) with 5+ ranks as the Artisan skill; roll 2d20-take-best on it.', kind:'unimplemented'},
     // BOOK CONFLICT (flagged on Adam's errata list): the level TABLE (p.84)
     // shows Renowned Artisan at 10th and Master Artisan at 15th, but the
@@ -2183,27 +2197,27 @@ const CLASS_FEATURES = {
     {lvl:1, name:'Flurry of Blows',      page:87, desc:'Virtual Two-Weapon Fighting when using only unarmed attacks (or a quarterstaff) and unarmored — wired on the Gear tab’s unarmed row.', kind:'passive'},
     {lvl:1, name:'First Degree Belt',    page:87, desc:'Pick one of Elusive Target, Improved Grapple, Nerve Pinch, or Stunning Fist — prerequisites WAIVED.', kind:'meta',
      effect:{type:'bonusFeats', formula:{milestones:[1]}, restriction:['Elusive Target','Improved Grapple','Nerve Pinch','Stunning Fist'], prereqsWaived:true}},
-    {lvl:2, name:'Evasion',              page:87, desc:'Successful Reflex save vs a half-damage effect → no damage instead.', kind:'unimplemented'},
+    {lvl:2, name:'Evasion',              page:87, desc:'Successful Reflex save vs a half-damage effect → no damage instead. — wired as the Reflex-card tag (v8.64.0, unified sources)', kind:'passive'},
     {lvl:2, name:'Second Degree Belt',   page:87, desc:'Pick one of Blind-Fight, Combat Reflexes, Combat Throw, or Deflect Arrows — prerequisites WAIVED.', kind:'meta',
      effect:{type:'bonusFeats', formula:{milestones:[2]}, restriction:['Blind-Fight','Combat Reflexes','Combat Throw','Deflect Arrows'], prereqsWaived:true}},
     {lvl:3, name:'Still Mind',           page:87, desc:'+2 on saves vs mind-affecting spells and effects WHILE FOCUSED (see Concentration).', kind:'unimplemented'},
     {lvl:3, name:'Wild Talent',          page:87, desc:'The Monk becomes a psionic character: 2 PP and access to the Power feat list; can psionically focus via a full-round Concentration check.', kind:'unimplemented'},
-    {lvl:4, name:'Ki Strike (Magic)',    page:87, desc:'(Su) While focused, unarmed attacks count as MAGIC vs DR and ignore 5 points of hardness.', kind:'unimplemented'},
+    {lvl:4, name:'Ki Strike (Magic)',    page:87, desc:'(Su) While focused, unarmed attacks count as MAGIC vs DR and ignore 5 points of hardness. — wired: focus-aware rider on the unarmed row (v8.64.0)', kind:'passive'},
     {lvl:4, name:'Slow Fall',            page:87, desc:'Within 10 ft of a wall: reduce falling damage by 20 ft worth at 4th (2d6), +10 ft per 2 levels (30′@6, 40′@8, 50′@10, 60′@12, 70′@14, 80′@16, 90′@18); ANY distance at 20th.', kind:'unimplemented'},
     {lvl:5, name:'Purity of Body',       page:87, desc:'Immune to disease (not supernatural/magical diseases) + the Speed of Thought virtual feat.', kind:'unimplemented'},
     {lvl:6, name:'Third Degree Belt',    page:87, desc:'Pick one of Improved Disarm, Improved Trip, Sidestep Charge, or Unbalance Opponent — prerequisites WAIVED.', kind:'meta',
      effect:{type:'bonusFeats', formula:{milestones:[6]}, restriction:['Improved Disarm','Improved Trip','Sidestep Charge','Unbalance Opponent'], prereqsWaived:true}},
     {lvl:7, name:'Wholeness of Body',    page:88, desc:'Self-heal up to 2× Monk level HP/day, divisible across applications.', kind:'active'},
     {lvl:8, name:'Power Fist',           page:88, desc:'The Power Fist feat as a bonus feat — prerequisites waived.', kind:'meta'},
-    {lvl:9, name:'Improved Evasion',     page:88, desc:'As Evasion; failed save → only half damage (spend focus).', kind:'unimplemented'},
-    {lvl:10, name:'Ki Strike (Lawful)',  page:87, desc:'(Su) While focused: unarmed hits deal +1d6 and count as LAWFUL vs DR.', kind:'unimplemented'},
+    {lvl:9, name:'Improved Evasion',     page:88, desc:'As Evasion; failed save → only half damage (spend focus). — wired as the Reflex-card tag (v8.64.0, unified sources)', kind:'passive'},
+    {lvl:10, name:'Ki Strike (Lawful)',  page:87, desc:'(Su) While focused: unarmed hits deal +1d6 and count as LAWFUL vs DR. — wired: focus-aware rider on the unarmed row (v8.64.0)', kind:'passive'},
     {lvl:11, name:'Diamond Body',        page:88, desc:'(Su) Immune to poisons of all kinds.', kind:'unimplemented'},
-    {lvl:11, name:'Greater Flurry',      page:88, desc:'One additional unarmed attack at highest BAB on a full attack.', kind:'unimplemented'},
+    {lvl:11, name:'Greater Flurry',      page:88, desc:'One additional unarmed attack at highest BAB on a full attack. — wired into the Flurry alt mode (v8.64.0)', kind:'passive'},
     {lvl:12, name:'Abundant Step',       page:88, desc:'(Su) Dimension Door 1/day, CL = ½ Monk level.', kind:'active'},
     {lvl:13, name:'Diamond Soul',        page:88, desc:'(Ex) Spell Resistance = Monk level + 10.', kind:'unimplemented'},
     {lvl:14, name:'Greater Power Fist',  page:88, desc:'The Greater Power Fist feat as a bonus feat — prerequisites waived.', kind:'meta'},
     {lvl:15, name:'Quivering Palm',      page:88, desc:'(Su) 1/week, while focused, announced: on a damaging hit, may later will the target dead (Fort DC 10 + ½ Monk level + Wis mod negates) within Monk-level days.', kind:'active'},
-    {lvl:16, name:'Ki Strike (Adamantine)', page:87, desc:'(Su) Unarmed blows count as ADAMANTINE vs DR/hardness; ignore the first 20 points of hardness.', kind:'unimplemented'},
+    {lvl:16, name:'Ki Strike (Adamantine)', page:87, desc:'(Su) Unarmed blows count as ADAMANTINE vs DR/hardness; ignore the first 20 points of hardness. — wired: rider on the unarmed row (v8.64.0)', kind:'passive'},
     {lvl:17, name:'Timeless Body',       page:88, desc:'No aging penalties (bonuses still accrue); cannot be magically aged.', kind:'passive'},
     {lvl:17, name:'Tongue of the Sun and Moon', page:88, desc:'Speak with any living creature.', kind:'passive'},
     {lvl:19, name:'Empty Body',          page:88, desc:'(Su) Ethereal (as Etherealness) up to Monk-level rounds/day, divisible.', kind:'active'},
@@ -2216,7 +2230,7 @@ const CLASS_FEATURES = {
     {lvl:2, name:'Divine Grace',         page:90, desc:'(Su) +Cha bonus (minimum +1) on ALL saving throws.', kind:'unimplemented'},
     {lvl:2, name:'Lay on Hands',         page:90, desc:'(Su) Heal (Paladin level × Cha bonus, min ×1) HP/day by touch, divisible; or spend points as damage vs undead via melee touch.', kind:'active'},
     {lvl:3, name:'Aura of Courage',      page:90, desc:'(Su) Immune to fear (magical or otherwise); allies within 10 ft: +4 morale vs fear. Only while conscious.', kind:'unimplemented'},
-    {lvl:3, name:'Divine Health',        page:90, desc:'(Ex) Immune to ALL diseases, including supernatural and magical.', kind:'unimplemented'},
+    {lvl:3, name:'Divine Health',        page:90, desc:'(Ex) Immune to ALL diseases, including supernatural and magical. — wired into the immunity registry', kind:'passive'},
     {lvl:4, name:'Turn Undead',          page:90, desc:'(Su) 3 + Cha mod times/day, as a Cleric of (Paladin level − 3).', kind:'active'},
     {lvl:4, name:'Paladin Spells',       page:91, desc:'Spontaneous divine caster from the god’s Domain lists (like a Saint); CL = ½ Paladin level ROUNDED UP; DC uses the better of Wis/Cha.', kind:'passive'},
     {lvl:5, name:'Special Mount',        page:90, desc:'(Sp) An unusually intelligent, strong, loyal steed (heavy warhorse / warpony typical; setting alternatives by GM). If it dies: no new mount for 30 days or a level, −1 attack/damage meanwhile.', kind:'meta'},
@@ -2232,8 +2246,8 @@ const CLASS_FEATURES = {
     {lvl:1, name:'Bonus Feat',         page:92, desc:'Bonus Power feat at L1, L5, L10, L15, L20 (5 total). Must meet prereqs.', kind:'meta',
      effect:{type:'bonusFeats', formula:'psionPattern', restriction:'Power feat list'}},
     {lvl:1, name:'Discipline',         page:92, desc:'Choose 1 of 6 disciplines (Seer/Shaper/Kineticist/Egoist/Nomad/Telepath) — grants that discipline’s class skills and restricted powers; powers of OTHER disciplines are barred (even from items).', kind:'meta'},
-    {lvl:2, name:'Mental Acumen',      page:93, desc:'+1 competence bonus to an Int-, Wis-, or Cha-based skill of choice at 2nd, 4th, 8th, and 16th level (same or different skill each time).', kind:'unimplemented'},
-    {lvl:6, name:'Profound Realization', page:93, desc:'+1 innate bonus to Intelligence at 6th, 12th, and 18th level.', kind:'unimplemented'},
+    {lvl:2, name:'Mental Acumen',      page:93, desc:'+1 competence bonus to an Int-, Wis-, or Cha-based skill of choice at 2nd, 4th, 8th, and 16th level (same or different skill each time). — wired via the Class Choices picker', kind:'meta'},
+    {lvl:6, name:'Profound Realization', page:93, desc:'+1 innate bonus to Intelligence at 6th, 12th, and 18th level. — wired: baked innate bonus (the attr reconciler)', kind:'meta'},
     {lvl:14, name:'Slippery Mind',     page:92, desc:'(Ex) On a failed Will save: expend psionic focus to immediately re-roll (second roll stands).', kind:'unimplemented'},
     {lvl:19, name:'Unassailable Mind', page:93, desc:'(Ex) On Int/Wis/Cha attribute damage: expend psionic focus to reduce it by Int modifier.', kind:'unimplemented'},
   ],
@@ -2250,7 +2264,7 @@ const CLASS_FEATURES = {
     {lvl:7, name:'Terrain Mastery',         page:95, desc:'At 7th, 13th, and 19th level pick a terrain (must have been exposed; locked once chosen): +1 insight on ALL d20 rolls and damage vs creatures of that terrain, plus a per-terrain benefit (Aquatic +4 Swim; Desert fatigue immunity; Forest +4 Hide; Hills +4 Listen; Marsh +4 Move Silently; Mountains +4 Climb; Plains +4 Spot; Underground darkvision 60′).', kind:'meta'},
     {lvl:7, name:'Woodland Stride',         page:96, desc:'(Ex) Move through natural undergrowth at normal speed, unharmed (enchanted growth still applies).', kind:'passive'},
     {lvl:8, name:'Swift Tracker',           page:96, desc:'(Ex) Track at normal speed with no −5; only −10 (not −20) at up to double speed.', kind:'passive'},
-    {lvl:9, name:'Evasion',                 page:96, desc:'(Ex) Successful Reflex vs half-damage effect → no damage. Light/no armor only.', kind:'unimplemented'},
+    {lvl:9, name:'Evasion',                 page:96, desc:'(Ex) Successful Reflex vs half-damage effect → no damage. Light/no armor only. — wired as the Reflex-card tag (v8.64.0, unified sources)', kind:'passive'},
     {lvl:12, name:'Camouflage',             page:96, desc:'(Ex) Hide in any natural terrain, even without cover/concealment.', kind:'passive'},
     {lvl:16, name:'Hide in Plain Sight',    page:96, desc:'(Ex) In natural terrain, Hide even while observed.', kind:'passive'},
     {lvl:18, name:'Undeclared Territory',   page:96, desc:'Steward of a 100+ sq-mile tract matching the 1st Terrain Mastery: DOUBLE the usual mastered-terrain bonuses there.', kind:'unimplemented'},
@@ -2258,12 +2272,12 @@ const CLASS_FEATURES = {
   'Rogue': [
     {lvl:1, name:'Sneak Attack +1d6',     page:97, desc:'+1d6 damage on attacks against flanked/flatfooted/etc.; +1d6 per 2 Rogue levels.', kind:'unimplemented'},
     {lvl:1, name:'Trapfinding',           page:98, desc:'Search for traps with DC > 20 (otherwise impossible); Disable Device on magical traps.', kind:'unimplemented'},
-    {lvl:2, name:'Evasion',               page:97, desc:'On successful Ref save vs area effect for ½ damage, take none.', kind:'unimplemented'},
+    {lvl:2, name:'Evasion',               page:97, desc:'On successful Ref save vs area effect for ½ damage, take none. — wired as the Reflex-card tag (v8.64.0, unified sources)', kind:'passive'},
     {lvl:3, name:'Trap Sense',            page:98, desc:'+1 Ref save vs traps, +1 dodge AC vs trap attacks; +1 more at L6/9/12/15/18.', kind:'unimplemented'},
-    {lvl:4, name:'Uncanny Dodge',         page:98, desc:'Retain Dex bonus to AC when flat-footed or struck by invisible attacker.', kind:'unimplemented'},
-    {lvl:8, name:'Improved Uncanny Dodge', page:98, desc:'Cannot be flanked (a Rogue needs 4+ more Rogue levels to sneak-attack via flanking). Uncanny Dodge from a second class upgrades to this automatically.', kind:'unimplemented'},
+    {lvl:4, name:'Uncanny Dodge',         page:98, desc:'Retain Dex bonus to AC when flat-footed or struck by invisible attacker. — wired as the Defense-cell tag (v8.64.0, unified sources incl. the second-class auto-upgrade)', kind:'passive'},
+    {lvl:8, name:'Improved Uncanny Dodge', page:98, desc:'Cannot be flanked (a Rogue needs 4+ more Rogue levels to sneak-attack via flanking). Uncanny Dodge from a second class upgrades to this automatically. — wired as the Defense-cell tag (v8.64.0)', kind:'passive'},
     {lvl:10, name:'Special Ability',      page:98, desc:'Pick at 10/13/16/19/20 from: Crippling Strike (sneak attacks deal 2 Str damage), Defensive Roll (1/day or 1 AP: Dodge check DC = damage to halve a would-drop blow), Improved Evasion, Opportunist (1/round AoO on a foe just struck in melee), Skill Mastery (Take 10 under stress on 3+Int-mod chosen skills; repeatable), Slippery Mind (re-roll a failed save vs mind-affecting 1 round later), or a Bonus Feat.', kind:'meta'},
-    {lvl:14, name:'Improved Evasion',     page:98, desc:'Half damage even on a FAILED Reflex save for half (same limits as Evasion).', kind:'unimplemented'},
+    {lvl:14, name:'Improved Evasion',     page:98, desc:'Half damage even on a FAILED Reflex save for half (same limits as Evasion). — wired as the Reflex-card tag (v8.64.0, unified sources)', kind:'passive'},
   ],
   // Saint: the v8.3.1 entries ('Sacred Aura', 'Lay on Hands (Greater)') were
   // DRIFT — neither exists. Real features verified pp.98–100.
@@ -2295,7 +2309,7 @@ const CLASS_FEATURES = {
      effect:{type:'bonusFeats', formula:{milestones:[1,2,5,8,11,14,17,20]}, restriction:'Fighter or Power feat list'}},
     {lvl:3, name:'Self-Control',       page:105, desc:'(Ex) +1 innate bonus to Wisdom AND +1 to all saving throws, at 3rd, 9th, and 15th level.', kind:'unimplemented'},
     {lvl:6, name:'Mind Over Matter',   page:105, desc:'(Ex) 1/day (2@12, 3@18): roll a second d20 on a defensive action (save, dodge, or parry) after seeing the first; take the better. Once per defensive action.', kind:'active'},
-    {lvl:19, name:'Self-Mastery',      page:105, desc:'(Ex) Mettle (successful Fort/Will vs half/partial → negates) and another +1 innate Wisdom (+4 total with Self-Control).', kind:'unimplemented'},
+    {lvl:19, name:'Self-Mastery',      page:105, desc:'(Ex) Mettle (successful Fort/Will vs half/partial → negates) and another +1 innate Wisdom (+4 total with Self-Control). — the +1 Wis is baked (wired); Mettle is a table call', kind:'passive'},
   ],
   'Wilder': [
     {lvl:1, name:'Psionics, 2 Powers',    page:105, desc:'Psionic manifester (Wilder). See Powers & Spells panel for PP budget, ML, save DC, and powers known.', kind:'passive'},
@@ -2315,7 +2329,7 @@ const CLASS_FEATURES = {
     {lvl:1, name:'Spellbook',      page:108, desc:'Starts with all 0-level spells + 3 (+Int mod) 1st-level spells; +2 spells of castable levels per Wizard level; copying from found spellbooks allowed. Read Magic always preparable from memory.', kind:'meta'},
     {lvl:1, name:'Familiar',       page:107, desc:'As the Sorcerer’s Familiar (HH p.110).', kind:'meta'},
     {lvl:1, name:'Enchant Scroll', page:108, desc:'Enchant Scroll feat granted automatically at L1 as a bonus.', kind:'meta'},
-    {lvl:2, name:'Increased Competence', page:108, desc:'+1 competence bonus in any NON-Knowledge skill at 2nd, 6th, 14th, and 18th level — once per skill, a different skill each time.', kind:'unimplemented'},
+    {lvl:2, name:'Increased Competence', page:108, desc:'+1 competence bonus in any NON-Knowledge skill at 2nd, 6th, 14th, and 18th level — once per skill, a different skill each time. — wired via the Class Choices picker', kind:'meta'},
     {lvl:4, name:'Esoteric Knowledge',   page:108, desc:'+1 competence bonus on one Knowledge skill with 1+ ranks at 4th, 8th, 12th, 16th, and 20th level (same or different; locked once selected).', kind:'unimplemented'},
     {lvl:5, name:'Bonus Feat (Magic)',   page:108, desc:'Bonus Magic feat at L5, L10, L15, L20 (4 total). Must meet prereqs incl. caster-level minimums.', kind:'meta',
      effect:{type:'bonusFeats', formula:'every5thLvl', restriction:'Magic feat list'}},
@@ -2615,7 +2629,7 @@ const CLASS_FEATURES = {
     {lvl:3, name:'Bonus Feat',      page:123, desc:'At 3rd, 6th, and 9th level, from the Explorer list. Must meet prereqs.', kind:'meta',
      effect:{type:'bonusFeats', formula:{milestones:[3,6,9]},
        restriction:['Action Boost','Advanced Two-Weapon Fighting','Aircraft Operation (spacecraft)','Archaic Weapons Proficiency','Armor Proficiency (light)','Armor Proficiency (medium)','Attentive','Brawl','Dodge','Educated','Endurance','Exotic Firearms Proficiency','Exotic Melee Weapon Proficiency','Heroic Surge','Improved Feint','Improved Knockout Punch','Improved Two-Weapon Fighting','Jack of All Trades','Knockout Punch','Mobility','Nimble','Open-Minded','Renown','Spacer','Streetfighting','Studious','Track','Two-Weapon Fighting','Vehicle Expert']}},
-    {lvl:4, name:'Evasion',         page:124, desc:'Evasion (Improved Evasion if already owned).', kind:'unimplemented'},
+    {lvl:4, name:'Evasion',         page:124, desc:'Evasion (Improved Evasion if already owned). — wired as the Reflex-card tag (v8.64.0, unified sources)', kind:'passive'},
     {lvl:5, name:'Extra Step',      page:124, desc:'1/day (or 1 AP): an extra 5-ft step, no AoO. At 10th: at will, free.', kind:'active'},
     {lvl:7, name:'Exceptional Find', page:124, desc:'A long-lost treasure (GM), or the equivalent of Windfall (+3 Wealth — apply manually).', kind:'meta'},
     {lvl:10, name:'Fearless',       page:123, desc:'(Ex) Effectively immune to fear; allies within 30 ft +2 morale vs fear — immunity wired.', kind:'passive'},
@@ -2711,7 +2725,7 @@ const CLASS_FEATURES = {
     {lvl:10, name:'Walk It Off',          page:136, desc:'1/day (or 1 AP), swift: recover 25% of total HP (only while at ≤50%).', kind:'active'},
   ],
   'Survivor': [
-    {lvl:1, name:'Evasion',            page:137, desc:'Evasion (Improved Evasion if already owned).', kind:'unimplemented'},
+    {lvl:1, name:'Evasion',            page:137, desc:'Evasion (Improved Evasion if already owned). — wired as the Reflex-card tag (v8.64.0, unified sources)', kind:'passive'},
     {lvl:2, name:'Gut Feeling',        page:137, desc:'+½ Survivor level to Gamble and Sense Motive — wired live.', kind:'passive'},
     {lvl:3, name:'Bonus Feat',         page:136, desc:'At 3rd, 6th, and 9th level, from the Survivor list. Must meet prereqs.', kind:'meta',
      effect:{type:'bonusFeats', formula:{milestones:[3,6,9]},
@@ -8333,6 +8347,12 @@ function computeGrapple(c) {
     total += 2;
     parts.push('Reckless Offense (declared) +2');
   }
+  // v8.65.0: Best Defense is a bonus "on their melee attack rolls" — the
+  // same wording the Reckless Offense redirect ruled Grapple rides.
+  if (_dG.bd) {
+    total += _dG.bd;
+    parts.push(`Best Defense (declared) +${_dG.bd}`);
+  }
   return { total, parts, sizeIdx };
 }
 
@@ -8543,7 +8563,37 @@ function combatDecl(c) {
   // it NEVER touches Base Attack — "+2 on melee attack rolls" is a bonus to
   // the rolls themselves: no ranged, no extra iteratives. v8.63.1 redirect:
   // Grapple DOES ride it ("a grapple check is like a melee attack roll").
-  return { pa: Math.max(0, d.pa || 0), ce: Math.max(0, d.ce || 0), ro: !!d.ro };
+  // v8.65.0 (Adam's go): Best Defense (Survivor 5) — PA's MIRROR, "right
+  // down to the attendant Defense Bonus modifier": the declared points
+  // SPEND Defense Bonus (so def-fed stats move) and land on melee attack
+  // rolls (Grapple included, per the Reckless Offense precedent).
+  return { pa: Math.max(0, d.pa || 0), ce: Math.max(0, d.ce || 0), ro: !!d.ro, bd: Math.max(0, d.bd || 0) };
+}
+// Best Defense's cap: the Survivor CLASS Defense Bonus at the current
+// Survivor level ("the penalty cannot be greater than their Survivor class
+// Defense Bonus — so +3 at 5th level", HH p.137). 0 below Survivor 5.
+function bestDefenseCap(c) {
+  const lvl = (typeof _cfLvlOf === 'function') ? _cfLvlOf(c, 'Survivor') : 0;
+  if (lvl < 5) return 0;
+  const e = migrateLegacyClasses(c).find(x => x.name === 'Survivor');
+  const cls = e && getClassEntry(e);
+  return cls ? (classStatAt(cls, lvl, 'def') || 0) : 0;
+}
+// Free-action adjust, the baDeclAdjust idiom (single modifier — no modal).
+function bdDeclAdjust(dir) {
+  const c = chars.find(x => x.id === curId); if (!c) return;
+  const cap = bestDefenseCap(c); if (cap <= 0) return;
+  const d = combatDecl(c);
+  if (dir > 0) {
+    if (d.bd <= 0) { toast('No Defense Bonus is assigned to Best Defense.'); return; }
+    d.bd -= 1;
+  } else {
+    if (d.bd >= cap) { toast(`Best Defense caps at your Survivor class Defense Bonus (+${cap}, HH p.137).`); return; }
+    d.bd += 1;
+  }
+  c.combatDecl = Object.assign(c.combatDecl || {}, { bd: d.bd });
+  if (typeof logAct === 'function') logAct(`🛡→⚔ Best Defense declared: −${d.bd} Defense for +${d.bd} on melee attack rolls (free action to adjust; holds until re-declared).`);
+  save(); renderSheet(); renderGear();
 }
 function combatDeclCaps(c) {
   const bab = (c && c.bab) || 0;
@@ -8767,6 +8817,41 @@ function computeManeuvers(c, ctx) {
   }
   return out;
 }
+// v8.64.0 (Phase 2 class-features sift): unified EVASION and UNCANNY DODGE
+// sources — talents AND class features through one door each. Explorer 4 /
+// Survivor 1 grant "Evasion (Improved if already owned)", so a second
+// source upgrades them; Uncanny Dodge from a SECOND class auto-upgrades to
+// Improved (HH, the Uncanny Dodge stacking rule beside the Tactician entry).
+function _cfLvlOf(c, n) { return migrateLegacyClasses(c).filter(e => e.name === n).reduce((s, e) => s + (e.level || 0), 0); }
+function evasionTier(c) {
+  const hasT = (n) => (c.talents || []).some(x => (x.name || x.n) === n);
+  const srcs = [];
+  if (hasT('Evasion') || hasT('Improved Evasion')) srcs.push('Evasion talent (Fast Hero tree)');
+  if (_cfLvlOf(c, 'Monk') >= 2) srcs.push('Monk 2');
+  if (_cfLvlOf(c, 'Rogue') >= 2) srcs.push('Rogue 2');
+  if (_cfLvlOf(c, 'Ranger') >= 9) srcs.push('Ranger 9 (light/no armor)');
+  if (_cfLvlOf(c, 'Survivor') >= 1) srcs.push('Survivor 1');
+  if (_cfLvlOf(c, 'Explorer') >= 4) srcs.push('Explorer 4');
+  if (!srcs.length) return null;
+  const saIE = !!(c.classChoices && Object.keys(c.classChoices).some(k => k.startsWith('rog_sa_') && c.classChoices[k] === 'Improved Evasion'));
+  const escalator = (_cfLvlOf(c, 'Explorer') >= 4 || _cfLvlOf(c, 'Survivor') >= 1) && srcs.length >= 2;
+  const improved = hasT('Improved Evasion') || _cfLvlOf(c, 'Monk') >= 9 || _cfLvlOf(c, 'Rogue') >= 14 || saIE || escalator;
+  return { tier: improved ? 2 : 1, srcs };
+}
+function uncannyDodgeTier(c) {
+  const hasT = (n) => (c.talents || []).some(x => (x.name || x.n) === n);
+  const srcs = [];
+  if (hasT('Uncanny Dodge 1') || hasT('Uncanny Dodge 2')) srcs.push('Uncanny Dodge talent (Fast Hero tree)');
+  if (_cfLvlOf(c, 'Berserker') >= 2) srcs.push('Berserker 2');
+  if (_cfLvlOf(c, 'Rogue') >= 4) srcs.push('Rogue 4');
+  if (_cfLvlOf(c, 'Assassin') >= 2) srcs.push('Assassin 2');
+  if (_cfLvlOf(c, 'Tactician') >= 7) srcs.push('Tactician 7');
+  if (!srcs.length) return null;
+  let improved = hasT('Uncanny Dodge 2') || _cfLvlOf(c, 'Berserker') >= 5 || _cfLvlOf(c, 'Rogue') >= 8 || _cfLvlOf(c, 'Assassin') >= 6;
+  if (!improved && srcs.length >= 2) improved = true;  // second-source auto-upgrade
+  return { tier: improved ? 2 : 1, srcs };
+}
+
 // Row-level COMBAT RIDERS — owned feats whose whole mechanic is one line on
 // this attack row. Every line verified against the HH feat table (pp.197-199).
 function combatRiders(c, kind) {
@@ -8784,8 +8869,25 @@ function combatRiders(c, kind) {
     if (owns('Cleave')) r.push(['Cleave', 'Drop a foe → one immediate free melee attack vs an adjacent foe at the same bonus, once per round. No 5-ft step first.']);
     if (owns('Great Cleave')) r.push(['Great Cleave', 'As Cleave, with no per-round limit.']);
     if (owns('Supernatural Strike')) r.push(['Supernatural Strike', 'You may threaten criticals even against targets normally immune to them.']);
+    // v8.65.0 (Adam's go): Elemental Weapon — at-will rider on melee weapon
+    // rows (variant detail on the 🔥 Elemental Arsenal panel).
+    if (kind === 'melee' && (typeof _cfLvlOf === 'function') && _cfLvlOf(c, 'Elementalist') >= 3) {
+      const _vnW = ((((c.classChoices || {})['ele_var_1']) || '').match(/^(Ambrian|Kryonian|Vesuvian|Vitrolian)/) || [])[1];
+      r.push(['Elemental Weapon', `Move action (Su, at will): engulf this melee weapon with your element — ${_vnW === 'Vitrolian' ? '+5 Hardness, +10 HP, and a magical +1 to hit' : `+2d6 ${({ Ambrian: 'electricity', Kryonian: 'cold', Vesuvian: 'fire' })[_vnW] || 'element'} on each successful hit`}. The weapon is unharmed. GMG pp.166-167.`]);
+    }
   }
   if (kind === 'unarmed') {
+    // v8.64.0 (Phase 2 sift): the Monk Ki Strike ladder — focus-aware rider
+    // (● focus held = active; ○ = gain focus first). Magic and Lawful are
+    // focus-gated by their book text; Adamantine reads unconditional.
+    const _mnkKi = _cfLvlOf(c, 'Monk');
+    if (_mnkKi >= 4) {
+      const kiBits = ['4th: unarmed counts as MAGIC vs DR, ignores 5 hardness (while focused)'];
+      if (_mnkKi >= 10) kiBits.push('10th: +1d6 damage and LAWFUL vs DR (while focused)');
+      if (_mnkKi >= 16) kiBits.push('16th: counts as ADAMANTINE vs DR/hardness, ignores the first 20 points of hardness');
+      const kiOn = !!c.psiFocused;
+      r.push([`Ki Strike ${kiOn ? '●' : '○'}`, `(Su, Monk) ${kiOn ? 'Psionic focus HELD — the focus-gated tiers are ACTIVE.' : 'Not psionically focused — the focus-gated tiers are dormant (gain focus first).'} ${kiBits.join(' · ')} (HH p.87)`]);
+    }
     if (owns('Improved Knockout Punch')) r.push(['Improved Knockout Punch', 'Your FIRST unarmed attack against a flat-footed opponent is an automatic ×3 critical.']);
     else if (owns('Knockout Punch')) r.push(['Knockout Punch', 'Your FIRST unarmed attack against a flat-footed opponent is an automatic ×2 critical.']);
     if (owns('Nerve Pinch')) r.push(['Nerve Pinch', 'Standard action: an unarmed attack that can paralyze the target (see the feat).']);
@@ -8972,6 +9074,10 @@ function computeEquippedWeaponSummaries(c) {
       // (book-explicit); shown as the long-pending conditional chip.
       const sneakD = Math.ceil(lvlA('Rogue') / 2) + Math.ceil(lvlA('Assassin') / 2) + Math.floor(Math.max(lvlA('Arcane Trickster'), lvlA('Psychic Trickster')) / 2);
       if (sneakD > 0) mods.push({ label: `Sneak Attack +${sneakD}d6 (conditional — target denied Dex to AC or flanked; ranged only within 30 ft; not vs crit-immune)`, value: 0 });
+      // v8.64.0 (Phase 2 sift): Champion / Nemesis conditional morale — the
+      // Opportunistic Strike idiom (tooltip advisory, never folded in).
+      if (lvlA('Super-Hero') >= 5) mods.push({ label: 'Champion +2 morale on ALL d20 rolls & damage vs KNOWN-Evil beings (Super-Hero 5, Ex)', value: 0 });
+      if (lvlA('Super-Villain') >= 5) mods.push({ label: 'Nemesis +1 morale on all d20s while performing evil acts; +2 for the day after cancelling a Hero’s AP via Villainous Intent (Super-Villain 5, Ex)', value: 0 });
     }
     // v8.6.1 (Adam's better-bonus ruling): magic enhancement (+N to attack
     // AND damage) vs mastercraft (+N to attack OR damage) — the better bonus
@@ -9046,6 +9152,12 @@ function computeEquippedWeaponSummaries(c) {
     if (!isRangedWeapon(def) && _decl.ro) {
       attackBonus += 2;
       mods.push({ label: 'Reckless Offense (declared — AC −4)', value: 2 });
+    }
+    // v8.65.0 (Adam's go): Best Defense — the declared Defense spend lands
+    // on melee attack rolls (Survivor 5+, PA's mirror).
+    if (!isRangedWeapon(def) && _decl.bd) {
+      attackBonus += _decl.bd;
+      mods.push({ label: `Best Defense (declared — Defense −${_decl.bd})`, value: _decl.bd });
     }
     // v8.5.2: alternate-attack-mode feats (Burst Fire, Double Tap) — gated on
     // owning the feat AND the equipped weapon's parsed rof[] supporting it
@@ -9243,6 +9355,7 @@ function computeEquippedWeaponSummaries(c) {
         }
         // v8.63.0: Reckless Offense — natural weapons are melee attacks too.
         if (_declN.ro) { atkN += 2; modsN.push({ label: 'Reckless Offense (declared — AC −4)', value: 2 }); }
+        if (_declN.bd) { atkN += _declN.bd; modsN.push({ label: `Best Defense (declared — Defense −${_declN.bd})`, value: _declN.bd }); }
         const dmgSumN = dmgPartsN.reduce((s, p) => s + p.value, 0);
         let dmgN = die + (dmgSumN ? `${dmgSumN > 0 ? '+' : ''}${dmgSumN}` : '');
         const isBite = /bite/i.test(natName) || m.name === 'Fangs';
@@ -9306,6 +9419,7 @@ function computeEquippedWeaponSummaries(c) {
     }
     // v8.63.0: Reckless Offense — the unarmed strike is a melee attack.
     if (_declU.ro) { attackBonus += 2; mods.push({ label: 'Reckless Offense (declared — AC −4)', value: 2 }); }
+    if (_declU.bd) { attackBonus += _declU.bd; mods.push({ label: `Best Defense (declared — Defense −${_declU.bd})`, value: _declU.bd }); }
     const dmgSum = dmgParts.reduce((s, p) => s + p.value, 0);
     const sumSufx = dmgSum ? `${dmgSum > 0 ? '+' : ''}${dmgSum}` : '';
     let damage = `${nlDie}${sumSufx} nonlethal` + (hasCMA ? ` / ${cmaDie}${sumSufx} lethal (CMA${maLvl >= 1 ? ' — Living Weapon' : ''})` : '');
@@ -9322,12 +9436,28 @@ function computeEquippedWeaponSummaries(c) {
         display: `${attackBonus >= 0 ? '+' : ''}${attackBonus} vs EVERY adjacent foe`,
         label: 'Whirlwind Attack (full attack action): one melee attack at your full base attack bonus against every opponent you threaten.' });
     }
+    // v8.65.0 (Adam's go): Elemental Fist — the Elementalist's at-will
+    // attack form as an unarmed alt mode (GMG p.165; full math on the
+    // 🔥 Elemental Arsenal panel).
+    {
+      const _eleL = (typeof _cfLvlOf === 'function') ? _cfLvlOf(c, 'Elementalist') : 0;
+      if (_eleL >= 1) {
+        const _vn = ((((c.classChoices || {})['ele_var_1']) || '').match(/^(Ambrian|Kryonian|Vesuvian|Vitrolian)/) || [])[1];
+        const _em = { Ambrian: 'electricity', Kryonian: 'cold', Vesuvian: 'fire' }[_vn];
+        altModes.push({ name: 'Elemental Fist', atk: attackBonus, dmgMult: 1,
+          display: _vn === 'Vitrolian' ? '2d6 bludgeoning + Str (stone fist)' : `2d6 ${_em || 'element'} per TOUCH`,
+          label: `Elemental Fist (Su, move action to invoke): your element engulfs your hand — unarmed counts as ARMED${_vn === 'Vitrolian' ? ', 2d6 bludgeoning + Str per hit' : `, 2d6 ${_em || '(choose the Elemental Focus in Class Choices)'} per successful melee TOUCH attack`}. At-will; full math on the 🔥 Elemental Arsenal panel (Tracker). GMG p.165.` });
+      }
+    }
     const monkLvl = migrateLegacyClasses(c).filter(e => e.name === 'Monk').reduce((s, e) => s + (e.level || 0), 0);
     if (monkLvl > 0 && !wearingArmorCategory(c)) {
+      // v8.64.0 (Phase 2 sift): Greater Flurry at Monk 11 — a SECOND extra
+      // attack at the highest bonus on the same full attack (HH p.87).
+      const gfl = monkLvl >= 11;
       altModes.push({
-        name: 'Flurry of Blows', atk: attackBonus - 2, dmgMult: 1,
-        display: `extra attack, all at ${(attackBonus - 2) >= 0 ? '+' : ''}${attackBonus - 2}`,
-        label: 'Virtual Two-Weapon Fighting while using only unarmed attacks and unarmored: one extra unarmed attack per round, all unarmed attacks that round at −2. Requires the full attack action.',
+        name: gfl ? 'Greater Flurry' : 'Flurry of Blows', atk: attackBonus - 2, dmgMult: 1,
+        display: `${gfl ? 'TWO extra attacks' : 'extra attack'}, all at ${(attackBonus - 2) >= 0 ? '+' : ''}${attackBonus - 2}`,
+        label: `Virtual Two-Weapon Fighting while using only unarmed attacks and unarmored: one extra unarmed attack per round, all unarmed attacks that round at −2. Requires the full attack action.${gfl ? ' GREATER FLURRY (11th): the flurry comes even faster — one ADDITIONAL attack at your highest attack bonus on the same full attack.' : ''}`,
       });
     }
     // v8.9.1: Martial Artist 7+ Flurry of Blows (Ex) — same shape, its own
@@ -11484,6 +11614,19 @@ function buildClassBonuses(classArr) {
   return out;
 }
 
+// v8.64.0 (Phase 2 class-features sift): class-feature REPUTATION bonuses —
+// the same typed door as the Renown feat's {target:'rep', value:3}. The
+// paired Wealth halves stay MANUAL by doctrine (Wealth is a snapshot).
+function buildClassFeatureRepBonuses(char) {
+  const L = (n) => migrateLegacyClasses(char).filter(e => e.name === n).reduce((s, e) => s + (e.level || 0), 0);
+  const out = [];
+  if (L('Bard') >= 19) out.push({ type: 'untyped', source: 'classFeature:Magnum Opus', value: 3, label: 'Magnum Opus (Bard 19 — Renown-equivalent; +2 circumstance on Cha skills with those who know the ballad, at the table)' });
+  if (L('Aristocrat') >= 19) out.push({ type: 'untyped', source: 'classFeature:Land & Title', value: 1, label: 'Land & Title (Aristocrat 19 — the +4 Wealth and Steward are manual)' });
+  if (L('Personality') >= 4) out.push({ type: 'untyped', source: 'classFeature:A-Lister', value: 1, label: 'A-Lister (Personality 4 — the +2 Wealth is manual)' });
+  if (L('Personality') >= 8) out.push({ type: 'untyped', source: 'classFeature:Royalty', value: 1, label: 'Royalty (Personality 8 — the +2 Wealth and entourage are manual)' });
+  return out;
+}
+
 // Build attribute-modifier bonus entries. Each attribute modifier (CON, DEX, WIS, etc.)
 // becomes one bonus entry with type:'ability' and source:'ability:<NAME>'. The aggregator
 // will sum these (ability self-stacks since each attribute is a unique source).
@@ -11681,13 +11824,18 @@ function computeStatBlock(char, activeConditions) {
   // Compose per-stat lists. Order of contribution doesn't matter to the aggregator;
   // we just collect everything that targets each stat. Feat contributions are merged
   // in alongside class and racial bonuses, and the aggregator handles stacking rules.
+  // v8.65.0: Best Defense (declared stance, Survivor 5) SPENDS Defense
+  // Bonus — one negative untyped entry rides the def and ac lanes so the
+  // cards, drilldowns, and AC all move together (PA's mirror).
+  const _bdDecl = (typeof combatDecl === 'function') ? (combatDecl(char).bd || 0) : 0;
+  const _bdEntry = _bdDecl ? [{ type: 'untyped', source: 'declared:bestDefense', value: -_bdDecl, label: `Best Defense (declared — +${_bdDecl} melee attack)` }] : [];
   const lists = {
     bab:  [...classBon.bab,  ...(featBon.bab||[]), ...((cfSaveBon && cfSaveBon.bab)||[])],
-    def:  [...classBon.def,  ...(racialBon.def||[]),  ...(featBon.def||[]), ...((cfSaveBon && cfSaveBon.def)||[])],
+    def:  [...classBon.def,  ...(racialBon.def||[]),  ...(featBon.def||[]), ...((cfSaveBon && cfSaveBon.def)||[]), ..._bdEntry],
     fort: [...classBon.fort, buildAttributeBonus('CON', conM), ...(racialBon.fort||[]), ...(featBon.fort||[]), ...(mutBon.fort||[]), ...(mgBon.fort||[]), ...(cfSaveBon.fort||[]), ...(aeBon.fort||[])],
     ref:  [...classBon.ref,  buildAttributeBonus('DEX', dexM), ...(racialBon.ref||[]),  ...(featBon.ref||[]),  ...(mutBon.ref||[]),  ...(mgBon.ref||[]),  ...(cfSaveBon.ref||[]),  ...(aeBon.ref||[])],
     will: [...classBon.will, buildAttributeBonus('WIS', wisM), ...(racialBon.will||[]), ...(featBon.will||[]), ...(mutBon.will||[]), ...(mgBon.will||[]), ...(cfSaveBon.will||[]), ...(aeBon.will||[])],
-    rep:  [...classBon.rep,  ...(racialBon.rep||[]),  ...(featBon.rep||[])],
+    rep:  [...classBon.rep,  ...(racialBon.rep||[]),  ...(featBon.rep||[]), ...((typeof buildClassFeatureRepBonuses === 'function') ? buildClassFeatureRepBonuses(char) : [])],
     // Armor Class: 10 base + size + DEX + def-bonus + natural + (future: armor, shield, deflection)
     ac:   [
       {type:BONUS_TYPES.BASE, source:'base:ac', value:10, label:'AC base'},
@@ -11700,6 +11848,7 @@ function computeStatBlock(char, activeConditions) {
       ...(featBon.ac||[]),
       ...(mgBon.ac||[]),  // v8.6.0 firm-wire: deflection rings et al.
       ...(aeBon.ac||[]),  // v8.42.0: transient wired buffs (Mental Barrier, Foresight…)
+      ..._bdEntry,        // v8.65.0: Best Defense — the def spend reaches AC too
     ],
     // HP — baseline = class HD sum (first die max, rest averaged) + CON per level + feat bonuses.
     // We build per-class entries so the drilldown shows "Fighter HD: 32 (level 5)" etc.
@@ -35997,15 +36146,18 @@ function computeParryBonus(c, opts){
   const def = c.def || 0;
   const bab = c.bab || 0;
   const shield = opts.shield ?? (c.shieldAC ?? 0);
-  return {
-    total: bab + strM + def + shield,
-    parts: [
-      {label:'BAB', value:bab},
-      {label:'Str', value:strM},
-      {label:'Def', value:def},
-      {label:'Shield', value:shield},
-    ],
-  };
+  // v8.65.0: Best Defense SPENDS Defense Bonus — def-fed stats move (PA's
+  // mirror, Adam's ruling: "right down to the attendant Defense Bonus
+  // modifier").
+  const _bd = (typeof combatDecl === 'function') ? (combatDecl(c).bd || 0) : 0;
+  const parts = [
+    {label:'BAB', value:bab},
+    {label:'Str', value:strM},
+    {label:'Def', value:def},
+    {label:'Shield', value:shield},
+  ];
+  if (_bd) parts.push({label:'Best Defense (declared)', value:-_bd});
+  return { total: bab + strM + def + shield - _bd, parts };
 }
 
 // Compute Dodge attempt modifier per handbook HH p.373.
@@ -36032,13 +36184,18 @@ function computeDodgeBonus(c){
       }
     }
   }
+  // v8.65.0: Best Defense spends Defense Bonus — the dodge roll's Def
+  // component drops with it (PA's mirror).
+  const _bd = (typeof combatDecl === 'function') ? (combatDecl(c).bd || 0) : 0;
+  const parts = [
+    {label:'Ref', value:refTotal},
+    {label:'Def', value:def},
+    {label:'Dodge', value:unconditional},
+  ];
+  if (_bd) parts.push({label:'Best Defense (declared)', value:-_bd});
   return {
-    total: refTotal + def + unconditional,
-    parts: [
-      {label:'Ref', value:refTotal},
-      {label:'Def', value:def},
-      {label:'Dodge', value:unconditional},
-    ],
+    total: refTotal + def + unconditional - _bd,
+    parts,
     conditional,
   };
 }
@@ -37636,17 +37793,33 @@ function renderSheet(){
   // v8.63.0: Reckless Offense's −4 AC rides the same display convention as
   // the CE tag (attack rolls carry the +2; BA/Grapple expressly untouched).
   const _roTag = _dcl.ro ? `<span style="display:block;font-size:9px;color:#d47070;" title="Reckless Offense declared — −4 AC until your next turn for +2 on melee attack rolls, Grapple included (HH p.239; a grapple check is like a melee attack roll). Base Attack and the iterative ladder untouched (Adam's ruling). Lasts until re-declared.">−4 RO (declared)</span>` : '';
+  // v8.64.0 (Phase 2 sift): Uncanny Dodge tag (class features + Fast Hero
+  // talents through uncannyDodgeTier) and the Sharpshooter cover advisory.
+  const _ud = (typeof uncannyDodgeTier === 'function') ? uncannyDodgeTier(c) : null;
+  const _udTag = _ud ? `<span style="display:block;font-size:9px;color:#9cc3da;font-style:italic;" title="${_ud.tier >= 2 ? 'Improved Uncanny Dodge: you keep your Dex bonus to AC while flat-footed or struck by an invisible attacker, AND you cannot be flanked (a Rogue needs 4+ more Rogue levels to sneak-attack you via flanking).' : 'Uncanny Dodge: you keep your Dex bonus to AC while flat-footed or struck by an invisible attacker.'} Sources: ${_ud.srcs.join(', ')}. Uncanny Dodge from a second class upgrades to Improved automatically.">${_ud.tier >= 2 ? 'Imp. Uncanny Dodge' : 'Uncanny Dodge'}</span>` : '';
+  const _dpTag = (typeof _cfLvlOf === 'function' && _cfLvlOf(c, 'Sharpshooter') >= 4) ? `<span style="display:block;font-size:9px;color:#d4b870;font-style:italic;" title="Defensive Positioning (Sharpshooter 4): when in ANY cover, your cover bonus to Defense and Reflex saves is +2 higher than normal.">+2 cover (conditional)</span>` : '';
   const statCells = [
     {l:'Base Attack',
      v: _dclSpent ? `${_effBA >= 0 ? '+' : ''}${_effBA}` : (c.bab>=0?'+':'')+c.bab,
      k:'bab',
      tooltip: _dclOwn ? `Declared stance — holds until re-declared. Power Attack ${_dcl.pa} · Combat Expertise ${_dcl.ce} · base Base Attack ${(c.bab>=0?'+':'')+(c.bab||0)}. ▼ assigns a point of Base Attack to a modifier; ▲ returns one. Melee attack rows apply the penalty; Power Attack adds damage (×2 two-handed, none on light weapons); Combat Expertise adds Defense.` : undefined,
      extraHtml: _dclOwn ? `<span style="display:block;margin-top:2px;white-space:nowrap;"><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_dclSpent >= ((c.bab)||0) ? 'opacity:.35;' : ''}" title="Assign a point of Base Attack to Power Attack / Combat Expertise" onclick="event.stopPropagation();baDeclAdjust(-1)">▼</button><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_dclSpent <= 0 ? 'opacity:.35;' : ''}" title="Return a point of Base Attack" onclick="event.stopPropagation();baDeclAdjust(1)">▲</button>${_dclSpent ? `<span style="font-size:9px;color:#d4b870;margin-left:4px;">PA ${_dcl.pa} · CE ${_dcl.ce}</span>` : ''}</span>` : ''},
-    {l:'Defense Bonus',v:(c.def>=0?'+':'')+c.def,k:'def'},
+    // v8.65.0 (Adam's go): Best Defense stepper — the BA-card idiom mirrored
+    // (Survivor 5+ only; free action to adjust, holds until re-declared).
+    (() => {
+      const _bdCap = (typeof bestDefenseCap === 'function') ? bestDefenseCap(c) : 0;
+      const _bdN = _dcl.bd || 0;
+      const _effDef = (c.def || 0) - _bdN;
+      return {l:'Defense Bonus',
+        v: _bdN ? `${_effDef >= 0 ? '+' : ''}${_effDef}` : (c.def>=0?'+':'')+c.def,
+        k:'def',
+        tooltip: _bdCap ? `Best Defense (Survivor, HH p.137) — trade up to +${_bdCap} of Defense Bonus (your Survivor class Defense Bonus) for an equal bonus on melee attack rolls; adjustable as a FREE action, holds until re-declared. Currently trading ${_bdN}. The spend reaches AC, Parry, Dodge, and Grapple like Power Attack's reaches Base Attack.` : undefined,
+        extraHtml: _bdCap ? `<span style="display:block;margin-top:2px;white-space:nowrap;"><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_bdN >= _bdCap ? 'opacity:.35;' : ''}" title="Trade a point of Defense Bonus for +1 on melee attack rolls (Best Defense)" onclick="event.stopPropagation();bdDeclAdjust(-1)">▼</button><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_bdN <= 0 ? 'opacity:.35;' : ''}" title="Return a point of Defense Bonus" onclick="event.stopPropagation();bdDeclAdjust(1)">▲</button>${_bdN ? `<span style="font-size:9px;color:#d4b870;margin-left:4px;">BD ${_bdN}</span>` : ''}</span>` : ''};
+    })(),
     ...(grap ? [{l:'Grapple', v:(grap.total>=0?'+':'')+grap.total, tooltip: grap.parts.join(' + ') + ' — size uses the effective category (Super-Strong riders included).'}] : []),
-    {l:acDisp.label, v:acDisp.value, k:'ac', extraHtml:_ceTag + _roTag},
+    {l:acDisp.label, v:acDisp.value, k:'ac', extraHtml:_ceTag + _roTag + _udTag + _dpTag},
     {l:'Parry', v:(parry.total>=0?'+':'')+parry.total, k:'parry', extraHtml:_ceTag + _roTag},
-    {l:'Dodge', v:(dodge.total>=0?'+':'')+dodge.total, k:'dodge', extraHtml:_ceTag + _roTag},
+    {l:'Dodge', v:(dodge.total>=0?'+':'')+dodge.total, k:'dodge', extraHtml:_ceTag + _roTag + _udTag},
   ];
   if (natHardness > 0) statCells.push({l:'Nat. Hardness', v:natHardness, k:'natHardness', tooltip:natTooltip});
   // v8.8.2 (Adam's Basic-class pass): Spell Resistance — a caster must beat
@@ -37666,7 +37839,11 @@ function renderSheet(){
     {l:'Initiative',v:(initTotal>=0?'+':'')+initTotal,k:'init'},
     {l:'Action Points',v:`${c.ap||0}/${c.apMax||0}`},
     {l:'Max HP',v:c.maxHP,k:'hp'},
-    {l:'Reputation',v:(c.rep||0),k:'rep'},
+    // v8.64.0 (Phase 2 sift): the card now shows the FULL computed total
+    // (feat ±3s and the class-feature Rep quartet included) — the stored
+    // c.rep is class-progression only, and the card/drilldown mismatch was
+    // the same disease the v8.6.0 save cells had.
+    {l:'Reputation',v:(typeof computeStatBlock==='function'?computeStatBlock(c).rep.total:(c.rep||0)),k:'rep'},
   );
   document.getElementById('sh-stats').innerHTML = statCells.map(s=>{
     const drillCls=s.k?'stat-cell drillable':'stat-cell';
@@ -37812,12 +37989,14 @@ function renderSheet(){
   ].map(s=>{
     const total = sbSaves[s.k].total;
     const other = total - (s.base||0) - s.mod;
-    // v8.61.0: Evasion rider on the Reflex card (talent — Fast Hero/Monk et al.).
+    // v8.61.0: Evasion rider on the Reflex card. v8.64.0 (Phase 2 sift):
+    // unified through evasionTier — class features (Monk/Rogue/Ranger/
+    // Survivor/Explorer, the Rogue SA pick) join the Fast Hero talents,
+    // with the Explorer/Survivor second-source escalation.
     let evTag = '';
     if (s.k === 'ref') {
-      const hasIE = (c.talents || []).some(t => (t.name || t.n) === 'Improved Evasion');
-      const hasE = hasIE || (c.talents || []).some(t => (t.name || t.n) === 'Evasion');
-      if (hasE) evTag = `<span style="display:block;font-size:9px;color:#9cc3da;font-style:italic;margin-top:2px;cursor:help;" title="${hasIE ? 'Improved Evasion: a successful Reflex save against a half-damage effect means NO damage — and a failed save means only half.' : 'Evasion: a successful Reflex save against a half-damage effect (fireball, explosions…) means NO damage instead of half. Light or no armor only.'}">${hasIE ? 'Improved Evasion' : 'Evasion'}</span>`;
+      const ev = (typeof evasionTier === 'function') ? evasionTier(c) : null;
+      if (ev) evTag = `<span style="display:block;font-size:9px;color:#9cc3da;font-style:italic;margin-top:2px;cursor:help;" title="${ev.tier >= 2 ? 'Improved Evasion: a successful Reflex save against a half-damage effect means NO damage — and a failed save means only half.' : 'Evasion: a successful Reflex save against a half-damage effect (fireball, explosions…) means NO damage instead of half. Light or no armor only.'} Sources: ${ev.srcs.join(', ')}.">${ev.tier >= 2 ? 'Improved Evasion' : 'Evasion'}</span>`;
     }
     return `<div class="stat-cell drillable" onclick="showStatBreakdown('${s.k}')"><span class="sc-lbl">${s.l}</span><span class="sc-val">${(total>=0?'+':'')+total}</span><span style="display:block;font-size:10px;color:rgba(200,151,30,.5);margin-top:2px;">base ${s.base||0} + ${s.attr} ${s.mod>=0?'+':''}${s.mod}${other?` ${other>0?'+':'−'} ${Math.abs(other)} other`:''}</span>${evTag}</div>`;
   }).join('');
@@ -46935,7 +47114,7 @@ function renderTracker(){
   if(reconcileMissingHP(c)){save();toast(`HP auto-assigned (${c.maxHP} — average Hit Dice); GM may override via ⚙ HP Mode.`);}  // v8.6.0 C5
   prompt.style.display='none';cont.style.display='block';
   document.getElementById('tr-nm').textContent=c.name+' — Combat Tracker';
-  renderHPBar(c);renderAPBar(c);renderPPRecovery(c);renderPerDiem(c);if(typeof renderArmorIntegrity==='function')renderArmorIntegrity(c);renderXPBar(c);renderConds(c);renderTalentActions(c);renderCombatOptions(c);renderLog(c);
+  renderHPBar(c);renderAPBar(c);renderPPRecovery(c);renderPerDiem(c);if(typeof renderArmorIntegrity==='function')renderArmorIntegrity(c);renderXPBar(c);renderConds(c);renderTalentActions(c);renderCombatOptions(c);renderBardicMusic(c);renderElementalist(c);renderLog(c);
   // v8.3.27: action log panel renders alongside the free-text session journal.
   renderActionLog(c);
 }
@@ -47389,6 +47568,85 @@ function renderCombatOptions(c) {
     chip('5-ft Step', 'free, no AoO', 'Once per round when you move no other distance: step 5 ft without provoking. Not while using a movement-forbidding full-round action.'),
     chip('Grapple', 'see the Sheet stat', 'Your Grapple modifier (incl. the special ±4-per-size-step) is a headline stat on the Sheet; the start-a-grapple sequence (AoO → touch attack → opposed check) is in the HH combat chapter.'),
   ].join('');
+}
+
+// ============================================================================
+// v8.65.0 (Tier B, Adam's go) — 🎵 BARDIC MUSIC: computed performance cards,
+// gated on Bard level AND Perform ranks per HH pp.77-78 ("if a Bard does not
+// have the required number of ranks in at least one Perform skill, they do
+// not gain the bardic music ability until they acquire the needed ranks" —
+// rank-short abilities render greyed with the gap named). The daily counter
+// (Bard level uses) already lives on the per-diem panel; Suggestion is free.
+function renderBardicMusic(c) {
+  const panel = document.getElementById('tr-bardic-panel');
+  const host = document.getElementById('tr-bardic');
+  if (!panel || !host) return;
+  const brd = (typeof _cfLvlOf === 'function') ? _cfLvlOf(c, 'Bard') : 0;
+  if (brd <= 0) { panel.style.display = 'none'; host.innerHTML = ''; return; }
+  panel.style.display = '';
+  let perf = 0, perfName = '—';
+  for (const k of Object.keys(c.skills || {})) {
+    if (/^Perform/i.test(k) && (c.skills[k] || 0) > perf) { perf = c.skills[k] || 0; perfName = k; }
+  }
+  const chaM = am(effAttrs(c)[5]);
+  const used = (c.abilityUses || {}).bardicMusic || 0;
+  const courage = 1 + [8, 14, 20].filter(l => brd >= l).length;
+  const sugDC = 10 + Math.floor(brd / 2) + chaM;
+  const card = (ranksReq, name, body, tip) => {
+    const ok = perf >= ranksReq;
+    return `<div style="margin:3px 0;${ok ? '' : 'opacity:.45;'}cursor:help;" title="${escapeHTML(tip + (ok ? '' : ` LOCKED — needs ${ranksReq} Perform ranks (your best: ${perf}).`))}"><b style="color:rgba(156,195,218,${ok ? '.9' : '.5'});">${name}</b> <span style="opacity:.85;">${body}${ok ? '' : ` <i style="font-size:10px;">(needs ${ranksReq} ranks)</i>`}</span></div>`;
+  };
+  const rows = [`<div style="font-size:10.5px;color:rgba(200,151,30,.6);margin-bottom:5px;">${brd} uses/day (${used} used — the ☀ per-diem panel tracks them) · best Perform: ${escapeHTML(perfName)} ${perf} ranks · starting a performance is a standard action; no spellcasting or spell-trigger/completion items while performing; a deaf Bard fails 20% of attempts (the use is still spent).</div>`];
+  rows.push(card(3, 'Countersong', `(Su) Perform check each round — anyone within 30 ft may use it in place of their save vs sonic / language-dependent magic; up to 10 rounds.`, 'Ongoing noninstantaneous effects get a new save each round at your Perform result. No effect on save-less effects.'));
+  rows.push(card(3, 'Fascinate', `(Sp) ${1 + Math.floor((brd - 1) / 3)} creature${1 + Math.floor((brd - 1) / 3) === 1 ? '' : 's'} within 90 ft — Perform check = their Will DC; up to ${brd} rounds.`, 'Targets must be able to see, hear, and attend; nearby combat prevents it. Fascinated: sits and listens, −4 on reactive Listen/Spot. New threats allow a fresh save vs a new Perform check; obvious threats break it. Mind-affecting compulsion.'));
+  rows.push(card(5, 'Inspire Courage', `(Su) allies who hear: +${courage} morale on attacks & weapon damage, +${courage} on saves vs charm/fear; lasts while heard + 5 rounds.`, 'Self included. +1 base, +1 more at 8th, 14th, and 20th. Mind-affecting.'));
+  if (brd >= 3) rows.push(card(7, 'Inspire Competence', `(Su) one ally within 30 ft: +2 competence on a skill while they hear you — up to 2 minutes; not on yourself.`, 'Concentration to maintain. Certain uses are infeasible (GM).'));
+  if (brd >= 6) rows.push(card(10, 'Suggestion', `(Sp) on an ALREADY-fascinated creature — Will DC ${sugDC} negates; FREE (no daily use).`, 'Doesn’t break your Fascinate concentration and grants no new save against it. Enchantment (compulsion), mind-affecting, language-dependent.'));
+  if (brd >= 9) rows.push(card(13, 'Inspire Greatness', `(Su) ${1 + Math.floor((brd - 9) / 3)} willing all${1 + Math.floor((brd - 9) / 3) === 1 ? 'y' : 'ies'} (self allowed): +2 bonus HD (d10s + Con) as temp HP, +2 competence on attacks, +1 competence Fort; lasts while heard + 5 rounds.`, 'The bonus Hit Dice count as regular HD for HD-dependent spells. Mind-affecting.'));
+  if (brd >= 12) rows.push(card(15, 'Song of Freedom', `(Sp) Break Enchantment at CL ${brd} on one target within 30 ft — 1 minute of uninterrupted music; not on yourself.`, 'As the spell: frees from enchantments, transmutations, curses, petrification.'));
+  if (brd >= 15) rows.push(card(19, 'Inspire Heroics', `(Su) ${1 + Math.floor((brd - 15) / 3)} willing all${1 + Math.floor((brd - 15) / 3) === 1 ? 'y' : 'ies'} (self allowed): +4 morale on saves, +4 dodge AC; full-round action to start; lasts while heard + 5 rounds.`, 'Mind-affecting.'));
+  if (brd >= 18) rows.push(card(20, 'Mass Suggestion', `(Sp) as Suggestion (Will DC ${sugDC}) on ANY number of fascinated creatures at once.`, 'Enchantment (compulsion), mind-affecting, language-dependent.'));
+  host.innerHTML = rows.join('');
+}
+
+// v8.65.0 (Tier B, Adam's go) — 🔥 ELEMENTAL ARSENAL: the Elementalist's
+// AT-WILL attack forms wired as attacks with live math (Adam's caveat),
+// variant-resolved from the Elemental Focus pick (GMG pp.165-167). The
+// Nimbus 1-2/day lives on the per-diem panel; Fist also rides the unarmed
+// row as an alt mode and Elemental Weapon rides melee rows as a rider.
+function renderElementalist(c) {
+  const panel = document.getElementById('tr-elemental-panel');
+  const host = document.getElementById('tr-elemental');
+  if (!panel || !host) return;
+  const ele = (typeof _cfLvlOf === 'function') ? _cfLvlOf(c, 'Elementalist') : 0;
+  if (ele <= 0) { panel.style.display = 'none'; host.innerHTML = ''; return; }
+  panel.style.display = '';
+  const pick = ((c.classChoices || {})['ele_var_1'] || '');
+  const vn = (pick.match(/^(Ambrian|Kryonian|Vesuvian|Vitrolian)/) || [])[1] || null;
+  if (!vn) { host.innerHTML = `<div style="font-size:11px;color:#d4b870;">Choose the Elemental Focus in 🎓 Class Choices (Sheet) — every attack form keys off the variant.</div>`; return; }
+  const eff = effAttrs(c);
+  const strM = am(eff[0]), dexM = am(eff[1]);
+  const szm = (typeof raceACSizeMod === 'function') ? (raceACSizeMod(c) || 0) : 0;
+  const mTouch = (c.bab || 0) + strM + szm;
+  const rTouch = (c.bab || 0) + dexM + szm;
+  const fmt = (n) => `${n >= 0 ? '+' : ''}${n}`;
+  const greater = ele >= 7;
+  const boltDice = greater ? '4d6' : '2d6';
+  const V = {
+    Ambrian:   { fist: `2d6 electricity per melee TOUCH (${fmt(mTouch)})`, bolt: `${boltDice} electricity OR ionic (nonlethal electricity), ranged touch ${fmt(rTouch)}, 15 ft`, blasts: [`Electrical Blast — ${ele}d6 electricity, ranged touch ${fmt(rTouch)}, range ${ele * 60} ft`, `Ionic Blast — ${ele}d6 ionic (nonlethal electricity), ranged touch ${fmt(rTouch)}, range ${ele * 30} ft`], weapon: '+2d6 electricity per hit' },
+    Kryonian:  { fist: `2d6 cold per melee TOUCH (${fmt(mTouch)})`, bolt: `${boltDice} cold OR water (nonlethal bludgeoning), ranged touch ${fmt(rTouch)}, 15 ft`, blasts: [`Cold Blast — ${ele}d6 cold, ranged touch ${fmt(rTouch)}, range ${ele * 30} ft`, `Water Blast — ${ele}d6 water (nonlethal bludgeoning), ranged touch ${fmt(rTouch)}, range ${ele * 10} ft`], weapon: '+2d6 cold per hit' },
+    Vesuvian:  { fist: `2d6 fire per melee TOUCH (${fmt(mTouch)})`, bolt: `${boltDice} fire OR heat (nonlethal fire), ranged touch ${fmt(rTouch)}, 15 ft`, blasts: [`Targeted Fire Blast — ${ele}d6 fire, ranged touch ${fmt(rTouch)}, range ${ele * 30} ft`, `Area Fire Blast — ${ele}d6 fire, ${ele * 5}′-radius area, Reflex DC ${13 + dexM} half, range ${ele * 10} ft`], weapon: '+2d6 fire per hit' },
+    Vitrolian: { fist: `2d6 bludgeoning + Str (${fmt(strM)}) — a NORMAL armed unarmed attack, stone-sheathed`, bolt: `+2d6 additional bludgeoning on each successful Elemental Fist or Slam hit${greater ? ' · Fist ignores 10 hardness (Greater Adaptation)' : ''}`, blasts: [`Clap Shockwave — ${ele}d6 concussion (nonlethal sonic), ${ele * 10}′ cone, Fort DC ${13 + strM} half`, `Stomp Shockwave — ${ele}d4 nonlethal, ${ele * 10}′ radius on you (you're immune), Str check DC ${13 + strM} or knocked PRONE`], weapon: '+5 Hardness, +10 HP, and a magical +1 to hit on the engulfed weapon' },
+  }[vn];
+  const card = (name, body, tip) => `<div style="margin:3px 0;cursor:help;" title="${escapeHTML(tip)}"><b style="color:rgba(212,134,90,.95);">${name}</b> <span style="opacity:.85;">${body}</span></div>`;
+  const rows = [`<div style="font-size:10.5px;color:rgba(200,151,30,.6);margin-bottom:5px;">${vn} · Elementalist ${ele} — all forms are AT-WILL (Su)${greater ? ' · Greater Elemental Adaptation active (7th)' : ''}. The Nimbus (1${ele >= 8 ? '-2' : ''}/day or 1 AP) is on the ☀ per-diem panel.</div>`];
+  rows.push(card('Elemental Fist', `move action to invoke — ${V.fist}`, 'GMG p.165: the element engulfs your hand (harmless to you); your unarmed attack counts as ARMED. Also shown as an alt mode on the Gear tab’s unarmed row.'));
+  if (ele >= 2) rows.push(card(vn === 'Vitrolian' ? 'Elemental Bolt (rider)' : 'Elemental Bolt', `${V.bolt} — usable once per attack: iteratives from high BA each carry one.`, 'GMG p.166: a full-attack Elementalist fires one bolt per attack.'));
+  if (ele >= 3) rows.push(card('Elemental Blast', `standard action — ${V.blasts.join(' · OR · ')}`, 'GMG p.166: two manifestation options; pick per blast.'));
+  if (ele >= 3) rows.push(card('Elemental Weapon', `move action — engulf one melee weapon: ${V.weapon}`, 'GMG pp.166-167: the weapon is unharmed. Also shown as a rider on the Gear tab’s melee weapon rows.'));
+  if (ele >= 5) rows.push(card('Elemental Locomotion', ({ Ambrian: 'Fly 120′ (perfect)', Kryonian: 'Swim 60′ · hold breath 1 min/Con point', Vesuvian: 'Fly 60′ (perfect)', Vitrolian: 'Burrow (see entry)' })[vn], 'GMG p.167 — the variant movement mode.'));
+  if (ele >= 10) rows.push(card('Elemental Transformation', `become a living elemental AT WILL — Nimbus at will, DR ${vn === 'Vitrolian' ? '20/adamantine+magic' : '15/magic'}, immunities per the entry`, 'GMG p.167.'));
+  host.innerHTML = rows.join('');
 }
 
 function renderConds(c){
