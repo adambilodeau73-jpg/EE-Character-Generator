@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.86.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.87.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -13696,7 +13696,9 @@ function getTalentBudget(c) {
   // slot is one bonus-feat slot the character must leave unfilled
   // (getFeatSlotBreakdown subtracts the same count).
   // v8.21.1: only slot-consuming (non-super-tier) talents count as picked.
-  const slotPicked = (c.talents || []).filter(t => talentConsumesSlot(t.name)).length;
+  // v8.87.0: grantedBy records (Energy Immunity's free Energy Resistance
+  // pick) are a GRANT, not a selection — exempt from the budget.
+  const slotPicked = (c.talents || []).filter(t => talentConsumesSlot(t.name) && !t.grantedBy).length;
   const superOwned = (c.talents || []).length - slotPicked;
   let flexUsed = 0, flexMax = 0;
   if (typeof heroTalentFlex === 'function') {
@@ -15448,6 +15450,13 @@ function removeTalentFromChar(c, talentName, param) {
   // v8.8.0: reverse an attr bake on removal (GM-reversible per Adam).
   if (rec.attrApplied && ATTR_KEY_IDX[rec.attrKey] !== undefined && Array.isArray(c.attrs)) c.attrs[ATTR_KEY_IDX[rec.attrKey]] -= rec.attrApplied;
   c.talents.splice(idx, 1);
+  // v8.87.0: removing Energy Immunity cascades its free grant away too —
+  // the granted Resistance talent exists only by the Super-Talent's grace.
+  if (talentName === 'Energy Immunity') {
+    const granted = c.talents.filter(t => t.grantedBy === 'Energy Immunity');
+    for (const g of granted) c.talents.splice(c.talents.indexOf(g), 1);
+    if (granted.length && typeof toast === 'function') toast(`Also removed ${granted.map(g => g.name).join(', ')} — granted by Energy Immunity.`);
+  }
   reconcileTalentHp(c);  // v8.8.0: Robust's baked HP leaves with the talent
   return true;
 }
@@ -38661,7 +38670,10 @@ function renderSheet(){
   const _drCell = (typeof computeDR === 'function') ? computeDR(c) : [];
   const _drLive = _drCell.filter(d => !d.conditional);
   if (_drLive.length) {
-    const _drBest = _drLive.slice().sort((a, b) => b.value - a.value)[0];
+    // v8.86.1 (Adam's Stoneskin-vs-Nigh-Invulnerable catch): at equal value,
+    // "/—" (nothing bypasses) outranks any typed instance for the headline —
+    // the old value-only sort let push order decide ties.
+    const _drBest = _drLive.slice().sort((a, b) => (b.value - a.value) || ((b.bypass === '—' ? 1 : 0) - (a.bypass === '—' ? 1 : 0)))[0];
     statCells.push({l:'DR', v:`${_drBest.value}/${_drBest.bypass}`,
       tooltip:`Damage Reduction — subtract from each weapon or natural-attack hit unless the attack bypasses it (the “/X” names what gets through; “/—” = nothing does). Instances OVERLAP, never stack: the best applicable applies per attack (FF p.523; class-level x/− pooling already folded in).\n${_drCell.map(d => `${d.value}/${d.bypass} — ${d.source}${d.conditional ? ' (CONDITIONAL: ' + d.conditional + ')' : ''}${d.note ? ' · ' + d.note : ''}`).join('\n')}`});
   }
@@ -40455,9 +40467,13 @@ function renderTalents(){
       const tierColor = tier === 'Apex Super-Talent' ? '#c499d4'
                       : tier === 'Super-Talent' ? '#7daadc'
                       : 'rgba(200,151,30,.65)';
-      const sourceLabel = t.grantedAt?.source
+      // v8.87.0: a grantedBy record is Energy Immunity's free pick — the tag
+      // outranks the generic source label (no slot was consumed for it).
+      const sourceLabel = t.grantedBy
+        ? `<span style="font-size:10px;color:#7daadc;margin-left:6px;" title="Granted free by ${escapeHTML(t.grantedBy)} — no Talent slot consumed; removed automatically if ${escapeHTML(t.grantedBy)} is removed.">◈ granted by ${escapeHTML(t.grantedBy)}</span>`
+        : (t.grantedAt?.source
         ? `<span style="font-size:10px;color:rgba(200,151,30,.5);margin-left:6px;">from ${escapeHTML(t.grantedAt.source)}</span>`
-        : '';
+        : '');
       // v8.5.0: parameterized talents display their chosen skill and remove
       // the specific name+param instance.
       const paramText = t.param ? ` <span style="color:var(--gold);">(${escapeHTML(t.param)})</span>` : '';
@@ -40782,6 +40798,8 @@ async function addTalentFromBrowser(name) {
       save();
       filterTalents();
       toast(`Added ${name} — ${cost} MP spent (no Talent selection consumed).`);
+      // v8.87.0 (Adam's intent ruling): Energy Immunity is a TWO-STEP engine.
+      if (name === 'Energy Immunity') grantEnergyImmunityPick(c);
     }
     return;
   }
@@ -40825,6 +40843,39 @@ async function addTalentFromBrowser(name) {
     filterTalents();   // refresh browser
     toast(`Added ${name}.`);
   }
+}
+
+// ============================================================================
+// v8.87.0 (Adam's intent ruling, 2026-10-03): ENERGY IMMUNITY, the two-step
+// engine. The printed d: was read as conversion-only; the intent: (1) buying
+// it grants ONE FREE talent from the Energy Resistance Tree — no slot, no
+// MP ("Choose another Talent from the Energy Resistance Talent Tree"), THEN
+// (2) immunity to every type whose Resistance talent is owned (already wired
+// in computeResistances). Floor: a one-resistance buyer walks away immune to
+// TWO types. Ceiling: whole tree already owned → the grant is "potentially
+// extraneous" (his words) and is skipped with a note. The granted record
+// carries grantedBy:'Energy Immunity' — exempt from the slot budget, and it
+// cascades away if Energy Immunity itself is removed.
+// ============================================================================
+const ENERGY_RES_TREE = ['Acid Resistance', 'Cold Resistance', 'Electricity Resistance', 'Fire Resistance', 'Sonic/Concussion Resistance'];
+function grantEnergyImmunityPick(c) {
+  const owned = new Set((c.talents || []).map(t => t.name));
+  const options = ENERGY_RES_TREE.filter(n => !owned.has(n));
+  if (!options.length) {
+    toast('◈ Energy Immunity: all five Energy Resistance talents already owned — the bonus grant is extraneous; immunity already covers the full tree.');
+    return;
+  }
+  openChoiceModal('Energy Immunity — choose your FREE Energy Resistance talent (granted; no Talent slot, no MP)', options, (sel) => {
+    if (!sel) return;
+    if (addTalentToChar(c, sel)) {
+      const rec = (c.talents || []).find(t => t.name === sel);
+      if (rec) rec.grantedBy = 'Energy Immunity';
+      if (typeof logAct === 'function') logAct(`◈ ${sel} granted FREE by Energy Immunity (no Talent slot consumed) — immunity now covers every owned Resistance type.`);
+      save(); filterTalents();
+      if (typeof renderSheet === 'function') renderSheet();
+      toast(`◈ ${sel} granted by Energy Immunity — now immune to all owned Resistance types.`);
+    }
+  });
 }
 
 // v8.5.0 Layer 2: spend AP to activate an AP-SPEND talent (Defensive Roll,
