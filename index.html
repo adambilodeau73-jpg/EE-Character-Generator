@@ -319,7 +319,7 @@ details.cls-det>summary:hover{background:rgba(200,151,30,.16)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.79.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.80.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -42860,8 +42860,33 @@ function characterIsEntitledToMutations(c) {
 // live on the PARENT ("Animal Affinity is the one-size-fits-all attribute
 // power"). For super-power purchase, a variant inherits the parent's MP
 // cost, level identity, and Buff note.
+// v8.80.0 (Adam's seller's-market ruling, 2026-10-03): the HH p.424
+// "Supernatural Mutation List by MP Cost" is the CANONICAL purchase
+// catalogue, and for the merged scaling families it prices EACH RUNG —
+// the entry's printed (N MP) is only the bottom rung. Buying the full
+// scaling capability costs its full upfront price ("pay more upfront for
+// a more powerful ability down the road" — anti-cherry-picking; the same
+// doctrine that prices Fly at its expensive equivalent). Rungs verbatim
+// from p.424; the purchase flow prompts which rung is being bought.
+const SUPER_RUNGS = {
+  'Charm Being': [['Charm Animal / Charm Person', 2], ['Charm Being — full, scales to Monster', 8]],
+  'Hold Being': [['Hold Animal / Hold Person', 4], ['Hold Being — full', 10]],
+  'Dominate Being': [['Dominate Animal', 6], ['Dominate Person', 10], ['Dominate Being — full', 20]],
+  'Planar Ally': [['Planar Ally, Lesser', 8], ['Planar Ally', 12], ['Planar Ally, Greater', 16]],
+  'Suggestion (Mass)': [['Suggestion', 4], ['Suggestion, Mass', 10]],
+  'Summon Monster (I-IX)': [['Summon Monster I-V', 10], ['Summon Monster I-IX', 20]],
+  'Summon Nature’s Ally (I-IX)': [['Summon Nature’s Ally I-V', 10], ['Summon Nature’s Ally I-IX', 20]],
+  'Astral Construct': [['Astral Construct I-V', 10], ['Astral Construct I-IX', 20]],
+  'Inflict Wounds': [['Light', 2], ['Moderate', 4], ['Serious', 6], ['Critical', 8], ['Mass — Light', 10], ['Mass — Moderate', 12], ['Mass — Serious', 14], ['Mass — Critical', 16]],
+  // Cure is DELIBERATELY asymmetric to Inflict (Adam's catch, 2026-10-03):
+  // no cheap healing rung exists — at-will permanent healing deletes
+  // attrition, so the suite bundles at an 8 MP floor ("includes all Cure
+  // Wounds options below purchased tier"). The seller's market, applied
+  // to mercy. Two rungs only, per p.424.
+  'Cure Wounds': [['Cure Wounds — up to Critical (all lower tiers included)', 8], ['Mass Cure Wounds — up to Critical (all lower tiers included)', 16]],
+};
 function superBuySpec(spell) {
-  if (spell.mp != null) return { mp: spell.mp, levels: spell.levels, mpNote: spell.mp_note, via: null };
+  if (spell.mp != null) return { mp: spell.mp, levels: spell.levels, mpNote: spell.mp_note, via: null, rungs: SUPER_RUNGS[spell.name] || null };
   const v = (typeof VARIANT_NAMES !== 'undefined') && VARIANT_NAMES[spell.name];
   if (v) {
     const parent = SPELLS_DB.find(x => x.name === v.parent);
@@ -42900,7 +42925,11 @@ function superBuyEligibility(c, spell) {
   const specLevels = spec.levels;
   const minLvl = (specLevels && specLevels.length) ? Math.min(...specLevels.map(l => l.lvl)) : 1;
   const [lo, hi] = st.tier.spell_levels;
-  if (minLvl < lo || minLvl > hi) return { ok: false, why: `${st.tier.tier} tier reaches level ${lo}-${hi} only (this is level ${minLvl})` };
+  // v8.80.0 (found via Adam's Cure Wounds question): the band's LOWER bound
+  // must not gate — it blocked every 0-level purchase (and Cure Wounds,
+  // whose merged entry carries its Cure Minor 0-level rung) at EVERY tier.
+  // A cantrip is beneath no one's tier; only the ceiling gates.
+  if (minLvl > hi) return { ok: false, why: `${st.tier.tier} tier reaches level ${lo}-${hi} only (this is level ${minLvl})` };
   // Tier cap tests the power's BASE cost (the cap is a magnitude gate — a
   // suite discount cheapens the price, not the power).
   if (st.tier.max_mp_per_power !== null && spec.mp > st.tier.max_mp_per_power)
@@ -42908,7 +42937,14 @@ function superBuyEligibility(c, spell) {
   // v8.75.0: apply the suite discount to the price actually paid.
   const disc = suiteDiscountFor(c, spell);
   const mpPay = disc ? Math.max(1, spec.mp - 1) : spec.mp;
-  return { ok: true, minLvl, mp: mpPay, mpBase: spec.mp, suite: disc ? disc.suite : null, suiteOwned: disc ? disc.count : 0, via: spec.via };
+  // v8.80.0: rung families — the button quotes the tier-legal rung range;
+  // the purchase flow prompts the rung (eligibility above tested the
+  // CHEAPEST rung, so a family stays visible while any rung is legal).
+  const cap = st.tier.max_mp_per_power;
+  const legalRungs = spec.rungs ? spec.rungs.filter(r => cap == null || r[1] <= cap) : null;
+  return { ok: true, minLvl, mp: mpPay, mpBase: spec.mp, suite: disc ? disc.suite : null, suiteOwned: disc ? disc.count : 0, via: spec.via,
+    rungs: legalRungs && legalRungs.length ? legalRungs : null,
+    rungsBlocked: spec.rungs ? spec.rungs.length - (legalRungs ? legalRungs.length : 0) : 0 };
 }
 
 // Complimentary super-powers ("includes X and Y" MP notes) cascade for free,
@@ -42946,7 +42982,23 @@ async function buySuperPower(idx) {
   // Adam's ruling) is already applied there; the record stamps the paid
   // price plus suite provenance, and the MP ledger reads the stamp.
   const spec = superBuySpec(spell);
-  const payMp = elig.mp;
+  let payMp = elig.mp;
+  // v8.80.0 (Adam's seller's-market ruling): rung families prompt WHICH
+  // rung is being bought — the HH p.424 prices, tier-cap filtered; the
+  // chosen rung stamps the record (the full scaling capability pays its
+  // full upfront price).
+  let rungLabel = null;
+  if (elig.rungs) {
+    const disc = elig.suite ? 1 : 0;
+    const pick = await new Promise(res => openChoiceModal(
+      `◈ ${spell.name} — which rung are you buying? (HH p.424 prices${disc ? '; suite discount −1 applies' : ''}${elig.rungsBlocked ? `; ${elig.rungsBlocked} higher rung(s) sit beyond your tier's per-power cap` : ''})`,
+      elig.rungs.map(r => `${r[0]} — ${Math.max(1, r[1] - disc)} MP`), res));
+    if (!pick) return;
+    const idxR = elig.rungs.findIndex(r => pick.startsWith(r[0] + ' —'));
+    if (idxR < 0) return;
+    rungLabel = elig.rungs[idxR][0];
+    payMp = Math.max(1, elig.rungs[idxR][1] - disc);
+  }
   const st = getMPState(c);
   if (payMp > st.balance) {
     if (!(await confirmModal(
@@ -42955,13 +43007,14 @@ async function buySuperPower(idx) {
   }
   const isBuff = /(^|\|)\s*Buff/i.test(spec.mpNote || '');
   c.powers.push({ name: spell.name, pool: 'super', mp: payMp,
+    ...(rungLabel ? { rung: rungLabel } : {}),
     ...(elig.suite ? { suiteDisc: 1, suite: elig.suite } : {}),
     buff: isBuff || undefined, grantedAt: { level: c.totalLvl || 1, atDate: new Date().toLocaleDateString() } });
   const visited = new Set([spell.name]);
   grantComplimentarySuperPowers(c, spell, spell.name, visited);
   const freebies = visited.size - 1;
   save(); renderPowers();
-  toast(`Bought ${spell.name} as a super-power (${payMp} MP${elig.suite ? ` — ◈ suite discount −1: ${elig.suite}, ${elig.suiteOwned} owned` : ''}${spec.via ? ` — priced as ${spec.via}` : ''}${freebies ? `, +${freebies} complimentary` : ''}).`);
+  toast(`Bought ${spell.name}${rungLabel ? ` [${rungLabel}]` : ''} as a super-power (${payMp} MP${elig.suite ? ` — ◈ suite discount −1: ${elig.suite}, ${elig.suiteOwned} owned` : ''}${spec.via ? ` — priced as ${spec.via}` : ''}${freebies ? `, +${freebies} complimentary` : ''}).`);
 }
 
 // ----- Mutations tab -----
@@ -46720,8 +46773,15 @@ function renderPowersBrowse() {
   // purchases aren't list-routes, so nothing ever counted as available. On
   // the Powers side, an entry the character could BUY as a super-power now
   // passes the availability filter (and the label says so).
-  const superCapable = _pwMode === 'powers' && (typeof getMPState === 'function') && getMPState(c).isSuperMutant;
-  if (clbl && superCapable) clbl.textContent = 'manifestable / ◈ buyable by this character';
+  const _mpStB = (_pwMode === 'powers' && typeof getMPState === 'function') ? getMPState(c) : null;
+  const superCapable = !!(_mpStB && _mpStB.isSuperMutant);
+  // v8.79.0 (Adam's Rhad shopping report): the TIER gates (level band +
+  // per-power MP cap, HH p.422 — keyed on TOTAL MP earned, not banked)
+  // were filtering in silence. The label now states the shopping window.
+  if (clbl && superCapable && _mpStB.tier) {
+    const [tLo, tHi] = _mpStB.tier.spell_levels || [1, 9];
+    clbl.textContent = `manifestable / ◈ buyable by this character — ${_mpStB.tier.tier} tier: power levels ${tLo}-${tHi}${_mpStB.tier.max_mp_per_power != null ? `, ≤${_mpStB.tier.max_mp_per_power} MP per power` : ''}`;
+  } else if (clbl && superCapable) clbl.textContent = 'manifestable / ◈ buyable by this character';
   _pwBrowseList = SPELLS_DB.filter(s => {
     if (q && !(s.name.toLowerCase().includes(q) || s.school_raw.toLowerCase().includes(q))) return false;
     if (themeSetF && !themeSetF.has(s.name)) return false;  // v8.74.0: theme suite filter
@@ -46772,7 +46832,24 @@ function renderPowersBrowse() {
         const elig = superBuyEligibility(c, s);
         // v8.75.0: the suite discount (HH p.670, Adam's ruling) shows on the
         // button itself — the player sees the real price and why.
-        if (elig.ok) buyBtn = `<button class="btn btn-sm" style="font-size:10px;border-color:rgba(181,143,212,.5);color:#b58fd4;" title="Buy as a permanent super-power (spends banked MP)${elig.suite ? ` — SUITE DISCOUNT: you own ${elig.suiteOwned} ${escapeHTML(elig.suite)} powers, so this costs ${elig.mp} MP instead of ${elig.mpBase} (HH p.670: two powers from one suite make further suite powers 1 MP less)` : ''}${elig.via ? ` — priced as its parent power, ${elig.via}` : ''}" onclick="buySuperPower(${i})">◈ Buy ${elig.mp} MP${elig.suite ? ` <span style="font-size:8px;opacity:.85;">(suite −1)</span>` : ''}</button>`;
+        // v8.80.0: rung families quote the tier-legal range; the click
+        // prompts which rung (HH p.424 prices — the seller's-market ladder).
+        const _rLo = elig.rungs ? elig.rungs[0][1] : null, _rHi = elig.rungs ? elig.rungs[elig.rungs.length - 1][1] : null;
+        const _buyLabel = elig.rungs ? (_rLo === _rHi ? `◈ Buy ${Math.max(1, _rLo - (elig.suite ? 1 : 0))} MP` : `◈ Buy ${Math.max(1, _rLo - (elig.suite ? 1 : 0))}–${Math.max(1, _rHi - (elig.suite ? 1 : 0))} MP`) : `◈ Buy ${elig.mp} MP`;
+        if (elig.ok) buyBtn = `<button class="btn btn-sm" style="font-size:10px;border-color:rgba(181,143,212,.5);color:#b58fd4;" title="Buy as a permanent super-power (spends banked MP)${elig.rungs ? ` — PRICED BY RUNG (HH p.424, the seller's-market ladder): ${elig.rungs.map(r => `${r[0]} ${r[1]} MP`).join(' · ')}${elig.rungsBlocked ? ` — ${elig.rungsBlocked} higher rung${elig.rungsBlocked === 1 ? '' : 's'} beyond your tier's per-power cap` : ''}. You choose the rung when buying; the full scaling capability costs its full upfront price.` : ''}${elig.suite ? ` — SUITE DISCOUNT: you own ${elig.suiteOwned} ${escapeHTML(elig.suite)} powers, so this costs ${elig.mp} MP instead of ${elig.mpBase} (HH p.670: two powers from one suite make further suite powers 1 MP less)` : ''}${elig.via ? ` — priced as its parent power, ${elig.via}` : ''}" onclick="buySuperPower(${i})">${_buyLabel}${elig.suite ? ` <span style="font-size:8px;opacity:.85;">(suite −1)</span>` : ''}</button>`;
+        // v8.79.0 (Adam's Rhad shopping report): a blocked row now SAYS WHY
+        // — a dimmed dashed chip with the gate (tier level band, per-power
+        // MP cap, feat, scenario), and the tier ladder in the hover so the
+        // player knows what earns the unlock. Silence was the bug.
+        else if (superCapable) {
+          const w = elig.why || '';
+          const short = /caps single-power cost/.test(w) ? `tier cap ${(_mpStB.tier && _mpStB.tier.max_mp_per_power) || ''} MP`
+            : /reaches level/.test(w) ? `tier ≤ lvl ${(_mpStB.tier && _mpStB.tier.spell_levels) ? _mpStB.tier.spell_levels[1] : ''}`
+            : /Supernatural Mutation/.test(w) ? 'needs Su Mutation'
+            : /Mutation Scale/.test(w) ? 'needs Mut 5 scenario'
+            : 'not buyable';
+          buyBtn = `<span style="font-size:9px;color:rgba(181,143,212,.55);border:1px dashed rgba(181,143,212,.3);padding:2px 6px;border-radius:2px;white-space:nowrap;cursor:help;" title="Not buyable yet — ${escapeHTML(w)}. The shopping window follows your Supernatural Mutation TIER (chosen on the 🧬 Mutations tab, GM approval — banked MP alone never widens it): Minor ≤ lvl 3, ≤6 MP/power · Moderate ≤ lvl 5, ≤10 · Major ≤ lvl 9, ≤20 · Mega ≤ lvl 9, uncapped. HH p.422.">◈ ${escapeHTML(short)}</span>`;
+        }
       }
     }
     return `<div style="padding:6px 9px;border-bottom:1px solid rgba(200,151,30,.08);">
