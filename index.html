@@ -303,7 +303,7 @@ details.hy-det[open]>summary::before{content:'▾ '}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.75.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.76.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -12204,6 +12204,18 @@ function computeStatBlock(char, activeConditions) {
   // cards, drilldowns, and AC all move together (PA's mirror).
   const _bdDecl = (typeof combatDecl === 'function') ? (combatDecl(char).bd || 0) : 0;
   const _bdEntry = _bdDecl ? [{ type: 'untyped', source: 'declared:bestDefense', value: -_bdDecl, label: `Best Defense (declared — +${_bdDecl} melee attack)` }] : [];
+  // v8.76.0 (Adam's Hellfire report — "the defensive modifiers aren't
+  // changing at all"): CE and RO were DISPLAY-ONLY on the defense side
+  // (v8.59.0 wired tags, not math, while BA/Grapple moved for real). Now
+  // they ride the ac lane like Best Defense: CE as a typed DODGE bonus
+  // (touchAC:true in the stacking registry — the tag's HH p.207 promise —
+  // and dropped when flat-footed, as dodge bonuses are); RO as an untyped
+  // −4 (reaches touch too; recklessness isn't cured by being flat-footed).
+  // Parry/Dodge get the same lines in their own compute functions.
+  const _ceDecl = (typeof combatDecl === 'function') ? (combatDecl(char).ce || 0) : 0;
+  const _ceEntry = _ceDecl ? [{ type: 'dodge', source: 'declared:combatExpertise', value: _ceDecl, label: `Combat Expertise (declared — −${_ceDecl} Base Attack)` }] : [];
+  const _roDecl = (typeof combatDecl === 'function') ? !!combatDecl(char).ro : false;
+  const _roEntry = _roDecl ? [{ type: 'untyped', source: 'declared:recklessOffense', value: -4, label: 'Reckless Offense (declared — +2 melee attack rolls)' }] : [];
   // v8.67.0 (Mutant sync): Unnatural Prowess/Resilience lanes — the bab/def
   // entries mirror the reconciler's bakes (card/drilldown parity), the save
   // entries ARE the wire (saves aren't baked). verifyParity subtracts these.
@@ -12228,6 +12240,8 @@ function computeStatBlock(char, activeConditions) {
       ...(mgBon.ac||[]),  // v8.6.0 firm-wire: deflection rings et al.
       ...(aeBon.ac||[]),  // v8.42.0: transient wired buffs (Mental Barrier, Foresight…)
       ..._bdEntry,        // v8.65.0: Best Defense — the def spend reaches AC too
+      ..._ceEntry,        // v8.76.0: Combat Expertise declared — the dodge bonus is REAL now
+      ..._roEntry,        // v8.76.0: Reckless Offense declared — the −4 AC is REAL now
       ...msLanes.def.map(b => ({...b, target:'ac'})),  // v8.67.0: Unnatural Prowess Def feeds AC like class def-bonus does
     ],
     // HP — baseline = class HD sum (first die max, rest averaged) + CON per level + feat bonuses.
@@ -36616,6 +36630,15 @@ function computeACDisplay(c, opts){
   const touchAcBonus = c._touchAcBonus || 0;
   // v8.8.2: Rage's −2 AC (Ex, all tiers) while the toggle is active.
   const ragePen = (c.raging && typeof rageTier === 'function' && rageTier(c)) ? -2 : 0;
+  // v8.76.0 (Adam's Hellfire report — the AC cell ignored declared stances):
+  // this parallel composer never read combatDecl, so CE's dodge bonus, RO's
+  // −4, AND Best Defense's def spend (a latent v8.65.0 gap — the lanes
+  // carried it but this display reads raw c.def) all missed the T/AC
+  // tiers. All three are touch-legal: CE is a dodge bonus (HH p.207), RO
+  // is a flat AC penalty, BD spends the Defense Bonus that feeds touch.
+  const _dclA = (typeof combatDecl === 'function') ? combatDecl(c) : { pa: 0, ce: 0, ro: false, bd: 0 };
+  const declCE = _dclA.ce || 0, declRO = _dclA.ro ? -4 : 0, declBD = -(_dclA.bd || 0);
+  const declAC = declCE + declRO + declBD;
   // v8.12.2 (Adam's Rhad catch — Ring of Protection +2 missing from T/AC):
   // typed misc AC from the aggregator channels computeStatBlock already
   // collects but this display never read — deflection items (buildMagic-
@@ -36636,13 +36659,13 @@ function computeACDisplay(c, opts){
       for (const b of ((agg.breakdown && agg.breakdown.applied) || [])) miscParts.push(`${b.value >= 0 ? '+' : '−'} ${Math.abs(b.value)} ${b.type || 'misc'} (${b.label || b.source})`);
     }
   } catch (e) {}
-  const touch = 10 + dexM + def + size + touchAcBonus + ragePen + miscAC;
+  const touch = 10 + dexM + def + size + touchAcBonus + ragePen + miscAC + declAC;
   const total = touch + armor + shield;
   const natCrit = total + natural;
   const hasEq  = (armor + shield) > 0;
   const hasNat = natural > 0;
   // Build the Touch formula string with the class-feature bonus if any
-  const touchFormula = `10 + ${dexM} Dex${_dexCapped ? ` (capped by armor's max Dex +${_mdxCap})` : ''} + ${def} Def${size?' + '+size+' size':''}${touchAcBonus?' + '+touchAcBonus+' class':''}${ragePen?' − 2 Rage':''}${miscParts.length ? ' ' + miscParts.join(' ') : ''}`;
+  const touchFormula = `10 + ${dexM} Dex${_dexCapped ? ` (capped by armor's max Dex +${_mdxCap})` : ''} + ${def} Def${size?' + '+size+' size':''}${touchAcBonus?' + '+touchAcBonus+' class':''}${ragePen?' − 2 Rage':''}${declCE ? ` + ${declCE} Combat Expertise (declared)` : ''}${declRO ? ' − 4 Reckless Offense (declared)' : ''}${declBD ? ` − ${-declBD} Best Defense (declared)` : ''}${miscParts.length ? ' ' + miscParts.join(' ') : ''}`;
   // v8.13.0 (Adam's T/ACtical armor pass): the band annotation — what a hit
   // in [touch, total) actually strikes, with live hardness/HP.
   let tacNote = '';
@@ -36701,7 +36724,14 @@ function computeParryBonus(c, opts){
     {label:'Shield', value:shield},
   ];
   if (_bd) parts.push({label:'Best Defense (declared)', value:-_bd});
-  return { total: bab + strM + def + shield - _bd, parts };
+  // v8.76.0 (Adam's Hellfire report): the declared CE/RO tags on the Parry
+  // card now carry real math — +CE dodge, −4 RO — matching Best Defense's
+  // wire instead of decorating an unmoving number.
+  const _ceP = (typeof combatDecl === 'function') ? (combatDecl(c).ce || 0) : 0;
+  const _roP = (typeof combatDecl === 'function') ? (combatDecl(c).ro ? 4 : 0) : 0;
+  if (_ceP) parts.push({label:'Combat Expertise (declared)', value:_ceP});
+  if (_roP) parts.push({label:'Reckless Offense (declared)', value:-_roP});
+  return { total: bab + strM + def + shield - _bd + _ceP - _roP, parts };
 }
 
 // Compute Dodge attempt modifier per handbook HH p.373.
@@ -36737,8 +36767,15 @@ function computeDodgeBonus(c){
     {label:'Dodge', value:unconditional},
   ];
   if (_bd) parts.push({label:'Best Defense (declared)', value:-_bd});
+  // v8.76.0 (Adam's Hellfire report): the declared CE/RO tags on the Dodge
+  // card now carry real math — CE joins the dodge-bonus pool this function
+  // already aggregates; RO's recklessness costs the roll its −4.
+  const _ceD = (typeof combatDecl === 'function') ? (combatDecl(c).ce || 0) : 0;
+  const _roD = (typeof combatDecl === 'function') ? (combatDecl(c).ro ? 4 : 0) : 0;
+  if (_ceD) parts.push({label:'Combat Expertise (declared)', value:_ceD});
+  if (_roD) parts.push({label:'Reckless Offense (declared)', value:-_roD});
   return {
-    total: refTotal + def + unconditional - _bd,
+    total: refTotal + def + unconditional - _bd + _ceD - _roD,
     parts,
     conditional,
   };
@@ -38393,9 +38430,9 @@ function renderSheet(){
   // ▼ trades a point of BA into a modifier (prompting which, when both feats
   // are owned); ▲ returns one. The declaration is a SET POINT — it holds
   // until re-declared (Adam's ruling), survives save/reload, and may legally
-  // drive effective BA to 0. CE's +N Defense surfaces as explicit tags on
-  // the AC/Parry/Dodge cards (it reaches touch AC too, per HH p.207) rather
-  // than silently rewriting the computed stats.
+  // drive effective BA to 0. v8.76.0 (Adam's Hellfire report): CE's +N and
+  // RO's −4 now do REAL math on AC/Parry/Dodge (ac lane + the parry/dodge
+  // compute functions — Best Defense's wire); the tags remain as provenance.
   const _dcl = combatDecl(c);
   const _dclOwn = ownsFeatN(c, 'Power Attack') || ownsFeatN(c, 'Combat Expertise');
   const _dclSpent = _dcl.pa + _dcl.ce;
@@ -45180,7 +45217,10 @@ const STARSHIP_WEAPONS = [
   // letters on the TODO.
   { name: 'Kinetic Lance', ts: 8, mss: 'Colossal', dc: 42, stat: '10d12 [1d6D] Energy (×2 vs force fields) · crit 20 · RI 5K ft [20 hx] · Single · Mil (+3)' },
   { name: 'Maser Cannon', ts: 8, mss: 'Gargantuan', dc: 40, stat: '14d8 [2d3-1D] Energy · crit 19-20 · RI 6K ft [24 hx] · Single/Auto · Res (+2)' },
-  { name: 'Maser Cannon, Heavy', ts: 8, mss: 'Colossal', dc: 45, stat: '18d8 [2d4-1D] Energy · crit 20 · RI 8K ft [32 hx] · Single [S/A adv.] · Mil (+3)' },
+  // v8.76.0 (Adam's extrapolation, 2026-10-03): the Maser Cannon's §210
+  // treatment carried to its heavy sibling — DC −2 (45 → 43) and thermal
+  // bloom crit 19-20. Book letter on the TODO; HELM R35 addendum.
+  { name: 'Maser Cannon, Heavy', ts: 8, mss: 'Colossal', dc: 43, stat: '18d8 [2d4-1D] Energy · crit 19-20 · RI 8K ft [32 hx] · Single [S/A adv.] · Mil (+3)' },
   { name: 'Mine, Zero Point', ts: 8, mss: 'Colossal', dc: 48, stat: '15d100 [6d12D] Energy · Mil (+3)' },
   { name: 'Missile, Nova Burst', ts: 8, mss: 'Gargantuan', dc: 45, stat: '20d8 [1d8D] Plasma · crit 19-20 · 5K ft/move · Single/Volley · Mil (+3)' },
   { name: 'Missile, Starload', ts: 8, mss: 'Huge', dc: 45, stat: '20d8 [1d8D] Energy · crit 18-20 · 5K ft/move · Single/Volley · Mil (+3)' },
