@@ -319,7 +319,7 @@ details.cls-det>summary:hover{background:rgba(200,151,30,.16)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.78.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.79.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -7248,6 +7248,25 @@ function toggleGearWealth() {
   const open = w.style.display === 'none';
   w.style.display = open ? 'block' : 'none';
   if (ch) ch.textContent = open ? '▾' : '▸';
+}
+// v8.79.0 (Adam's Rhad report): the hover dossier for Sheet power rows —
+// a plain-text stat line + the full description for a title attribute.
+// The house cursor:help idiom: full accessibility at zero vertical cost,
+// no duplication of the Powers/Spells tabs' management surfaces.
+function powerHoverText(s) {
+  if (!s) return '';
+  const bits = [];
+  if (s.school_raw) bits.push(s.school_raw);
+  if (s.casting_time) bits.push('Cast: ' + s.casting_time);
+  if (s.display) bits.push('Display: ' + s.display);
+  if (s.range) bits.push('Range: ' + s.range);
+  if (s.target) bits.push('Target: ' + s.target);
+  if (s.area) bits.push('Area: ' + s.area);
+  if (s.effect) bits.push('Effect: ' + s.effect);
+  if (s.duration) bits.push('Duration: ' + s.duration);
+  if (s.save) bits.push('Save: ' + s.save);
+  if (s.resistance) bits.push('SR/PR: ' + s.resistance);
+  return bits.join(' · ') + (s.d ? '\n\n' + s.d : '');
 }
 function renderWealthPanel(c) {
   const el = document.getElementById('gear-wealth-panel'); if (!el) return;
@@ -38948,7 +38967,8 @@ function renderSheet(){
           powersHtml += `<br><span style="font-size:11px;color:rgba(200,200,160,.65);padding-left:12px;">Prepared today (memorized at dawn — manage on the Powers &amp; Spells tab):</span>`;
           for (const r of prepList) {
             const left = (r.qty || 0) - (r.cast || 0);
-            powersHtml += `<br><span style="font-size:11px;padding-left:24px;${left <= 0 ? 'opacity:.45;text-decoration:line-through;' : 'color:#cccca0;'}">${r.qty}× ${escapeHTML(r.dispName || r.name)} <span style="font-size:9px;opacity:.6;">(lvl ${r.lvl}${r.free ? ', free specialty' : ', ' + r.cost + ' PP'})</span>${r.cast ? ` <span style="font-size:9px;color:#d4b870;">${left}/${r.qty} left</span>` : ''}</span>`;
+            const hovP = (typeof powerHoverText === 'function') ? powerHoverText(SPELLS_DB.find(x => x.name === r.name)) : '';  // v8.79.0: hover dossier on prepared rows too
+            powersHtml += `<br><span style="font-size:11px;padding-left:24px;${left <= 0 ? 'opacity:.45;text-decoration:line-through;' : 'color:#cccca0;'}${hovP ? 'cursor:help;' : ''}" ${hovP ? `title="${escapeHTML(hovP)}"` : ''}>${r.qty}× ${escapeHTML(r.dispName || r.name)} <span style="font-size:9px;opacity:.6;">(lvl ${r.lvl}${r.free ? ', free specialty' : ', ' + r.cost + ' PP'})</span>${r.cast ? ` <span style="font-size:9px;color:#d4b870;">${left}/${r.qty} left</span>` : ''}</span>`;
           }
         } else {
           powersHtml += `<br><span style="font-size:11px;color:rgba(200,200,160,.65);padding-left:12px;">Prepared today (memorized at morning prep, PP-cost deducted from budget):</span>`;
@@ -38968,11 +38988,17 @@ function renderSheet(){
             const nounSp = poolName === 'psionic' ? 'Powers' : 'Spells';
             powersHtml += `<br><span data-known-pool="${poolName}" style="font-size:11px;color:rgba(200,200,160,.65);padding-left:12px;">${nounSp} Known (manage on the ${poolName === 'psionic' ? 'Powers' : 'Spells'} tab):</span>`;
             const byName = Object.fromEntries(SPELLS_DB.map(s => [s.name, s]));
+            // v8.79.0 (Adam's Rhad report): the known rows carried only
+            // level + PP while the Talents above showed full prose — the
+            // descriptions now ride a hover dossier (the house cursor:help
+            // idiom: stat line + full text at zero vertical cost; the
+            // Powers/Spells tabs remain the management surface).
             for (const p of poolKnownRecs) {
               const s = byName[p.name];
               const nm = (s && p.token) ? displayNameForRoute(s, {token: p.token, lvl: p.lvl, pool: p.pool, applies: p.applies}) : p.name;
               const lvlBit = (p.lvl !== undefined && p.lvl !== null) ? ` <span style="font-size:9px;opacity:.6;">(lvl ${p.lvl}${s ? ', ' + powerCastCost(s, p.lvl) + ' PP' : ''})</span>` : '';
-              powersHtml += `<br><span style="font-size:11px;padding-left:24px;color:#cccca0;">${escapeHTML(nm)}${nm !== p.name ? ` <span style="font-size:9px;opacity:.5;">(${escapeHTML(p.name)})</span>` : ''}${lvlBit}${p.personal ? ' <span style="font-size:9px;color:#c499d4;">✦</span>' : ''}</span>`;
+              const hov = (typeof powerHoverText === 'function') ? powerHoverText(s) : '';
+              powersHtml += `<br><span style="font-size:11px;padding-left:24px;color:#cccca0;${hov ? 'cursor:help;' : ''}" ${hov ? `title="${escapeHTML(hov)}"` : ''}>${escapeHTML(nm)}${nm !== p.name ? ` <span style="font-size:9px;opacity:.5;">(${escapeHTML(p.name)})</span>` : ''}${lvlBit}${p.personal ? ' <span style="font-size:9px;color:#c499d4;">✦</span>' : ''}</span>`;
             }
           }
         } else {
