@@ -319,7 +319,7 @@ details.cls-det>summary:hover{background:rgba(200,151,30,.16)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.82.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.83.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1271,6 +1271,11 @@ details.cls-det>summary:hover{background:rgba(200,151,30,.16)}
          the repertoire, as a collapsed one-liner whose summary totals the
          boosted stats; records stay mutations (single source of truth). -->
     <div id="pw-su-attrs" style="display:none;margin-bottom:.7rem;"></div>
+    <!-- v8.83.0 (Adam's Rhad playtest): 🎭 SUPER-TALENTS shop here too — the
+         once-stranded siblings of the Supernatural Attributes. Populates
+         only with the character's own hero classes' options; a ⚿ GM toggle
+         reveals the rest. Records stay talents (single source of truth). -->
+    <div id="pw-su-talents" style="display:none;margin-bottom:.7rem;"></div>
     <div class="sec-head sm">Known Spells &amp; Powers</div>
     <div id="pw-known-list" style="border:1px solid rgba(200,151,30,.15);border-radius:3px;margin-bottom:1rem;"></div>
 
@@ -43557,6 +43562,65 @@ function renderSuAttrPanel(c) {
     <div style="font-size:10px;color:rgba(200,151,30,.55);margin-bottom:4px;">Purchases record as mutations — they appear on the 🧬 Mutations tab and bake into the Sheet. The Ex base (+4) is never suppressed; the Su tiers (+4 each, to +20 total) fall to a Null Power Field. Banked: <b style="color:var(--gold);">${st.balance} MP</b>.</div>${rows}
   </div></details>`;
 }
+// v8.83.0 (Adam's Rhad playtest): 🎭 SUPER-TALENTS on the Powers side — the
+// Supernatural Attributes' once-stranded siblings. Populates only with the
+// character's own hero classes' Super/Apex talents (Ch.XI: they require
+// Supernatural Mutation, like super-powers); a ⚿ GM toggle (tucked in the
+// footer) reveals every class's. Purchases route through the Talents tab's
+// own addTalentFromBrowser — slot bypass, MP overdraft exceptions, HP/attr
+// bakes, the single talent ledger: all unchanged consumers.
+function renderSuperTalentPanel(c) {
+  const el = document.getElementById('pw-su-talents'); if (!el) return;
+  const st = (typeof getMPState === 'function') ? getMPState(c) : null;
+  if (!st || !st.isSuperMutant || _pwMode !== 'powers') { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  if (typeof window._suTalOpen === 'undefined') window._suTalOpen = false;
+  const gmAll = !!window._suTalGmAll;
+  const heroClasses = new Set(migrateLegacyClasses(c).filter(e => e.tier === 'hero' && (e.level || 0) > 0).map(e => e.name));
+  const all = TALENTS_DB.filter(t => /Super-Talent/.test(t.tier || ''));
+  const mine = all.filter(t => heroClasses.has(t.hero_class));
+  const shown = gmAll ? all : mine;
+  const ownedNames = (c.talents || []).filter(te => all.some(t => t.n === (te.name || te.n))).map(te => te.name || te.n);
+  const byClass = {};
+  for (const t of shown) { (byClass[t.hero_class] = byClass[t.hero_class] || []).push(t); }
+  let body = '';
+  for (const hc of Object.keys(byClass).sort()) {
+    body += `<div style="font-size:10px;color:rgba(200,151,30,.55);text-transform:uppercase;letter-spacing:.07em;margin-top:4px;">${escapeHTML(hc)}${heroClasses.has(hc) ? '' : ' <span style="color:#c499d4;">(⚿ off-class — GM territory)</span>'}</div>`;
+    for (const t of byClass[hc]) {
+      const owned = ownedNames.includes(t.n);
+      const pr = checkTalentPrereqs(t.n, c);
+      const apex = t.is_apex ? ` <span style="font-size:8px;color:#c499d4;border:1px solid rgba(196,153,212,.4);padding:0 4px;border-radius:2px;">APEX</span>` : '';
+      const offClass = !heroClasses.has(hc);
+      const buy = owned
+        ? `<span style="font-size:10px;color:#6dba88;">✓ owned</span>`
+        : (pr.met && !offClass)
+          ? `<button class="btn btn-sm" style="font-size:9px;padding:1px 6px;border-color:rgba(196,153,212,.5);color:#c499d4;" onclick="buySuperTalent('${escapeHTML(t.n).replace(/'/g, "\\'")}')">◈ Buy ${t.mp_cost || 0} MP</button>`
+          : `<button class="btn btn-sm" style="font-size:9px;padding:1px 6px;opacity:.65;" title="${escapeHTML((offClass ? 'Off-class acquisition — GM territory. ' : '') + (pr.met ? '' : 'Missing: ' + pr.missing.join('; ')))}" onclick="buySuperTalent('${escapeHTML(t.n).replace(/'/g, "\\'")}', true)">⚿ GM · ${t.mp_cost || 0} MP</button>`;
+      body += `<div style="display:flex;align-items:center;gap:8px;padding:2px 0;border-bottom:1px solid rgba(200,151,30,.06);font-size:11.5px;">
+        <span style="flex:1;cursor:help;" title="${escapeHTML((t.d || '') + (t.prereqs_text ? ' — Prerequisites: ' + t.prereqs_text : ''))}"><b style="color:${owned ? '#6dba88' : 'var(--parch)'};">${escapeHTML(t.n)}</b>${apex} <span style="font-size:9px;opacity:.55;">${escapeHTML(t.tree || '')}</span></span>${buy}</div>`;
+    }
+  }
+  const ownedBits = ownedNames.length ? ownedNames.map(escapeHTML).join(', ') : null;
+  el.innerHTML = `<details class="hy-det"${window._suTalOpen ? ' open' : ''} ontoggle="window._suTalOpen=this.open"><summary><span style="color:#c499d4;font-weight:bold;">🎭 Super-Talents</span> <span class="cite cite-HH" title="Hero's Handbook Ch.XI p.669 (the Hero Classes and Super-Talents table — like Super-Powers, Super-Talents require the Supernatural Mutation feat) + the talent trees, pp.63-71. MP is the whole price: no Talent selection is consumed (Adam's ruling, v8.21.1).">HH 669</span>${ownedBits ? ` <span style="color:rgba(200,200,160,.9);">— ${ownedBits}</span>` : ` <span style="opacity:.5;">— none yet · ${mine.filter(t => !ownedNames.includes(t.n)).length} available to your classes</span>`}</summary><div style="padding:4px 0 2px 14px;">
+    <div style="font-size:10px;color:rgba(200,151,30,.55);margin-bottom:2px;">MP is the whole price — no Talent slot is consumed. Purchases record on the 🎭 Talents tab and bake into the Sheet. Banked: <b style="color:var(--gold);">${st.balance} MP</b>.</div>${body}
+    <div style="margin-top:4px;"><span style="font-size:9px;opacity:.5;cursor:pointer;" onclick="window._suTalGmAll=!window._suTalGmAll;renderSuperTalentPanel(chars.find(x=>x.id===curId))">⚿ ${gmAll ? 'hide' : 'show'} other classes' Super-Talents (GM)</span></div>
+  </div></details>`;
+}
+async function buySuperTalent(name, gmException) {
+  const c = chars.find(x => x.id === curId); if (!c) return;
+  if (gmException) {
+    const pr = checkTalentPrereqs(name, c);
+    const heroClasses = new Set(migrateLegacyClasses(c).filter(e => e.tier === 'hero' && (e.level || 0) > 0).map(e => e.name));
+    const t = TALENTS_DB.find(x => x.n === name);
+    const bits = [];
+    if (t && !heroClasses.has(t.hero_class)) bits.push(`${t.hero_class} talent on a non-${t.hero_class}`);
+    if (!pr.met) bits.push(pr.missing.join('; '));
+    if (!(await confirmModal(`"${name}" — ${bits.join(' · ') || 'GM override'}.\n\nAcquire as a GM-approved exception?`))) return;
+    logPowerException(c, name, bits.join('; ') || 'GM override (Super-Talent panel)');
+  }
+  await addTalentFromBrowser(name);
+  renderPowers(); renderSheet();
+}
 async function buySuAttrStep(attrKey) {
   const c = chars.find(x => x.id === curId); if (!c) return;
   if (!c.mutations) c.mutations = [];
@@ -46624,6 +46688,8 @@ function renderPowers() {
   const cStats = computeCasterStats(c);
   // v8.82.0: the ✨ Supernatural Attributes panel (Powers side, super-capables).
   if (typeof renderSuAttrPanel === 'function') renderSuAttrPanel(c);
+  // v8.83.0: the 🎭 Super-Talents sibling.
+  if (typeof renderSuperTalentPanel === 'function') renderSuperTalentPanel(c);
   let budgetHTML = Object.keys(budget).filter(pool => modePools.includes(pool)).length
     ? Object.entries(budget).filter(([pool]) => modePools.includes(pool)).map(([pool, b]) => {
         const pp = getPoolPPState(c, pool);
