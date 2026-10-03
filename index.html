@@ -59,6 +59,10 @@ textarea{resize:vertical;min-height:72px;line-height:1.5}
 @media(max-width:600px){.attr-grid{grid-template-columns:repeat(3,1fr)}}
 .minds-under-mental{width:calc(50% - 3.5px);margin-left:auto;margin-top:-2px;margin-bottom:.8rem}
 @media(max-width:600px){.minds-under-mental{width:100%}}
+/* v8.77.0 (Adam): the Rage control under the physical trio — the Mind's
+   Ledger's left-hand mirror (STR sits leftmost in the attr grid). */
+.rage-under-physical{width:calc(50% - 3.5px);margin-right:auto;margin-top:-2px;margin-bottom:.8rem}
+@media(max-width:600px){.rage-under-physical{width:100%}}
 .attr-box{background:rgba(26,20,8,.7);border:1px solid rgba(200,151,30,.3);border-radius:4px;text-align:center;padding:9px 5px;transition:border-color .2s}
 .attr-box:hover{border-color:var(--gold)}
 .attr-nm{font-family:'Epics Serif','Cinzel',serif;font-size:9px;letter-spacing:.1em;color:var(--bronze);display:block;margin-bottom:3px}
@@ -303,7 +307,7 @@ details.hy-det[open]>summary::before{content:'▾ '}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.76.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.77.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -916,6 +920,9 @@ details.hy-det[open]>summary::before{content:'▾ '}
              rule acts on INT/WIS/CHA) — right half under the mental trio on
              desktop; full width under the mental row at phone width, where
              the grid wraps 3+3. Moved from below the ✨ buffs block. -->
+        <!-- v8.77.0 (Adam): the Berserker's Rage control sits under the
+             STRENGTH score it fuels — the Mind's Ledger's physical mirror. -->
+        <div id="sh-rage" class="rage-under-physical" style="display:none;"></div>
         <div id="sh-minds" class="minds-under-mental" style="display:none;"></div>
         <div class="ornament">✦ ✦ ✦</div>
         <!-- v8.3.4: Racial-NAC migration banner. Surfaces when the character's
@@ -958,7 +965,9 @@ details.hy-det[open]>summary::before{content:'▾ '}
       <div>
         <div class="sec-head sm">Progression</div>
         <div id="sh-xp"></div>
-        <div class="sec-head sm" style="margin-top:1rem;">Race & Class Features</div>
+        <!-- v8.77.0 (Adam's Sheet restructure): Scenario leads, race follows,
+             and the classes conflate into per-class collapsibles below. -->
+        <div class="sec-head sm" style="margin-top:1rem;">Scenario &amp; Racial Features</div>
         <div id="sh-features" style="font-size:13px;line-height:1.9;color:rgba(200,200,160,.85);"></div>
         <div class="ornament">✦ ✦ ✦</div>
         <div class="sec-head sm">Languages & Allegiances</div>
@@ -1511,6 +1520,9 @@ details.hy-det[open]>summary::before{content:'▾ '}
           <!-- v8.63.0: ⚡ Reckless Offense declared stance (feat-gated).
                Populated by renderConds for feat owners only. -->
           <span id="tr-reckless"></span>
+          <!-- v8.77.0 (Adam): ⚡ Euphoric trigger lives with the conditions,
+               like ⊘ Nullified and ⚡ Reckless before it. -->
+          <span id="tr-euphoric"></span>
         </div>
         <!-- v8.3.20: persistent mechanical-effects panel populated when any
              condition is active. Hidden when there are no conditions. -->
@@ -38619,17 +38631,28 @@ function renderSheet(){
               <b style="color:#78afcd;">⚡ EUPHORIC</b> — +${euB} morale on attack rolls, damage rolls, and saving throws (baked). Lasts (wild-surge intensity) rounds; not gained if neuralgia struck.
               <button class="btn btn-sm" style="font-size:10px;margin-left:8px;" onclick="toggleEuphoric()">Fades</button></div>`);
       }
-      const btns = [];
-      if (euB && !c.euphoric) btns.push(`<button class="btn btn-sm" style="font-size:10px;border-color:rgba(120,175,205,.5);color:#78afcd;" title="Euphoriac (Ex, Wilder): after invoking a wild surge without neuralgia, gain +${euB} morale on attack, damage, and saves for (surge intensity) rounds." onclick="toggleEuphoric()">⚡ Euphoric</button>`);
-      if (rt && !c.raging) {
-        const used = abilityUsed(c, 'rage'), mx = rageUsesPerDay(c);
-        btns.push(`<button class="btn btn-sm" style="font-size:10px;border-color:rgba(212,140,70,.5);color:#d4865a;" title="Fly into a ${rt.name}: +${rt.attr} Str/Con, +${rt.will} morale Will, −2 AC for 3 + raged Con mod rounds. Free action on your own action; once per encounter. ${used}/${mx} used today." onclick="toggleRage()">🔥 Rage! <span style="opacity:.6;">${used}/${mx}</span></button>`);
-      }
       // v8.60.2 (Adam): the ⊘ Nullified? TRIGGER moved to the Tracker's
       // Conditions panel — it's a condition, if an extreme one (Sheet =
       // report: the red NULLIFIED banner + Restore above remain here).
-      if (btns.length) chunks.push(`<div style="text-align:right;display:flex;gap:6px;justify-content:flex-end;">${btns.join('')}</div>`);
+      // v8.77.0 (Adam's Sheet polish): the 🔥 Rage! button moved UNDER THE
+      // STRENGTH SCORE it fuels (the Mind's Ledger's physical mirror —
+      // #sh-rage below), and the ⚡ Euphoric trigger moved to the Tracker's
+      // Conditions panel beside ⊘ Nullified and ⚡ Reckless. The active-state
+      // banners (🔥 RAGING / ⚡ EUPHORIC / 😮‍💨 FATIGUED / ⊘ NULLIFIED) remain
+      // here — the Sheet reports states; triggers live at their homes.
       nEl.innerHTML = chunks.join('');
+      const rageEl = document.getElementById('sh-rage');
+      if (rageEl) {
+        if (rt) {
+          rageEl.style.display = '';
+          if (!c.raging) {
+            const used = abilityUsed(c, 'rage'), mx = rageUsesPerDay(c);
+            rageEl.innerHTML = `<button class="btn btn-sm" style="width:100%;font-size:10px;border-color:rgba(212,140,70,.5);color:#d4865a;" title="Fly into a ${rt.name}: +${rt.attr} Str/Con, +${rt.will} morale Will, −2 AC for 3 + raged Con mod rounds. Free action on your own action; once per encounter. ${used}/${mx} used today." onclick="toggleRage()">🔥 Rage! <span style="opacity:.6;">${used}/${mx} today</span></button>`;
+          } else {
+            rageEl.innerHTML = `<div style="text-align:center;padding:3px 6px;font-size:10px;color:#d4865a;border:1px solid rgba(212,140,70,.6);border-radius:3px;background:rgba(212,140,70,.14);" title="${rt.name} active — the banner below carries the numbers and the End Rage button.">🔥 ${rt.name.toUpperCase()} — see banner</div>`;
+          }
+        } else { rageEl.style.display = 'none'; rageEl.innerHTML = ''; }
+      }
     }
     // v8.8.3: the 🎓 Class Choices panel + 🐾 Companions.
     if (typeof renderClassChoices === 'function') renderClassChoices(c);
@@ -38709,69 +38732,95 @@ function renderSheet(){
   } else {
     featuresHtml = `<b style="color:var(--gold);">${c.race}</b>${citeHTML('races', c.race)}<br>Ability Adj.: ${radj} &nbsp;|&nbsp; ECL Mod: +${race.ecl||0}${c.race === 'Hybrid' ? ' <span style="color:#d4b870;font-size:11px;">⚑ parents not chosen — ✎ Edit this character and pick BOTH Humanoid parents (the RLM, adjustments, and inherited abilities all key off them)</span>' : ''}<br>${race.notes||''}`;
   }
-  for(const e of classArr){
-    const cls=getClassEntry(e); if(!cls)continue;
-    const tierLabel={hero:'',basic:' (Basic Class)',advanced:' (Advanced Class)',prestige:` (Prestige Class, max ${cls.maxLvl||10})`}[e.tier]||'';
-    const apHint=e.tier==='hero'?` &nbsp;|&nbsp; AP: ${c.apMax}/lvl`:'';
-    // v8.70.0 (Adam's ask, GG p.161 verbatim: "The Ecclesiarch, known
-    // sometimes as a Hierophant"): the Druid-side Ecclesiarch wears the
-    // Hierophant name on the Sheet.
-    const _clsDisp = (e.name === 'Ecclesiarch' && (c.druidOption || migrateLegacyClasses(c).some(x => x._heritageChoice === 'Cleric (Druid Option)')))
-      ? `<span title="GG p.161: the Ecclesiarch is 'known sometimes as a Hierophant' — the Druid-rooted ones answer to it.">Ecclesiarch (Hierophant)</span>` : e.name;
-    featuresHtml+=`<br><br><b style="color:var(--gold);">${_clsDisp} ${e.level}</b>${citeHTML('classes', e.name)} <span style="font-size:11px;color:rgba(200,151,30,.5);">${tierLabel}</span><br>Hit Die: d${cls.hd} &nbsp;|&nbsp; Key: ${cls.attr} &nbsp;|&nbsp; ${cls.sp}+Int SP/lvl${apHint}`;
-  }
+  // v8.77.0 (Adam's Sheet restructure): the section reads SCENARIO →
+  // RACIAL → per-class collapsibles. The Scenario synopsis leads (it
+  // frames everything beneath it); the old separate per-class header
+  // lines and the "Class Abilities" list are CONFLATED into one "Class
+  // Features & Abilities" area — a .hy-det drop-down per class whose
+  // summary carries the base line (Hit Die / Key / SP / AP) and whose
+  // body gives the level-by-level record of what the class has actually
+  // granted, with chosen options resolved in place: 🎓 class-choice picks
+  // by className+level, bonus feats by slotSource provenance, and the
+  // class's own tree talents — no more informationless "pick one talent"
+  // placeholder rows.
   if(c.sixLevels){
     const slLine=['arcane','divine','heroic','mutation','psionic','tech'].map(a=>`${SIX_LEVELS[a].short} ${c.sixLevels[a]||0}`).join(' · ');
-    featuresHtml+=`<br><br><b style="color:var(--gold);">Scenario:</b> ${normalizePresetName(c.scenarioPreset||'Custom')}<br><span style="font-size:12px;color:rgba(200,151,30,.65);">${slLine}</span>`;
+    featuresHtml = `<b style="color:var(--gold);">Scenario:</b> ${normalizePresetName(c.scenarioPreset||'Custom')} <span style="font-size:12px;color:rgba(200,151,30,.65);">— ${slLine}</span><br><br>` + featuresHtml;
   }
-  // v8.3.1: Class Abilities subsection — lists every class feature the
-  // character has active at their current class levels. Each entry shows
-  // page citation, brief description, and a tag indicating whether the
-  // engine automates its mechanical effect or it's left to the player/GM.
-  const activeFeatures = getActiveClassFeatures(c);
-  if (activeFeatures.length > 0) {
-    // Group by class for readability
+  {
+    const activeFeatures = getActiveClassFeatures(c);
     const byClass = {};
-    for (const f of activeFeatures) {
-      if (!byClass[f.className]) byClass[f.className] = [];
-      byClass[f.className].push(f);
-    }
-    let cfHtml = `<br><br><b style="color:var(--gold);">Class Abilities</b> <span style="font-size:10px;color:rgba(200,151,30,.55);">(${activeFeatures.length} active)</span>`;
-    for (const className in byClass) {
-      const feats = byClass[className];
-      cfHtml += `<br><span style="font-size:11px;color:rgba(200,151,30,.55);text-transform:uppercase;letter-spacing:.08em;">${escapeHTML(className)}</span>`;
-      for (const f of feats) {
-        const tagColor = {
-          active:      '#7daadc',
-          passive:     'var(--gold)',
-          meta:        '#c499d4',
-          unimplemented: 'rgba(200,151,30,.4)',
-        }[f.kind] || 'rgba(200,151,30,.55)';
-        const tagLabel = {
-          active:        'active',
-          passive:       'passive · automated',
-          meta:          'character build',
-          unimplemented: 'not yet automated',
-        }[f.kind] || f.kind;
-        // v8.3.14: Use unified citation lookup. Falls back to inline f.page
-        // (assumed HH) if the unified table doesn't have the feature — which
-        // shouldn't happen for any feature already in CLASS_FEATURES with a
-        // valid page:N, but the fallback preserves robustness.
-        const citKey = className + '::' + f.name;
-        const cit = getCitation('classFeatures', citKey)
-                 || (f.page ? {book:'HH', page:f.page} : null);
-        const citStr = cit ? `, ${cit.book} p.${cit.approx ? '~' : ''}${cit.page}` : '';
-        cfHtml += `
-          <div style="font-size:12px;line-height:1.45;padding:2px 0 2px 12px;border-left:2px solid ${tagColor};margin-top:2px;">
-            <b style="color:var(--gold);">${escapeHTML(f.name)}</b>
-            <span style="font-size:10px;color:rgba(200,151,30,.5);">(L${f.feature.lvl}${citStr})</span>
-            <span style="font-size:9px;color:${tagColor};text-transform:uppercase;letter-spacing:.06em;margin-left:6px;">[${tagLabel}]</span>
-            <br><span style="color:rgba(200,200,160,.7);font-size:11px;">${escapeHTML(f.desc||'')}</span>
-          </div>
-        `;
+    for (const f of activeFeatures) { (byClass[f.className] = byClass[f.className] || []).push(f); }
+    const chSpecs = (typeof computeClassChoiceSpecs === 'function') ? computeClassChoiceSpecs(c) : [];
+    const consumedSpecs = new Set();
+    const tagColor = { active:'#7daadc', passive:'var(--gold)', meta:'#c499d4', unimplemented:'rgba(200,151,30,.4)' };
+    const tagLabel = { active:'active', passive:'passive · automated', meta:'character build', unimplemented:'not yet automated' };
+    const featureRow = (className, f) => {
+      const tc = tagColor[f.kind] || 'rgba(200,151,30,.55)';
+      const tl = tagLabel[f.kind] || f.kind;
+      const cit = getCitation('classFeatures', className + '::' + f.name) || (f.page ? {book:'HH', page:f.page} : null);
+      const citStr = cit ? `${cit.book} p.${cit.approx ? '~' : ''}${cit.page}` : '';
+      // 🎓 picks resolved for this feature at this level (loose name match —
+      // the choice specs sometimes carry a qualified feature name).
+      const myPicks = chSpecs.filter(s => !consumedSpecs.has(s.key) && s.className === className && s.atLvl === f.feature.lvl && (s.feature === f.name || s.feature.startsWith(f.name) || f.name.startsWith(s.feature)));
+      for (const s of myPicks) consumedSpecs.add(s.key);
+      const pickBits = myPicks.map(s => s.chosen
+        ? `<b style="color:rgba(120,175,205,.95);">${escapeHTML(s.chosen)}</b>`
+        : `<span style="color:#d4b870;">⚑ unchosen — pick in 🎓 Class Choices</span>`);
+      return `<div style="font-size:12px;line-height:1.45;padding:1px 0 1px 10px;border-left:2px solid ${tc};margin-top:2px;">
+          <b style="color:var(--gold);">${escapeHTML(f.name)}</b>
+          <span style="font-size:9px;color:${tc};text-transform:uppercase;letter-spacing:.06em;margin-left:5px;cursor:help;" title="${escapeHTML((f.desc || '') + (citStr ? ' — ' + citStr : ''))}">[${tl}]</span>
+          ${pickBits.length ? `<span style="font-size:11px;"> — ${pickBits.join(', ')}</span>` : ''}
+          <br><span style="color:rgba(200,200,160,.7);font-size:11px;">${escapeHTML(f.desc||'')}</span>
+        </div>`;
+    };
+    let cfa = `<br><br><b style="color:var(--gold);">Class Features &amp; Abilities</b> <span style="font-size:10px;color:rgba(200,151,30,.55);">(${activeFeatures.length} active — expand a class for its level-by-level record)</span>`;
+    const renderedClasses = new Set();
+    for (const e of classArr) {
+      const cls = getClassEntry(e); if (!cls) continue;
+      renderedClasses.add(e.name);
+      const tierLabel = {hero:'Hero Class', basic:'Basic Class', advanced:'Advanced Class', prestige:`Prestige Class, max ${cls.maxLvl||10}`}[e.tier] || '';
+      const apHint = e.tier === 'hero' ? ` · AP ${c.apMax}/lvl` : '';
+      // v8.70.0 (GG p.161): the Druid-side Ecclesiarch answers to Hierophant.
+      const _hiero = (e.name === 'Ecclesiarch' && (c.druidOption || migrateLegacyClasses(c).some(x => x._heritageChoice === 'Cleric (Druid Option)')));
+      const feats = byClass[e.name] || [];
+      // The class's own tree talents (hero classes) — attribution per exact
+      // level isn't stored, so the chosen set rides the class header area.
+      let extras = '';
+      if (e.tier === 'hero') {
+        const tl2 = (c.talents || []).filter(t => { const td = TALENTS_DB.find(x => x.n === (t.name || t.n)); return td && td.hero_class === e.name; })
+          .map(t => (t.name || t.n) + (t.param ? ` (${t.param})` : ''));
+        extras += `<div style="font-size:11px;margin:2px 0;color:rgba(200,200,160,.85);">🎭 <b style="color:var(--gold);">Talents chosen</b> (this class's trees): ${tl2.length ? `<b style="color:rgba(120,175,205,.95);">${tl2.map(escapeHTML).join(', ')}</b>` : '<i style="opacity:.6;">none yet — the Talents tab awaits</i>'}</div>`;
       }
+      const bf = (c.feats || []).filter(f => typeof f.slotSource === 'string' && f.slotSource.startsWith(`classFeature:${e.name}:`))
+        .map(f => f.name + (f.param ? ` (${f.param})` : ''));
+      if (bf.length) extras += `<div style="font-size:11px;margin:2px 0;color:rgba(200,200,160,.85);">★ <b style="color:var(--gold);">Bonus feats taken</b> (this class's slots): <b style="color:rgba(120,175,205,.95);">${bf.map(escapeHTML).join(', ')}</b></div>`;
+      // Level-by-level record.
+      const byLvl = {};
+      for (const f of feats) { (byLvl[f.feature.lvl] = byLvl[f.feature.lvl] || []).push(f); }
+      let body = `<div style="padding:3px 0 2px 12px;">${extras}`;
+      for (const lvl of Object.keys(byLvl).map(Number).sort((a, b) => a - b)) {
+        body += `<div style="margin-top:4px;"><span style="font-family:'Epics Serif','Cinzel',serif;font-size:10px;color:var(--bronze);letter-spacing:.08em;">LEVEL ${lvl}</span>`;
+        for (const f of byLvl[lvl]) body += featureRow(e.name, f);
+        body += `</div>`;
+      }
+      // Choice specs for this class that matched no feature row (defensive —
+      // nothing a player picked should ever vanish from the record).
+      const strays = chSpecs.filter(s => !consumedSpecs.has(s.key) && s.className === e.name);
+      for (const s of strays) { consumedSpecs.add(s.key); body += `<div style="font-size:11px;margin-top:3px;">L${s.atLvl} · ${escapeHTML(s.feature)}${s.idx > 1 ? ` #${s.idx}` : ''}: ${s.chosen ? `<b style="color:rgba(120,175,205,.95);">${escapeHTML(s.chosen)}</b>` : '<span style="color:#d4b870;">⚑ unchosen — 🎓 Class Choices</span>'}</div>`; }
+      body += `</div>`;
+      cfa += `<details class="hy-det"><summary><b style="color:var(--gold);">${_hiero ? 'Ecclesiarch (Hierophant)' : escapeHTML(e.name)} ${e.level}</b>${citeHTML('classes', e.name)} <span style="font-size:10px;color:rgba(200,151,30,.5);">${tierLabel}</span> — Hit Die d${cls.hd} · Key ${cls.attr} · ${cls.sp}+Int SP/lvl${apHint}${feats.length ? ` · ${feats.length} feature${feats.length === 1 ? '' : 's'}` : ''}${_hiero ? ' <span style="font-size:9px;" title="GG p.161: the Ecclesiarch is ‘known sometimes as a Hierophant’ — the Druid-rooted ones answer to it.">ⓘ</span>' : ''}</summary>${body}</details>`;
     }
-    featuresHtml += cfHtml;
+    // Feature groups whose class isn't a current class entry (Heritage
+    // grants and kin) — rendered so nothing active ever disappears.
+    for (const cn in byClass) {
+      if (renderedClasses.has(cn)) continue;
+      let body = `<div style="padding:3px 0 2px 12px;">`;
+      for (const f of byClass[cn]) body += featureRow(cn, f);
+      body += `</div>`;
+      cfa += `<details class="hy-det"><summary><b style="color:var(--gold);">${escapeHTML(cn)}</b> <span style="font-size:10px;color:rgba(200,151,30,.5);">granted abilities</span> · ${byClass[cn].length} feature${byClass[cn].length === 1 ? '' : 's'}</summary>${body}</details>`;
+    }
+    featuresHtml += cfa;
   }
   // v8.3.12: Powers & Spells panel — per-pool sub-panels for arcane/divine/psionic.
   // Shows pool aggregate header (CL, save DC base, total PP max + current) and
@@ -48626,6 +48675,17 @@ function renderConds(c){
       const roOn = (typeof combatDecl === 'function') && combatDecl(c).ro;
       roEl.innerHTML = (typeof ownsFeatN === 'function' && ownsFeatN(c, 'Reckless Offense'))
         ? `<button class="ilbtn" style="${roOn ? 'border-color:rgba(212,112,112,.7);color:#d47070;' : 'opacity:.7;'}" title="${roOn ? 'Reckless Offense declared — +2 on melee attack rolls incl. Grapple (a grapple check is like a melee attack roll), −4 AC (HH p.239). Base Attack and the iterative ladder untouched. Click to withdraw the stance.' : 'Declare Reckless Offense: take −4 AC for +2 on melee attack rolls (HH p.239) — Grapple included; never ranged. A set-point stance — holds until re-declared. Never touches Base Attack (no extra iterative attacks).'}" onclick="toggleRecklessOffense()">⚡ Reckless${roOn ? ' ✓' : '?'}</button>`
+        : '';
+    }
+    // v8.77.0 (Adam's Sheet polish): ⚡ Euphoric's TRIGGER moved here from
+    // the Sheet's toggle strip — it's a transient battle state, so it lives
+    // with the conditions (the ⊘ Nullified precedent); the Sheet keeps the
+    // blue EUPHORIC banner as the in-effect flag.
+    const euEl = document.getElementById('tr-euphoric');
+    if (euEl) {
+      const euB = (typeof euphoriacBonus === 'function') ? euphoriacBonus(c) : 0;
+      euEl.innerHTML = euB
+        ? `<button class="ilbtn" style="${c.euphoric ? 'border-color:rgba(120,175,205,.7);color:#78afcd;' : 'opacity:.7;'}" title="${c.euphoric ? `Euphoric — +${euB} morale on attack rolls, damage rolls, and saving throws (baked into the Sheet). Lasts (wild-surge intensity) rounds. Click when it fades.` : `Euphoriac (Ex, Wilder): after invoking a wild surge without neuralgia, gain +${euB} morale on attack, damage, and saves for (surge intensity) rounds. Click to declare it.`}" onclick="toggleEuphoric()">⚡ Euphoric${c.euphoric ? ' ✓' : '?'}</button>`
         : '';
     }
   }
