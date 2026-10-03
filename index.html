@@ -188,6 +188,16 @@ details.cls-det>summary::before{content:'▸ ';color:var(--bronze);font-size:10p
 details.cls-det[open]>summary::before{content:'▾ ';color:var(--gold);font-size:10px}
 details.cls-det[open]>summary{background:rgba(200,151,30,.13);border-left-color:var(--gold)}
 details.cls-det>summary:hover{background:rgba(200,151,30,.16)}
+/* v8.84.0 (Adam's noise report): the RACE banner — the cls-det idiom in full
+   gold. The Ability Adj / ECL Mod technicalese and the racial granted-ability
+   notes fold behind it; the 🧬 Mutant subtype row persists OUTSIDE it. */
+details.race-det{margin-top:2px;margin-bottom:4px;font-size:12px}
+details.race-det>summary{cursor:pointer;list-style:none;user-select:none;display:block;padding:4px 9px;background:rgba(200,151,30,.10);border:1px solid rgba(200,151,30,.3);border-left:3px solid var(--gold);border-radius:0 3px 3px 0;font-family:'Epics Serif','Cinzel',serif;letter-spacing:.04em}
+details.race-det>summary::-webkit-details-marker{display:none}
+details.race-det>summary::before{content:'▸ ';color:var(--gold);font-size:10px}
+details.race-det[open]>summary::before{content:'▾ ';color:var(--gold);font-size:10px}
+details.race-det[open]>summary{background:rgba(200,151,30,.16)}
+details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 /* FEATS TABLE */
 .feat-entry{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start;padding:6px 8px;border-bottom:1px solid rgba(200,151,30,.08)}
 .feat-entry:hover{background:rgba(200,151,30,.03)}
@@ -319,7 +329,7 @@ details.cls-det>summary:hover{background:rgba(200,151,30,.16)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.83.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.85.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -6318,18 +6328,98 @@ function buffDurationText(spell, pool, c, extraRounds) {
   return raw ? raw + (xr ? ` +${xr} rounds` : '') : '';
 }
 
+// ============================================================================
+// v8.85.0: ◉ PERPETUAL BUFFS — Adam's three rulings (2026-10-03). Anything
+// the catalog tags "Buff" is, as a bought super-power, PERPETUALLY in effect
+// at no PP cost: (1) voluntarily suppressible (⏻ toggle — reactivation is
+// free: "it would cost no PP to toggle the power back on"); (2) "in the
+// strictest of terms, the power is ALWAYS manifested" — base values, at the
+// character's ESL, unless the entry says otherwise (the diligence sweep found
+// the book agreeing out loud: Stoneskin "at will for Super-Power Buff",
+// Timeless Body "Permanent as Super-Power", Remove Disease "Mutant immune to
+// disease", Freedom "cannot be affected"); (3) rung-priced families stand at
+// the rung bought. COMPUTED, NEVER LEDGERED: the lane derives live from the
+// owned super-pool records, so rest-clear and ✕ cannot touch it —
+// constitution, not casting. SUPERSEDE RULE: invoking the power (0 PP, maybe
+// augmented) writes the usual transient record, which outranks the standing
+// base; rest clears the casting and the perpetual RESUMES. NPF suppresses
+// the lane like every Su bake.
+// ============================================================================
+const PERPETUAL_NOTES = {
+  'Cloak of Chaos':  'perpetual component: Protection from Law only — the full aura is a cast',
+  'Holy Aura':       'perpetual component: Protection from Evil only — the full aura is a cast',
+  'Shield of Law':   'perpetual component: Protection from Chaos only — the full aura is a cast',
+  'Unholy Aura':     'perpetual component: Protection from Good only — the full aura is a cast',
+  'Sustenance':      'standing — never needs food or water; the body manufactures its own nourishment',
+  'Remove Disease':  'standing — immune to disease (printed: “Permanent; Mutant immune to disease”)',
+  'Remove Paralysis':'standing — paralysis and related effects are shrugged off as they land',
+  'Freedom':         'standing — cannot be affected by movement-restricting effects (printed in the entry)',
+  'Regenerate':      'continuous — severed members regrow; ongoing healing per the entry',
+  'Evade Burst':     'standing — the ectoplasmic shell is always ready (evasion rider per the entry)',
+  'Know Direction and Location': 'standing — always knows where (and when) they are',
+  'Stoneskin':       'at will (printed: “at will for Super-Power Buff”) — DR 10/adamantine; discharge per the entry',
+  'Timeless Body (aka Invulnerability)': 'PERMANENT as Super-Power (printed — the GM’s permission is part of the price)',
+  'Transformation':  '⚠ NO spellcasting or manifesting while active — suppress (⏻) to cast',
+  'Iron Body':       '⚠ carries −6 DEX, half speed, ASF while active — suppress (⏻) to shed the iron',
+  'Mental Pinnacle': 'modes chosen once, permanently — manifest the six picks as a Psion of your CL',
+  'True Metabolism': 'continuous regeneration per the entry',
+};
+function perpetualBuffs(c) {
+  const out = [];
+  if (!c) return out;
+  const transient = new Set((Array.isArray(c.activeEffects) ? c.activeEffects : []).map(a => a.name));
+  const powers = (typeof getCharPowers === 'function') ? getCharPowers(c) : ((c.powers) || []);
+  for (const p of powers) {
+    if (p.pool !== 'super') continue;
+    const sp = (typeof SPELLS_DB !== 'undefined') ? SPELLS_DB.find(s => s.name === p.name) : null;
+    const mpn = sp ? (sp.mp_note || '') : '';
+    const tagged = /(^|[;|])\s*Buff\b/i.test(mpn);
+    const partial = /includes .+ as Buff/i.test(mpn);
+    if (!tagged && !partial) continue;
+    if (tagged && !p.buff) p.buff = true;   // self-heal the pre-v8.85.0 stamp
+    const spec = (!partial && typeof POWER_EFFECTS !== 'undefined') ? (POWER_EFFECTS[p.name] || null) : null;
+    const effects = (spec && Array.isArray(spec.eff) && !spec.attrChoice) ? spec.eff.map(e => ({...e})) : [];
+    out.push({ name: p.name, rung: p.rung || null, partial: !!partial,
+      suppressed: !!p.buffOff, superseded: transient.has(p.name), effects,
+      note: PERPETUAL_NOTES[p.name] || (spec && spec.note) || '' });
+  }
+  return out;
+}
+function toggleBuffSuper(name) {
+  const c = chars.find(x => x.id === curId);
+  if (!c) return;
+  const p = (c.powers || []).find(x => x.pool === 'super' && x.name === name);
+  if (!p) return;
+  p.buffOff = !p.buffOff;
+  if (typeof logAct === 'function') logAct(`◉ ${name} ${p.buffOff ? 'voluntarily suppressed (⏻)' : 'reactivated — no PP, the power is always manifested'}.`);
+  save(); renderSheet();
+}
+// The combined effect-source list both consumers iterate: the transient
+// ledger plus the perpetual lane (suppressed / superseded / crunchless
+// perpetuals contribute no numbers — their chips still render).
+function _buffEffectSources(c) {
+  const list = (c && Array.isArray(c.activeEffects)) ? c.activeEffects.slice() : [];
+  for (const pb of perpetualBuffs(c)) {
+    if (pb.suppressed || pb.superseded || !pb.effects.length) continue;
+    list.push({ name: pb.name, effects: pb.effects, perpetual: true });
+  }
+  return list;
+}
+
 // Ledger → typed-bonus lists. Keys follow the house conventions so each
 // consumer plugs in like an existing builder: fort/ref/will/ac/naturalAC/
 // attack/damage/grapple + 'skill:<Name>'. Empty when nullified (NPF).
+// v8.85.0: iterates _buffEffectSources — transient records + the perpetual lane.
 function activeBuffBonuses(c) {
   const out = {};
-  if (!c || !Array.isArray(c.activeEffects) || !c.activeEffects.length) return out;
-  if (c.nullified) return out;
+  if (!c || c.nullified) return out;
+  const srcs = _buffEffectSources(c);
+  if (!srcs.length) return out;
   const push = (key, entry) => (out[key] = out[key] || []).push(entry);
-  for (const a of c.activeEffects) {
+  for (const a of srcs) {
     for (const e of a.effects) {
       const entry = { type: e.type || 'untyped', source: 'buff:' + a.name, value: e.v,
-        label: `${a.name}${e.cond ? ' (' + e.cond + ')' : ''} — active power` };
+        label: `${a.name}${e.cond ? ' (' + e.cond + ')' : ''} — ${a.perpetual ? '◉ perpetual Buff' : 'active power'}` };
       if (e.gated && e.cond) entry.condition = e.cond;
       if (e.stacksAnyway) entry.stacksAnyway = true;  // Graft Weapon's printed exception
       if (e.k === 'save') { if (e.save === 'all') { push('fort', {...entry}); push('ref', {...entry}); push('will', {...entry}); } else push(e.save, entry); }
@@ -6351,13 +6441,15 @@ function activeBuffBonuses(c) {
 // penalties stack. NPF gate inherited (c.nullified → zero deltas).
 function activeBuffAttrDeltas(c) {
   const delta = [0, 0, 0, 0, 0, 0];
-  if (!c || !Array.isArray(c.activeEffects) || !c.activeEffects.length || c.nullified) return delta;
+  if (!c || c.nullified) return delta;
+  const srcs = _buffEffectSources(c);   // v8.85.0: + the perpetual lane
+  if (!srcs.length) return delta;
   const itemBest = (typeof attrItemBonuses === 'function') ? attrItemBonuses(c).best : [0, 0, 0, 0, 0, 0];
   const IDX = {STR:0, DEX:1, CON:2, INT:3, WIS:4, CHA:5};
   for (let i = 0; i < 6; i++) {
     const byType = {};
     let untypedSum = 0, penalties = 0;
-    for (const a of c.activeEffects) {
+    for (const a of srcs) {
       for (const e of a.effects) {
         if (e.k !== 'attr' || IDX[e.attr] !== i) continue;
         if (e.v < 0) { penalties += e.v; continue; }
@@ -6454,7 +6546,7 @@ function clearActiveBuffs(c, why) {
   const n = c.activeEffects.length;
   const names = c.activeEffects.map(a => a.name).join(', ');
   c.activeEffects = [];
-  if (typeof logAct === 'function' && c.id === curId) logAct(`✨ Active power effects ended (${why}): ${names}.`);
+  if (typeof logAct === 'function' && c.id === curId) logAct(`✨ Active power effects ended (${why}): ${names}.${(typeof perpetualBuffs === 'function' && perpetualBuffs(c).some(pb => !pb.suppressed)) ? ' ◉ Perpetual Buffs stand — constitution, not casting.' : ''}`);
   return n;
 }
 function dismissBuffAt(i) {
@@ -6468,7 +6560,8 @@ function renderActiveBuffs(c) {
   const slot = document.getElementById('sh-buffs');
   if (!slot) return;
   const list = (c && c.activeEffects) || [];
-  if (!list.length) { slot.innerHTML = ''; slot.style.display = 'none'; return; }
+  const perps = (typeof perpetualBuffs === 'function') ? perpetualBuffs(c) : [];
+  if (!list.length && !perps.length) { slot.innerHTML = ''; slot.style.display = 'none'; return; }
   slot.style.display = 'block';
   const fmt = (e) => {
     const tgt = e.k === 'save' ? (e.save === 'all' ? 'all saves' : e.save.toUpperCase() + ' save')
@@ -6476,7 +6569,17 @@ function renderActiveBuffs(c) {
       : e.k === 'attr' ? e.attr : e.k;
     return `${e.v >= 0 ? '+' : ''}${e.v} ${e.type} ${tgt}`;
   };
+  // v8.85.0: ◉ perpetual chips lead — gold-edged, with the ⏻ suppression
+  // toggle (reactivation free per the ruling). Suppressed = dimmed ◌;
+  // superseded = the invoked transient outranks the base until rest.
+  const perpChip = (pb) => {
+    const off = pb.suppressed, dim = off || c.nullified;
+    const crunch = pb.effects.length ? pb.effects.map(fmt).join(', ') : '';
+    const tip = (pb.note ? pb.note + ' · ' : '') + (off ? 'voluntarily suppressed — ⏻ reactivates at no PP ("always manifested")' : 'perpetual Buff — bought with MP, always manifested at base values (ESL); invoke it (0 PP + augment) for a boosted casting') + (pb.superseded && !off ? ' · an invoked casting currently supersedes the standing base' : '');
+    return `<span style="display:inline-flex;align-items:center;gap:6px;margin:2px 6px 2px 0;padding:3px 8px;border:1px solid rgba(200,151,30,.45);border-radius:3px;background:rgba(200,151,30,.08);font-size:11px;${dim ? 'opacity:.45;' : ''}" title="${escapeHTML(tip)}">${off ? '◌' : '◉'} <b>${escapeHTML(pb.name)}</b>${pb.rung ? ` <span style="color:#c499d4;">[${escapeHTML(pb.rung)}]</span>` : ''}${crunch && !off ? ` ${escapeHTML(crunch)}` : ''}${off ? ' <span style="font-style:italic;color:rgba(200,151,30,.7);">suppressed</span>' : pb.superseded ? ' <span style="font-style:italic;color:#9cc3da;">· invoked version active</span>' : ''} <b style="cursor:pointer;color:${off ? '#8fcf9a' : '#d4b870'};" data-n="${escapeHTML(pb.name)}" onclick="toggleBuffSuper(this.dataset.n)" title="${off ? 'Reactivate (no PP)' : 'Voluntarily suppress this power'}">⏻</b></span>`;
+  };
   slot.innerHTML = (c.nullified ? `<div style="font-size:11px;color:#c499d4;margin-bottom:3px;">⊘ Null Power Field — active-power bonuses SUPPRESSED (shown greyed):</div>` : '')
+    + perps.map(perpChip).join('')
     + list.map((a, i) => `<span style="display:inline-flex;align-items:center;gap:6px;margin:2px 6px 2px 0;padding:3px 8px;border:1px solid rgba(120,175,205,.4);border-radius:3px;background:rgba(120,175,205,.07);font-size:11px;${c.nullified ? 'opacity:.4;' : ''}" title="${escapeHTML(((a.picks && a.picks.length) ? a.picks.join(' · ') + ' · ' : '') + (a.note || '') + (a.expires === 'manual' ? ' · brief duration — dismiss manually (✕)' : ' · clears on rest'))}">✨ <b>${escapeHTML(a.name)}</b> ${escapeHTML(a.effects.map(fmt).join(', '))}${a.durText ? ` <span style="color:#9cc3da;">· ${escapeHTML(a.durText)}</span>` : ''}${a.augSpent ? ` <span style="opacity:.6;">(+${a.augSpent} PP)</span>` : ''} <b style="cursor:pointer;color:#d47070;" onclick="dismissBuffAt(${i})" title="End this effect">✕</b></span>`).join('');
 }
 
@@ -38770,16 +38873,24 @@ function renderSheet(){
       : (typeof RACE_BASE_SPEED !== 'undefined' && RACE_BASE_SPEED[_hyS.sizeFrom] != null) ? RACE_BASE_SPEED[_hyS.sizeFrom]
       : (_szIdx === 3 ? 20 : 30);
     const _modes = (_szDef.modes || []).map(m => `${m.type} ${m.speed}′${m.note ? ' (' + m.note + ')' : ''}`).join(' · ');
-    featuresHtml = `<b style="color:var(--gold);cursor:help;" title="${escapeHTML(hyBlurb)}">${raceDisplayOf(c)}${_mutSuffix}</b>${citeHTML('races', c.race)}
+    // v8.84.0 (Adam's noise report — Rhad's "Human Mutant" display still
+    // "noisy"): the whole racial block folds behind a gold .race-det banner.
+    // Adj/ECL/granted abilities are creation-time facts, "not worthy of
+    // constant dashboard real estate"; the 🧬 subtype row stays outside.
+    featuresHtml = `<details class="race-det"><summary><b style="color:var(--gold);cursor:help;" title="${escapeHTML(hyBlurb)}">${raceDisplayOf(c)}${_mutSuffix}</b>${citeHTML('races', c.race)}</summary><div style="padding:4px 2px 2px 10px;">
       <details class="hy-det"><summary>Hybrid mechanics — adjustments, RLM, size &amp; movement</summary><div style="padding:3px 0 2px 14px;line-height:1.65;">
         Ability Adj.: ${radj} <span style="font-size:10px;color:rgba(200,151,30,.5);">(both parents combined, applied at creation)</span><br>
         RLM: +${_hyS.rlm}${_hyS.rlm !== _hyS.autoRlm ? ` <span style="font-size:10px;color:#d4b870;">(GM-tailored — auto would be +${_hyS.autoRlm}${_hyS.dropped ? '; dropped: ' + escapeHTML(_hyS.dropped) : ''})</span>` : ` <span style="font-size:10px;color:rgba(200,151,30,.5);">(${_hyS.a} ${_hyS.A.ecl || 0} + ${_hyS.b} ${_hyS.B.ecl || 0} + 1)</span>`}<br>
         Size &amp; movement (from ${escapeHTML(_hyS.sizeFrom)}): ${_szName}, base speed ${_walk}′${_modes ? ' · ' + escapeHTML(_modes) : ''} <span style="font-size:10px;color:rgba(200,151,30,.5);">— final speed with talents &amp; armor reads off the Speed card</span>
       </div></details>
       <details class="hy-det"><summary>${escapeHTML(_hyS.a)} — racial abilities</summary><div style="padding:3px 0 2px 14px;line-height:1.55;font-size:12px;">${_hyS.A.notes || '—'}</div></details>
-      <details class="hy-det"><summary>${escapeHTML(_hyS.b)} — racial abilities</summary><div style="padding:3px 0 2px 14px;line-height:1.55;font-size:12px;">${_hyS.B.notes || '—'}</div></details>`;
+      <details class="hy-det"><summary>${escapeHTML(_hyS.b)} — racial abilities</summary><div style="padding:3px 0 2px 14px;line-height:1.55;font-size:12px;">${_hyS.B.notes || '—'}</div></details>
+    </div></details>`;
   } else {
-    featuresHtml = `<b style="color:var(--gold);">${c.race}${_mutSuffix}</b>${citeHTML('races', c.race)}<br>Ability Adj.: ${radj} &nbsp;|&nbsp; ECL Mod: +${race.ecl||0}${c.race === 'Hybrid' ? ' <span style="color:#d4b870;font-size:11px;">⚑ parents not chosen — ✎ Edit this character and pick BOTH Humanoid parents (the RLM, adjustments, and inherited abilities all key off them)</span>' : ''}<br>${race.notes||''}`;
+    // v8.84.0: same gold banner for the plain races. The unconfigured-Hybrid
+    // ⚑ prompt rides the SUMMARY line — a flag that hides is no flag.
+    const _hyFlag = c.race === 'Hybrid' ? ' <span style="color:#d4b870;font-size:11px;font-family:inherit;">⚑ parents not chosen — ✎ Edit and pick BOTH Humanoid parents</span>' : '';
+    featuresHtml = `<details class="race-det"><summary><b style="color:var(--gold);">${c.race}${_mutSuffix}</b>${citeHTML('races', c.race)}${_hyFlag}</summary><div style="padding:4px 2px 2px 14px;line-height:1.6;">Ability Adj.: ${radj} &nbsp;|&nbsp; ECL Mod: +${race.ecl||0}<br>${race.notes||''}</div></details>`;
   }
   // The 🧬 Mutant subtype drop-down — one more racial row, the hy-det idiom.
   if (_mutTempl) {
@@ -43017,7 +43128,7 @@ function grantComplimentarySuperPowers(c, spell, via, visited) {
       if (!child || visited.has(child.name)) continue;
       visited.add(child.name);
       if (!c.powers.some(p => p.name === child.name && p.pool === 'super')) {
-        c.powers.push({ name: child.name, pool: 'super', mp: 0, free: true, via, buff: /(^|\|)\s*Buff/i.test(child.mp_note || '') || undefined, grantedAt: { level: c.totalLvl || 1, atDate: new Date().toLocaleDateString() } });
+        c.powers.push({ name: child.name, pool: 'super', mp: 0, free: true, via, buff: /(^|[;|])\s*Buff\b/i.test(child.mp_note || '') || undefined, grantedAt: { level: c.totalLvl || 1, atDate: new Date().toLocaleDateString() } });
       }
       grantComplimentarySuperPowers(c, child, child.name, visited);
     }
@@ -43059,7 +43170,11 @@ async function buySuperPower(idx) {
       `"${spell.name}" costs ${payMp} MP${elig.suite ? ` (suite discount −1 via ${elig.suite})` : ''} but only ${st.balance} MP is banked (earned ${st.totalEarned}, spent ${st.totalSpent}).\n\nBuy anyway as a GM-approved exception?`))) return;
     logPowerException(c, spell.name, `super-power bought at ${payMp} MP with only ${st.balance} banked`);
   }
-  const isBuff = /(^|\|)\s*Buff/i.test(spec.mpNote || '');
+  // v8.85.0 (Adam's perpetual-Buff rulings): the stamp regex expected a '|'
+  // separator but every catalog mp_note writes "; Buff" — 1 of 83 Buff
+  // powers ever stamped. Flags lie, code-reads convict. The guard still
+  // excludes the four "includes Protection from X as Buff" partials.
+  const isBuff = /(^|[;|])\s*Buff\b/i.test(spec.mpNote || '');
   c.powers.push({ name: spell.name, pool: 'super', mp: payMp,
     ...(rungLabel ? { rung: rungLabel } : {}),
     ...(elig.suite ? { suiteDisc: 1, suite: elig.suite } : {}),
@@ -46816,7 +46931,7 @@ function renderPowers() {
             && !spellPoolOptions(s, npInfo).some(o => o.pool === p.pool);
           castBtn = prepOnly
             ? `<button class="btn btn-sm" style="font-size:10px;${short ? 'opacity:.55;' : 'border-color:rgba(220,205,138,.5);color:rgba(220,205,138,.95);'}" title="Prepared caster — memorize at dawn (spends the PP); cast the memorized instance from the Prepared Spells panel (no further PP)." onclick="memorizeKnownAt(${i})">🌅 Memorize ${cost} PP</button>`
-            : `<button class="btn btn-sm" style="font-size:10px;${short ? 'opacity:.55;' : 'border-color:rgba(120,175,205,.5);color:rgba(120,175,205,.95);'}" title="${short ? 'Insufficient PP — casting will prompt for a GM exception' : (p.buff ? 'Buff — at will / permanent, 0 PP unaugmented' : 'Cast / manifest')}" onclick="castPowerAt(${i})">⚡ ${cost} PP</button>`;
+            : `<button class="btn btn-sm" style="font-size:10px;${short ? 'opacity:.55;' : (p.buff ? 'border-color:rgba(200,151,30,.55);color:#d4b870;' : 'border-color:rgba(120,175,205,.5);color:rgba(120,175,205,.95);')}" title="${short ? 'Insufficient PP — casting will prompt for a GM exception' : (p.buff ? 'Perpetual Buff — always manifested at no PP; invoke to augment for a scene (the ⏻ suppression toggle lives on the Sheet ✨ panel)' : 'Cast / manifest')}" onclick="castPowerAt(${i})">${p.buff ? '◉' : '⚡'} ${cost} PP</button>`;
         }
         return `<div style="padding:6px 9px;border-bottom:1px solid rgba(200,151,30,.08);">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
