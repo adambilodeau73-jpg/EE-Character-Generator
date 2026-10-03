@@ -42786,11 +42786,17 @@ function getMPState(c) {
   if (drawbacks) sources.push(`Drawbacks +${drawbacks}`);
   if (hasFeatNamed(c, 'Slightly Different')) { featGrants += 2; sources.push('Slightly Different +2'); }
   const isSuperMutant = hasFeatNamed(c, 'Supernatural Mutation');
-  const tierKey = (c && c.superMutantTier) || 'minor';
+  // v8.80.0 (Adam's unification ruling, 2026-10-03): c.superMutantTier is
+  // the STARTING MP PACKAGE chosen when the feat is taken (HH p.249's
+  // "choose a mutation level with your GM's permission" — Scale-capped);
+  // the CLASSIFICATION itself derives from the Mutant racial level
+  // modifier below. At genesis the two coincide (the 10-MP package IS
+  // ML +1); growth thereafter promotes automatically.
+  const pkgKey = (c && c.superMutantTier) || 'minor';
   if (isSuperMutant) {
-    const tier = MUTATION_RULES.super_mutant_tiers.find(t => t.tier.toLowerCase() === tierKey) || MUTATION_RULES.super_mutant_tiers[0];
-    featGrants += tier.mp_grant;
-    sources.push(`Supernatural Mutation (${tier.tier}) +${tier.mp_grant}`);
+    const pkg = MUTATION_RULES.super_mutant_tiers.find(t => t.tier.toLowerCase() === pkgKey) || MUTATION_RULES.super_mutant_tiers[0];
+    featGrants += pkg.mp_grant;
+    sources.push(`Supernatural Mutation (${pkg.tier} package) +${pkg.mp_grant}`);
   }
   for (const fn in UNSTABLE_MP) if (hasFeatNamed(c, fn)) { featGrants += UNSTABLE_MP[fn]; sources.push(`${fn} +${UNSTABLE_MP[fn]}`); }
   for (const g of ((c && c.mpGrants) || [])) { gmGrants += g.amount || 0; }
@@ -42807,11 +42813,23 @@ function getMPState(c) {
   const totalSpent = mutSpent + superSpent + talentSpent;
   // "Every 10 MP gives the character a +1 Mutant racial level modifier" (p.423)
   const mutantLevel = Math.floor(totalEarned / 10);
+  // v8.80.0 (Adam's unification ruling): the CLASSIFICATION TRACKS THE RLM
+  // — the HH p.423 tier definitions are written in the present tense of
+  // the modifier (Minor = ML 0, Moderate = +1, Major = +2, Mega = +3+),
+  // uniformly across all four MP routes (template, feats, Drawbacks, GM
+  // grants). Mutant templating itself = the feat OR 10+ total MP (Adam:
+  // the Drawback-dabbler and the Slightly Different are different, not
+  // Mutants — 10 MP is where mutation becomes ontology). The Scale caps
+  // the total; crossing a 10-threshold promotes the shopping window
+  // automatically (the ML machinery — ECL bump, XP compensation,
+  // Unnatural bakes — already rides this same floor).
+  const tierKey = mutantLevel >= 3 ? 'mega' : mutantLevel === 2 ? 'major' : mutantLevel === 1 ? 'moderate' : 'minor';
   return {
     sources, drawbacks, featGrants, gmGrants, mutSpent, superSpent, talentSpent,
     totalEarned, totalSpent, balance: totalEarned - totalSpent,
     mutantLevel, eml: ((c && c.totalLvl) || 1) + mutantLevel,
-    isSuperMutant, tierKey,
+    isSuperMutant, tierKey, pkgKey,
+    isMutantTemplated: isSuperMutant || totalEarned >= 10,
     tier: MUTATION_RULES.super_mutant_tiers.find(t => t.tier.toLowerCase() === tierKey) || MUTATION_RULES.super_mutant_tiers[0],
   };
 }
@@ -43429,8 +43447,13 @@ function renderMutations() {
 
   const st = getMPState(c);
   const pp = getSuperPPState(c);
+  // v8.80.0 (Adam's unification ruling): the selector now chooses the
+  // STARTING PACKAGE only (HH p.249, GM permission, Scale-capped); the
+  // CLASSIFICATION is derived from the Mutant level and shown as a chip —
+  // crossing a 10-MP threshold promotes it automatically.
   const tierSel = st.isSuperMutant
-    ? ` · tier <select onchange="setSuperMutantTier(this.value)" style="font-size:10px;">${MUTATION_RULES.super_mutant_tiers.map(t => `<option value="${t.tier.toLowerCase()}" ${st.tierKey === t.tier.toLowerCase() ? 'selected' : ''}>${t.tier} (${t.mp_grant} MP)</option>`).join('')}</select>`
+    ? ` · <span title="HH p.423: the classification IS the Mutant racial level modifier — Minor ML 0 · Moderate +1 · Major +2 · Mega +3+ — across every MP route. It tracks your total MP (+1 per full 10) and sets the super-power shopping window (Minor: lvl 1-3, ≤6 MP/power, half PP · Moderate: 1-5, ≤10 · Major: 1-9, ≤20 · Mega: 1-9, uncapped). The Mutation Scale caps the total (GMG pp.64-66)." style="cursor:help;color:#c499d4;"><b>${st.tier.tier}</b> Super-Mutant</span>`
+      + ` · package <select onchange="setSuperMutantTier(this.value)" style="font-size:10px;" title="The starting MP package chosen when Supernatural Mutation was taken (HH p.249: 'choose a mutation level with your GM's permission'; the Mutation Scale caps it). Your classification then tracks total MP — this picker only sets the grant.">${MUTATION_RULES.super_mutant_tiers.map(t => `<option value="${t.tier.toLowerCase()}" ${st.pkgKey === t.tier.toLowerCase() ? 'selected' : ''}>${t.tier} (${t.mp_grant} MP)</option>`).join('')}</select>`
     : '';
   const ppBit = st.isSuperMutant
     ? ` · <b style="color:rgba(196,153,212,.9);">${pp.current}/${pp.max} super-PP</b> (<span title="Effective Super Level — the HH prints this as ‘Effective Manifester Level (EML)’, p.423: character level + Mutant racial level modifier. Super-powers manifest at this level; super-PP/day = MP + ESL² + ceil(Wis mod × ESL / 2)." style="cursor:help;">ESL ${st.eml}</span>) <button class="btn btn-sm" style="font-size:9px;padding:1px 6px;" onclick="restSuperPPClick()">Rest</button>`
@@ -46848,7 +46871,7 @@ function renderPowersBrowse() {
             : /Supernatural Mutation/.test(w) ? 'needs Su Mutation'
             : /Mutation Scale/.test(w) ? 'needs Mut 5 scenario'
             : 'not buyable';
-          buyBtn = `<span style="font-size:9px;color:rgba(181,143,212,.55);border:1px dashed rgba(181,143,212,.3);padding:2px 6px;border-radius:2px;white-space:nowrap;cursor:help;" title="Not buyable yet — ${escapeHTML(w)}. The shopping window follows your Supernatural Mutation TIER (chosen on the 🧬 Mutations tab, GM approval — banked MP alone never widens it): Minor ≤ lvl 3, ≤6 MP/power · Moderate ≤ lvl 5, ≤10 · Major ≤ lvl 9, ≤20 · Mega ≤ lvl 9, uncapped. HH p.422.">◈ ${escapeHTML(short)}</span>`;
+          buyBtn = `<span style="font-size:9px;color:rgba(181,143,212,.55);border:1px dashed rgba(181,143,212,.3);padding:2px 6px;border-radius:2px;white-space:nowrap;cursor:help;" title="Not buyable yet — ${escapeHTML(w)}. The shopping window follows your CLASSIFICATION, which tracks TOTAL MP earned (+1 Mutant level per full 10 — Adam's unification ruling, HH p.423): Minor <10 MP (lvl 1-3, ≤6 MP/power) · Moderate 10+ (1-5, ≤10) · Major 20+ (1-9, ≤20) · Mega 30+ (1-9, uncapped). Earn MP across a threshold and the window widens automatically; the Mutation Scale caps the total (GMG pp.64-66).">◈ ${escapeHTML(short)}</span>`;
         }
       }
     }
