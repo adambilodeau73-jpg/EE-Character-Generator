@@ -1266,6 +1266,11 @@ details.cls-det>summary:hover{background:rgba(200,151,30,.16)}
       <div id="pw-cast-body" style="font-size:11.5px;line-height:1.6;margin-top:4px;color:var(--parch);"></div>
     </div>
 
+    <!-- v8.82.0 (Adam's taxonomy tweak + placement refinement): the
+         Extraordinary / Supernatural Attributes ladder shops HERE, above
+         the repertoire, as a collapsed one-liner whose summary totals the
+         boosted stats; records stay mutations (single source of truth). -->
+    <div id="pw-su-attrs" style="display:none;margin-bottom:.7rem;"></div>
     <div class="sec-head sm">Known Spells &amp; Powers</div>
     <div id="pw-known-list" style="border:1px solid rgba(200,151,30,.15);border-radius:3px;margin-bottom:1rem;"></div>
 
@@ -1281,14 +1286,6 @@ details.cls-det>summary:hover{background:rgba(200,151,30,.16)}
       <!-- v8.38.0: count rendered live from SPELLS_DB.length (was hardcoded
            "(666)" and silently frozen there through three corpus growths). -->
       <button id="pw-browse-toggle" class="btn btn-sm" onclick="togglePwBrowse()">⌕ Browse the Catalogue</button>
-    </div>
-    <!-- v8.82.0 (Adam's taxonomy tweak): ✨ SUPERNATURAL ATTRIBUTES — the
-         Su [Attribute] ladder shops HERE (it is supernatural: NPF-nullified
-         and "super" in nature), immediately accessible, not behind the
-         browse. Purchases record as mutations (single source of truth) and
-         appear on the 🧬 Mutations tab and the Sheet. -->
-    <div id="pw-su-attrs" style="display:none;margin-bottom:.8rem;"></div>
-    <div class="btn-row" style="display:none;">
     </div>
     <div id="pw-browse-wrap" style="display:none;">
       <div class="sec-head sm">Browse the Catalogue <span id="pw-browse-count" style="font-weight:400;font-size:10px;opacity:.6;"></span></div>
@@ -43534,6 +43531,13 @@ function renderSuAttrPanel(c) {
   if (!st || !st.isSuperMutant || _pwMode !== 'powers') { el.style.display = 'none'; el.innerHTML = ''; return; }
   el.style.display = '';
   const cum = [2, 5, 9, 14, 20];
+  // v8.82.0 refinement (Adam): collapsed one-liner whose summary totals the
+  // boosted stats ("Dex +12, Cha +4") — the Ex/Su split is expanded-view
+  // fluff. The open state survives re-renders via _suAttrsOpen.
+  const sumBits = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map(a => {
+    const n = SU_ATTR_LADDER.filter(nm => (c.mutations || []).some(m => m.name === nm && m.attr === a)).length;
+    return n ? `${a.charAt(0) + a.slice(1).toLowerCase()} +${n * 4}` : null;
+  }).filter(Boolean).join(', ');
   const rows = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map(a => {
     const owned = SU_ATTR_LADDER.filter(nm => (c.mutations || []).some(m => m.name === nm && m.attr === a)).length;
     const bonus = owned * 4;
@@ -43548,8 +43552,10 @@ function renderSuAttrPanel(c) {
       : `<span style="font-size:9px;color:#c499d4;">+20 — ladder complete</span>`;
     return `<div style="display:flex;align-items:center;gap:8px;padding:2px 0;border-bottom:1px solid rgba(200,151,30,.06);font-size:11.5px;"><span style="width:34px;font-family:'Epics Serif','Cinzel',serif;font-size:10px;color:var(--bronze);">${a}</span><span style="width:120px;">${state}</span>${btn}</div>`;
   }).join('');
-  el.innerHTML = `<div class="sec-head sm" style="color:#c499d4;">✨ Supernatural Attributes <span class="cite cite-HH" title="Hero's Handbook pp.420-421 (the Extraordinary/Supernatural [Attribute] ladder) + p.669 (Supernatural [Attribute] I-IV as super-powers; the Extraordinary base is never suppressed, the Su tiers are)">HH 420</span></div>
-    <div style="font-size:10px;color:rgba(200,151,30,.55);margin-bottom:4px;">Purchases record as mutations — they appear on the 🧬 Mutations tab and bake into the Sheet. The Ex base (+4) is never suppressed; the Su tiers (+4 each, to +20 total) fall to a Null Power Field. Banked: <b style="color:var(--gold);">${st.balance} MP</b>.</div>${rows}`;
+  if (typeof window._suAttrsOpen === 'undefined') window._suAttrsOpen = false;
+  el.innerHTML = `<details class="hy-det"${window._suAttrsOpen ? ' open' : ''} ontoggle="window._suAttrsOpen=this.open"><summary><span style="color:#c499d4;font-weight:bold;">✨ Extraordinary / Supernatural Attributes</span> <span class="cite cite-HH" title="Hero's Handbook pp.420-421 (the Extraordinary/Supernatural [Attribute] ladder) + p.669 (Supernatural [Attribute] I-IV as super-powers; the Extraordinary base is never suppressed, the Su tiers are)">HH 420</span>${sumBits ? ` <span style="color:rgba(200,200,160,.9);">— ${sumBits}</span>` : ' <span style="opacity:.5;">— none yet</span>'}</summary><div style="padding:4px 0 2px 14px;">
+    <div style="font-size:10px;color:rgba(200,151,30,.55);margin-bottom:4px;">Purchases record as mutations — they appear on the 🧬 Mutations tab and bake into the Sheet. The Ex base (+4) is never suppressed; the Su tiers (+4 each, to +20 total) fall to a Null Power Field. Banked: <b style="color:var(--gold);">${st.balance} MP</b>.</div>${rows}
+  </div></details>`;
 }
 async function buySuAttrStep(attrKey) {
   const c = chars.find(x => x.id === curId); if (!c) return;
