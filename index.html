@@ -319,7 +319,7 @@ details.cls-det>summary:hover{background:rgba(200,151,30,.16)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.80.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.81.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -38742,6 +38742,14 @@ function renderSheet(){
   const radj = _hyS
     ? (ATTR_NAMES.map((n, i) => { const v = ((_hyS.A.adj||{})[n]||0) + ((_hyS.B.adj||{})[n]||0); return v ? `${v>0?'+':''}${v} ${n}` : ''; }).filter(Boolean).join(', ') || 'None')
     : (Object.entries(race.adj||{}).map(([k,v])=>(v>0?'+':'')+v+' '+k).join(', ')||'None');
+  // v8.81.0 (Adam's "Human Mutant" weave): a TEMPLATED Mutant (the feat or
+  // 10+ total MP — the §220 unification) carries the subtype in the race
+  // headline itself ("Human Mutant", "Hybrid (Human / Dwarf) Mutant") and
+  // gains a 🧬 drop-down among the racial rows. Below the template line
+  // (Slightly Different, sub-10 dabblers): nothing — different, not Mutants.
+  const _mpS = (typeof getMPState === 'function') ? getMPState(c) : null;
+  const _mutTempl = !!(_mpS && _mpS.isMutantTemplated);
+  const _mutSuffix = _mutTempl ? ' Mutant' : '';
   let featuresHtml;
   if (_hyS) {
     const hyBlurb = 'The child of two Humanoid parent races, blended with the GM’s approval. A Hybrid inherits ALL the racial abilities of both parents, while size and movement follow ONE chosen parent. Racial Level Modifier = parent A’s + parent B’s + 1 — the classic Half-Elf is 0 + 0 + 1 = +1. GM-tailored builds may trade away specific abilities for a GM-adjusted RLM. (HH pp.29–30)';
@@ -38752,7 +38760,7 @@ function renderSheet(){
       : (typeof RACE_BASE_SPEED !== 'undefined' && RACE_BASE_SPEED[_hyS.sizeFrom] != null) ? RACE_BASE_SPEED[_hyS.sizeFrom]
       : (_szIdx === 3 ? 20 : 30);
     const _modes = (_szDef.modes || []).map(m => `${m.type} ${m.speed}′${m.note ? ' (' + m.note + ')' : ''}`).join(' · ');
-    featuresHtml = `<b style="color:var(--gold);cursor:help;" title="${escapeHTML(hyBlurb)}">${raceDisplayOf(c)}</b>${citeHTML('races', c.race)}
+    featuresHtml = `<b style="color:var(--gold);cursor:help;" title="${escapeHTML(hyBlurb)}">${raceDisplayOf(c)}${_mutSuffix}</b>${citeHTML('races', c.race)}
       <details class="hy-det"><summary>Hybrid mechanics — adjustments, RLM, size &amp; movement</summary><div style="padding:3px 0 2px 14px;line-height:1.65;">
         Ability Adj.: ${radj} <span style="font-size:10px;color:rgba(200,151,30,.5);">(both parents combined, applied at creation)</span><br>
         RLM: +${_hyS.rlm}${_hyS.rlm !== _hyS.autoRlm ? ` <span style="font-size:10px;color:#d4b870;">(GM-tailored — auto would be +${_hyS.autoRlm}${_hyS.dropped ? '; dropped: ' + escapeHTML(_hyS.dropped) : ''})</span>` : ` <span style="font-size:10px;color:rgba(200,151,30,.5);">(${_hyS.a} ${_hyS.A.ecl || 0} + ${_hyS.b} ${_hyS.B.ecl || 0} + 1)</span>`}<br>
@@ -38761,7 +38769,25 @@ function renderSheet(){
       <details class="hy-det"><summary>${escapeHTML(_hyS.a)} — racial abilities</summary><div style="padding:3px 0 2px 14px;line-height:1.55;font-size:12px;">${_hyS.A.notes || '—'}</div></details>
       <details class="hy-det"><summary>${escapeHTML(_hyS.b)} — racial abilities</summary><div style="padding:3px 0 2px 14px;line-height:1.55;font-size:12px;">${_hyS.B.notes || '—'}</div></details>`;
   } else {
-    featuresHtml = `<b style="color:var(--gold);">${c.race}</b>${citeHTML('races', c.race)}<br>Ability Adj.: ${radj} &nbsp;|&nbsp; ECL Mod: +${race.ecl||0}${c.race === 'Hybrid' ? ' <span style="color:#d4b870;font-size:11px;">⚑ parents not chosen — ✎ Edit this character and pick BOTH Humanoid parents (the RLM, adjustments, and inherited abilities all key off them)</span>' : ''}<br>${race.notes||''}`;
+    featuresHtml = `<b style="color:var(--gold);">${c.race}${_mutSuffix}</b>${citeHTML('races', c.race)}<br>Ability Adj.: ${radj} &nbsp;|&nbsp; ECL Mod: +${race.ecl||0}${c.race === 'Hybrid' ? ' <span style="color:#d4b870;font-size:11px;">⚑ parents not chosen — ✎ Edit this character and pick BOTH Humanoid parents (the RLM, adjustments, and inherited abilities all key off them)</span>' : ''}<br>${race.notes||''}`;
+  }
+  // The 🧬 Mutant subtype drop-down — one more racial row, the hy-det idiom.
+  if (_mutTempl) {
+    const ml = _mpS.mutantLevel, conM = am(((c.attrs) || [10,10,10,10,10,10])[2]);
+    const clsLabel = `${_mpS.tier.tier} ${_mpS.isSuperMutant ? 'Super-Mutant' : 'Mutant'}`;
+    const spp = _mpS.isSuperMutant && (typeof getSuperPPState === 'function') ? getSuperPPState(c) : null;
+    const nextMP = (ml + 1) * 10;
+    const nextTier = MUTATION_RULES.super_mutant_tiers[Math.min(3, ml + 1)];
+    const promoLine = ml >= 3
+      ? `Classification tracks total MP: already Mega — each further 10 MP adds +1 RLM (and ECL).`
+      : `Classification tracks total MP: next promotion at ${nextMP} MP (${nextTier.tier}${_mpS.isSuperMutant ? ` — power levels ${nextTier.spell_levels[0]}-${nextTier.spell_levels[1]}, ${nextTier.max_mp_per_power != null ? '≤' + nextTier.max_mp_per_power + ' MP/power' : 'uncapped'}` : ''}).`;
+    featuresHtml += `
+      <details class="hy-det"><summary><span style="cursor:help;" title="The Mutant racial subtype (HH p.29) — templated via the Supernatural Mutation feat or 10+ total MP (Adam's unification, 2026-10-03). Its racial abilities are EXTRAORDINARY — fundamental physiology; a Null Power Field does not suppress them.">🧬 Mutant subtype — <b style="color:#c499d4;">${clsLabel}</b> · RLM +${ml} · ${_mpS.totalEarned} MP total</span></summary><div style="padding:3px 0 2px 14px;line-height:1.65;font-size:12px;">
+        <b style="color:var(--gold);">Unnatural Prowess (Ex):</b> +${Math.floor(ml / 2)} Base Attack · +${Math.floor(ml / 3)} Defense · +${2 * ml} skill points <span style="font-size:10px;color:rgba(200,151,30,.5);">(Tech Scale 0 skills only — table-enforced)</span><br>
+        <b style="color:var(--gold);">Unnatural Resilience (Ex):</b> +${ml * (5 + conM)} HP · +${Math.floor(ml / 2)} all saves <span style="font-size:10px;color:rgba(200,151,30,.5);">(baked live — cards, rows, and drilldowns already include them)</span><br>
+        ${_mpS.isSuperMutant ? `<b style="color:var(--gold);">ESL ${_mpS.eml}</b> <span style="font-size:10px;color:rgba(200,151,30,.5);">(character level ${c.totalLvl || 1} + RLM ${ml})</span> · super-PP ${spp ? spp.current + '/' + spp.max : '—'}/day · ` : ''}<b style="color:var(--gold);">ECL +${ml}</b><br>
+        <span style="font-size:11px;font-style:italic;color:rgba(196,153,212,.85);">${promoLine}</span>
+      </div></details>`;
   }
   // v8.77.0 (Adam's Sheet restructure): the section reads SCENARIO →
   // RACIAL → per-class collapsibles. The Scenario synopsis leads (it
@@ -51018,10 +51044,18 @@ function printSheet(){
         <div class="ps-sec-head">Scenario &amp; Racial Features</div>
         <div class="ps-sec-body ps-classes">
           ${c.sixLevels?`<div style="margin-bottom:5px;"><div style="font-family:'Cinzel',Georgia,serif;font-size:7pt;text-transform:uppercase;letter-spacing:.06em;color:#6b5320;margin-bottom:2px;">Scenario: ${normalizePresetName(c.scenarioPreset||'Custom')}</div><div style="font-size:8pt;color:#555;">${['arcane','divine','heroic','mutation','psionic','tech'].map(a=>`${SIX_LEVELS[a].short} ${c.sixLevels[a]||0}`).join(' · ')}</div></div>`:''}
-          <div class="ps-class-row"><span class="ps-class-nm">${(typeof raceDisplayOf==='function')?raceDisplayOf(c):c.race}</span><span class="ps-class-det">${(typeof hybridInfo==='function'&&hybridInfo(c))?'RLM':'ECL'} +${(typeof raceEclOf==='function')?raceEclOf(c):(RACES[c.race]?.ecl||0)}</span></div>
+          ${(() => { const mpP = (typeof getMPState==='function') ? getMPState(c) : null;
+            const templ = !!(mpP && mpP.isMutantTemplated);
+            const rn = ((typeof raceDisplayOf==='function')?raceDisplayOf(c):c.race) + (templ ? ' Mutant' : '');
+            return `<div class="ps-class-row"><span class="ps-class-nm">${rn}</span><span class="ps-class-det">${(typeof hybridInfo==='function'&&hybridInfo(c))?'RLM':'ECL'} +${(typeof raceEclOf==='function')?raceEclOf(c):(RACES[c.race]?.ecl||0)}${templ && mpP.mutantLevel ? ` (+${mpP.mutantLevel} Mutant)` : ''}</span></div>`; })()}
           ${(() => { const hy = (typeof hybridInfo==='function') ? hybridInfo(c) : null;
             if (!hy) return `<div style="font-size:8pt;color:#555;">${RACES[c.race]?.notes||''}</div>`;
             return `<div style="font-size:7.5pt;color:#555;"><b>${escapeHTML(hy.a)}:</b> ${hy.A.notes||'—'}</div><div style="font-size:7.5pt;color:#555;"><b>${escapeHTML(hy.b)}:</b> ${hy.B.notes||'—'}</div>`; })()}
+          ${(() => { const mpP = (typeof getMPState==='function') ? getMPState(c) : null;
+            if (!mpP || !mpP.isMutantTemplated) return '';
+            const ml = mpP.mutantLevel, conM = am(((c.attrs)||[10,10,10,10,10,10])[2]);
+            const spp = mpP.isSuperMutant && (typeof getSuperPPState==='function') ? getSuperPPState(c) : null;
+            return `<div style="font-size:7.5pt;color:#555;">🧬 <b>${mpP.tier.tier} ${mpP.isSuperMutant ? 'Super-Mutant' : 'Mutant'}</b> (RLM +${ml} · ${mpP.totalEarned} MP): Unnatural Prowess +${Math.floor(ml/2)} BA / +${Math.floor(ml/3)} Def / +${2*ml} SP (Tech-0) · Resilience +${ml*(5+conM)} HP / +${Math.floor(ml/2)} saves${mpP.isSuperMutant ? ` · ESL ${mpP.eml} · ${spp?spp.max:'—'} super-PP/day` : ''}</div>`; })()}
         </div>
       </div>
 
