@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.88.2</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.89.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1665,6 +1665,13 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
         <option value="missing">✗ Missing Prereqs</option>
         <option value="gmverify">⚠ GM-Verify Only</option>
         <option value="heritage-offlevel">⬟ Heritage (off-level)</option>
+      </select>
+      <!-- v8.89.0 (Adam's sorting report): the catalogue previously rendered
+           in raw database order — seven ingest batches, each alphabetical,
+           reading as undeclared subsets. -->
+      <select id="feat-sort" onchange="filterFeats()" style="width:auto;" title="Sort order: A–Z across the whole catalogue, or grouped by family with headers">
+        <option value="az">Sort: A–Z</option>
+        <option value="family">Sort: by Family</option>
       </select>
     </div>
     <div id="feat-browser-list" style="max-height:450px;overflow-y:auto;border:1px solid rgba(200,151,30,.15);border-radius:3px;"></div>
@@ -47739,9 +47746,33 @@ function renderFeatBrowser(filter='',famF='',qualF=''){
     const matchList = !listAllowSet || listAllowSet.has(f.n);
     return matchText && matchFam && matchQual && matchList;
   });
+  // v8.89.0 (Adam's sorting report — root cause): the list rendered in raw
+  // FEATS_DB order, which is seven sequential ingest batches each internally
+  // alphabetical — "several subsets in alphabetical order, undeclared." The
+  // rows now SORT: A–Z across the whole catalogue (default; with an active
+  // text search, name-matches outrank description-only matches, prefix
+  // matches first), or by Family with declared headers — the old implicit
+  // grouping, made honest.
+  const sortMode = document.getElementById('feat-sort')?.value || 'az';
+  const _byName = (a, b) => (a.n || '').localeCompare(b.n || '', undefined, { sensitivity: 'base' });
+  if (sortMode === 'family') {
+    filtered.sort((a, b) => (a.family || 'General').localeCompare(b.family || 'General') || _byName(a, b));
+  } else if (filterLow) {
+    const _rank = f => { const n = (f.n || '').toLowerCase(); return n.startsWith(filterLow) ? 0 : n.includes(filterLow) ? 1 : 2; };
+    filtered.sort((a, b) => _rank(a) - _rank(b) || _byName(a, b));
+  } else {
+    filtered.sort(_byName);
+  }
   if(!filtered.length){list.innerHTML=`<div style="padding:1rem;font-size:13px;color:rgba(200,151,30,.4);">No matching feats.</div>`;return;}
+  let _lastFam = null;
   list.innerHTML = filtered.map(f => {
     const fam = f.family || 'General';
+    // Family mode: a declared header whenever the family changes.
+    let _famHead = '';
+    if (sortMode === 'family' && fam !== _lastFam) {
+      _lastFam = fam;
+      _famHead = `<div style="padding:5px 10px;background:rgba(200,151,30,.1);border-top:1px solid rgba(200,151,30,.25);border-bottom:1px solid rgba(200,151,30,.18);font-family:'Epics Serif','Cinzel',serif;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);">${escapeHTML(fam)} Feats</div>`;
+    }
     let prereqStatus = '';
     let addBtn = '';
     // v8.3.31 (stopgap): off-level Heritage feat? Compute once, reuse below.
@@ -47789,7 +47820,7 @@ function renderFeatBrowser(filter='',famF='',qualF=''){
     const paramTag = f.param ? `<span style="font-size:10px;color:var(--gold);margin-left:4px;">⤷ ${escapeHTML(f.param.param_label || 'parameter required')}</span>` : '';
     const grantTag = f.grants ? `<span style="font-size:10px;color:rgba(200,151,30,.6);margin-left:4px;">grants talent</span>` : '';
     const icTag = f.isItemCreation ? `<span style="font-size:10px;color:rgba(200,151,30,.6);margin-left:4px;">Item Creation</span>` : '';
-    return `<div class="feat-entry">
+    return _famHead + `<div class="feat-entry">
       <div>
         <div class="feat-nm">${escapeHTML(f.n)}${citeHTML('feats', f.n)} <span class="feat-type ft-${fam.toLowerCase()}">${fam}</span>${paramTag}${grantTag}${icTag}${prereqStatus}</div>
         ${preSummary}
