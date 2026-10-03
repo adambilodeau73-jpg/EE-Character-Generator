@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.85.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.86.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -2243,7 +2243,7 @@ const CLASS_FEATURES = {
     {lvl:2, name:'Uncanny Dodge',         page:80, desc:'Retain Dex bonus to AC when flat-footed or struck by invisible attacker. — wired as the Defense-cell tag (v8.64.0, unified sources incl. the second-class auto-upgrade)', kind:'passive'},
     {lvl:3, name:'Trap Sense',            page:80, desc:'+1 Ref save vs traps, +1 dodge AC vs trap attacks; +1 more at L6/9/12/15/18.', kind:'unimplemented'},
     {lvl:5, name:'Improved Uncanny Dodge', page:80, desc:'Cannot be flanked (Rogue must be 4+ levels higher to sneak-attack). — wired as the Defense-cell tag (v8.64.0)', kind:'passive'},
-    {lvl:7, name:'Damage Reduction',      page:80, desc:'DR 1/—. Improves to DR 2/— at L10, 3/— at L13, etc.', kind:'unimplemented'},
+    {lvl:7, name:'Damage Reduction',      page:80, desc:'DR 1/—, +1 at L10/13/16/19 — wired into the class-level x/− pool (computeDR since v8.8.0; the flag lied until v8.86.0) and the DR dashboard cell.', kind:'passive'},
     {lvl:11, name:'Greater Rage',         page:80, desc:'Rage bonuses increase to +6 STR/CON, +3 Will. — wired (rageTier: the toggle scales automatically)', kind:'passive'},
     {lvl:14, name:'Indomitable Intent',   page:80, desc:'+4 Will vs enchantment while raging.', kind:'unimplemented'},
     {lvl:17, name:'Tireless Rage',        page:80, desc:'No longer fatigued after rage. — wired (toggleRage skips the fatigue at 17+)', kind:'passive'},
@@ -6255,13 +6255,20 @@ const POWER_EFFECTS = {
   'Divine Power':          {eff: [{k:'attr', attr:'STR', type:'enhancement', v:6}], note: 'BAB becomes your character level (may grant extra attacks) + 1 temp HP/CL — manual'},
   'Dispel [Alignment]':    {eff: [{k:'ac', type:'deflection', v:4, cond:'vs creatures of the targeted alignment', gated:true}], note: 'banishing touch / dispelling touch — manual; discharges on use'},
   'Expansion':             {eff: [{k:'attr', attr:'STR', type:'size', v:2}, {k:'attr', attr:'DEX', type:'size', v:-2}, {k:'attack', type:'size', v:-1}, {k:'ac', type:'size', v:-1}], note: 'one size category larger — space/reach manual; further augment options player-tracked'},
-  'Form of Doom':          {eff: [{k:'skill', skill:'Disguise', type:'untyped', v:10}, {k:'nac', type:'natural', v:5}, {k:'attr', attr:'STR', type:'untyped', v:4}], note: 'Frightful Presence on a charge, DR 5/—, tentacle attacks — manual'},
+  'Form of Doom':          {eff: [{k:'skill', skill:'Disguise', type:'untyped', v:10}, {k:'nac', type:'natural', v:5}, {k:'attr', attr:'STR', type:'untyped', v:4}, {k:'dr', v:5, bypass:'—'}], note: 'Frightful Presence on a charge, tentacle attacks — manual (DR wired v8.86.0)'},
   'Graft Weapon':          {eff: [{k:'attack', type:'competence', v:1, cond:'grafted weapon', stacksAnyway:true}, {k:'damage', type:'competence', v:1, cond:'grafted weapon', stacksAnyway:true}], note: '24 hours; the weapon counts as BOTH natural and manufactured (printed stacks-anyway exception)'},
-  'Iron Body':             {eff: [{k:'attr', attr:'STR', type:'enhancement', v:6}, {k:'attr', attr:'DEX', type:'untyped', v:-6}], note: 'DR 15/adamantine, immunities, ½ speed, ASF 50%, ACP −8, iron-golem vulnerabilities — manual'},
+  'Iron Body':             {eff: [{k:'attr', attr:'STR', type:'enhancement', v:6}, {k:'attr', attr:'DEX', type:'untyped', v:-6}, {k:'dr', v:15, bypass:'adamantine'}], note: 'immunities, ½ speed, ASF 50%, ACP −8, iron-golem vulnerabilities — manual (DR wired v8.86.0)'},
   'Mental Pinnacle':       {eff: [{k:'attr', attr:'INT', type:'inherent', v:4}, {k:'attr', attr:'WIS', type:'inherent', v:4}, {k:'attr', attr:'CHA', type:'inherent', v:4}], note: 'minimum 15 each while active (check manually); +2 PP/level and the six-pick powers ride the existing Mental Pinnacle flow'},
-  'Oak Body':              {eff: [{k:'attr', attr:'STR', type:'enhancement', v:4}, {k:'attr', attr:'DEX', type:'untyped', v:-2}, {k:'nac', type:'natural', v:5}], note: 'natural-typed NAC — overlaps (supersedes, never stacks with) existing natural armor; DR 10/slashing, fire vulnerability, ½ speed, ACP −4, ASF 25% — manual'},
-  'Righteous / Riotous Might': {eff: [{k:'attr', attr:'STR', type:'size', v:4}, {k:'attr', attr:'CON', type:'size', v:2}, {k:'nac', type:'enhancement', v:2}], note: 'one size category larger (size AC/attack mods, space/reach) + DR 5→15/evil-or-good by level — manual'},
+  'Oak Body':              {eff: [{k:'attr', attr:'STR', type:'enhancement', v:4}, {k:'attr', attr:'DEX', type:'untyped', v:-2}, {k:'nac', type:'natural', v:5}, {k:'dr', v:10, bypass:'slashing'}], note: 'natural-typed NAC — overlaps (supersedes, never stacks with) existing natural armor; fire vulnerability, ½ speed, ACP −4, ASF 25% — manual (DR wired v8.86.0)'},
+  'Righteous / Riotous Might': {eff: [{k:'attr', attr:'STR', type:'size', v:4}, {k:'attr', attr:'CON', type:'size', v:2}, {k:'nac', type:'enhancement', v:2}, {k:'dr', v:5, bypass:'evil-or-good'}], note: 'one size category larger (size AC/attack mods, space/reach) — manual; DR bypass is evil (positive channelers) or good (negative), and the 5 rises to 10 at CL 12 and 15 at CL 15 — apply by caster level at the table'},
   'Transformation':        {eff: [{k:'attr', attr:'STR', type:'enhancement', v:4}, {k:'attr', attr:'DEX', type:'enhancement', v:4}, {k:'attr', attr:'CON', type:'enhancement', v:4}, {k:'nac', type:'natural', v:4}, {k:'save', save:'fort', type:'competence', v:5}, {k:'skill', skill:'Intimidate', type:'competence', v:5}], note: 'BAB = character level + simple/martial proficiency — manual; NO spellcasting or manifesting while active'},
+  // ---- v8.86.0 (Adam's Son-of-the-Sun report): the k:'dr' effect kind —
+  // Damage Reduction from powers finally reaches computeDR (which had
+  // carried "cast-time DR stays manual" since v8.8.0, before the ✨ and ◉
+  // lanes existed). The typed-bonus engines ignore k:'dr'; computeDR reads
+  // it from _buffEffectSources (transient casts AND perpetual Buffs). ----
+  'Stoneskin':             {eff: [{k:'dr', v:10, bypass:'adamantine'}], note: 'cast route: discharges after absorbing 10 points × CL (min 70, max 150) — track at the table; the Super-Power Buff has NO absorption cap (printed: “at will for Super-Power Buff”)'},
+  'Biofeedback':           {eff: [{k:'dr', v:2, bypass:'—', scale:true}], aug: {every:3, inc:1}, note: 'power x/− — does NOT stack with the class-level pool (FF p.523, the book’s own example): best applicable applies'},
 };
 
 // ============================================================================
@@ -6564,6 +6571,7 @@ function renderActiveBuffs(c) {
   if (!list.length && !perps.length) { slot.innerHTML = ''; slot.style.display = 'none'; return; }
   slot.style.display = 'block';
   const fmt = (e) => {
+    if (e.k === 'dr') return `DR ${e.v}/${e.bypass || '—'}`;   // v8.86.0
     const tgt = e.k === 'save' ? (e.save === 'all' ? 'all saves' : e.save.toUpperCase() + ' save')
       : e.k === 'skill' ? e.skill : e.k === 'nac' ? 'natural AC' : e.k === 'ac' ? 'AC'
       : e.k === 'attr' ? e.attr : e.k;
@@ -8529,9 +8537,25 @@ function computeDR(c) {
   for (const [_rdr, _drSrc] of (_hyDR ? [[_hyDR.A.dr, _hyDR.a], [_hyDR.B.dr, _hyDR.b]] : [[(RACES[c.race] || {}).dr, c.race]])) {
     if (_rdr) entries.push({ value: _rdr.value, bypass: _rdr.bypass, source: `${_drSrc} racial`, conditional: _rdr.conditional || undefined });
   }
+  // v8.86.0 (Adam's Son-of-the-Sun report): DR from the ✨/◉ lanes — the
+  // k:'dr' entries of transient casts and perpetual Buffs (suppressed /
+  // superseded perpetuals already filtered by _buffEffectSources). Live
+  // instances, best-applicable per FF p.523; NPF suppresses the lot.
+  if (!c.nullified && typeof _buffEffectSources === 'function') {
+    for (const a of _buffEffectSources(c)) {
+      for (const e of (a.effects || [])) {
+        if (e.k !== 'dr') continue;
+        const spec = (typeof POWER_EFFECTS !== 'undefined') ? POWER_EFFECTS[a.name] : null;
+        entries.push({ value: e.v, bypass: e.bypass || '—',
+          source: `${a.name} ${a.perpetual ? '(◉ perpetual Buff)' : '(✨ active power)'}`,
+          note: (spec && spec.note) || undefined });
+      }
+    }
+  }
   // v8.15.4: Biofeedback — the book's OWN non-stacking example. Shown as a
-  // conditional instance whenever the power is in the repertoire.
-  if (getCharPowers(c).some(p => p.name === 'Biofeedback')) entries.push({ value: 2, bypass: '—', source: 'Biofeedback (manifested)', conditional: 'while manifested — DR 2/− (+1 per 3 extra PP augmented); does NOT stack with the class-level pool (FF p.523): the best applicable applies' });
+  // conditional instance when the power is in a CASTING repertoire (the
+  // super-pool route stands perpetually via the ◉ lane above, v8.86.0).
+  if (getCharPowers(c).some(p => p.name === 'Biofeedback' && p.pool !== 'super') && !(c.activeEffects || []).some(a => a.name === 'Biofeedback')) entries.push({ value: 2, bypass: '—', source: 'Biofeedback (manifested)', conditional: 'while manifested — DR 2/− (+1 per 3 extra PP augmented); does NOT stack with the class-level pool (FF p.523): the best applicable applies' });
   // Conditional universal from a mutation — likewise NOT class progression:
   // a separate instance while active (was "stacks into the pool" pre-v8.15.4).
   if ((c.mutations || []).some(m => m.name === 'Force Barrier')) entries.push({ value: 3, bypass: '—', source: 'Force Barrier', conditional: 'while the barrier is up (free action, 3/day, Con-mod rounds; vs weapon attacks & force effects) — mutation x/−: does not stack with the class pool (FF p.523), best applicable applies' });
@@ -38630,6 +38654,17 @@ function renderSheet(){
   // this on 1d20 + caster/manifester level. Best-wins, never stacks.
   const _sr = (typeof computeSR === 'function') ? computeSR(c) : null;
   if (_sr) statCells.push({l:'SR', v:_sr.total, tooltip:`Spell Resistance ${_sr.total} — a spell/power affects this character only if the caster wins a caster level check (1d20 + CL) ≥ ${_sr.total}.\n${_sr.note}`});
+  // v8.86.0 (Adam's Son-of-the-Sun report): DR joins the Combat Statistics
+  // chart the way SR does — headline = the best UNCONDITIONAL instance,
+  // tooltip itemizes every instance (conditional ones flagged); the Resist
+  // strip below keeps the full per-line display. Appears only when DR exists.
+  const _drCell = (typeof computeDR === 'function') ? computeDR(c) : [];
+  const _drLive = _drCell.filter(d => !d.conditional);
+  if (_drLive.length) {
+    const _drBest = _drLive.slice().sort((a, b) => b.value - a.value)[0];
+    statCells.push({l:'DR', v:`${_drBest.value}/${_drBest.bypass}`,
+      tooltip:`Damage Reduction — subtract from each weapon or natural-attack hit unless the attack bypasses it (the “/X” names what gets through; “/—” = nothing does). Instances OVERLAP, never stack: the best applicable applies per attack (FF p.523; class-level x/− pooling already folded in).\n${_drCell.map(d => `${d.value}/${d.bypass} — ${d.source}${d.conditional ? ' (CONDITIONAL: ' + d.conditional + ')' : ''}${d.note ? ' · ' + d.note : ''}`).join('\n')}`});
+  }
   // v8.8.0 (Adam's speed system): Walk (armor-limited, talent-boosted,
   // Reduced Speed) + other movement modes (Wings' fly). Tooltip = provenance.
   const spd = computeSpeeds(c);
