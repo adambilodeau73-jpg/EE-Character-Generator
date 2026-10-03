@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.87.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.88.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -5887,11 +5887,24 @@ function computeTalentEffects(char) {
     const v = sum(bon[key]);
     if (v > 0) effects.push({stat:`${key.split(':')[1]} Resistance`, text:`${v}`, from:labelsOf(bon[key])});
   }
+  // v8.88.0 (Adam's Titanic-parity ruling): Mangler/Titanic REPLACE the base
+  // hardness channels ("instead of the Ignore Hardness modifiers") —
+  // computeHardnessIgnore is the single source; the additive rows fire only
+  // in base mode (or under NPF, when the Su instances fall).
+  const hi = (typeof computeHardnessIgnore === 'function') ? computeHardnessIgnore(char) : null;
+  if (hi && hi.mode === 'mangler') {
+    effects.push({stat:'Ignore Hardness', text:`${hi.ignore} points`, from: hi.from + (hi.instances > 1 ? ' — DOUBLE EFFECT (parity ruling 2026-10-03)' : '')});
+    effects.push({stat:'Break DC Reduction', text:`−${hi.breakDC}`, from: hi.from});
+  } else if (hi && hi.mode === 'latent') {
+    effects.push({stat:'Ignore Hardness', text:'latent', from: hi.from});
+  }
   // Flat one-target sums.
   const simple = [
     ['meleeDamage', 'Melee Damage', v => `+${v}`],
-    ['ignoreHardness', 'Ignore Hardness', v => `${v} points`],
-    ['breakDC', 'Break DC Reduction', v => `−${v}`],
+    ...((hi && hi.mode !== 'base') ? [] : [
+      ['ignoreHardness', 'Ignore Hardness', v => `${v} points`],
+      ['breakDC', 'Break DC Reduction', v => `−${v}`],
+    ]),
     ['aidAnother', 'Aid Another', v => `+${v}`],
     ['apRollBonus', 'AP Roll Bonus', v => `+${v} when spending AP`],
   ];
@@ -8653,6 +8666,42 @@ function strongSuperTalentsOwned(c) {
 }
 function hasSupremeEffort(c) {
   return (c.talents || []).some(t => (t.name || t.n) === 'Supreme Effort');
+}
+// ============================================================================
+// v8.88.0 (Adam's Titanic-parity ruling, 2026-10-03): THE DEMOLITION MATH.
+// Base Ignore Hardness tree (Ex, additive): 2/−1 per tier (totals 2/−1,
+// 4/−2, 6/−3). Mangler (Su) REPLACES it by tier — "instead of the Ignore
+// Hardness modifiers": 5/−2, 10/−5, 20/−8. TITANIC STRENGTH acts as ANOTHER
+// INSTANCE of Mangler — hardness/break-DC ONLY (ruled: the ×4-carry/+1-size
+// rider is already counted per talent, HH p.263): both owned = double effect
+// (10/−4, 20/−10, 40/−16); a Mangler-less Titan carries the single instance
+// at base Mangler values; no Ignore Hardness talent at all → the function is
+// LATENT until the tree is entered. Su: Mangler/Titanic fall under NPF and
+// the Ex tree values stand back up.
+// ============================================================================
+const MANGLER_LADDER = { 1: [5, 2], 2: [10, 5], 3: [20, 8] };
+function computeHardnessIgnore(c) {
+  const owned = new Set((c.talents || []).map(t => t.name || t.n));
+  const tier = owned.has('Advanced Ignore Hardness') ? 3 : owned.has('Improved Ignore Hardness') ? 2 : owned.has('Ignore Hardness') ? 1 : 0;
+  const su = !c.nullified;
+  const mangler = su && owned.has('Mangler'), titanic = su && owned.has('Titanic Strength');
+  const instances = (mangler ? 1 : 0) + (titanic ? 1 : 0);
+  const from = [mangler ? 'Mangler' : null, titanic ? 'Titanic Strength (echo instance)' : null].filter(Boolean).join(' + ');
+  if (instances && tier) {
+    const [ig, dc] = MANGLER_LADDER[tier];
+    return { ignore: ig * instances, breakDC: dc * instances, mode: 'mangler', instances, tier, from };
+  }
+  if (instances && !tier) return { ignore: 0, breakDC: 0, mode: 'latent', instances, tier: 0, from: from + ' — latent: no Ignore Hardness talent owned (the function wakes when the tree is entered)' };
+  let ig = 0, dc = 0;
+  if (owned.has('Ignore Hardness')) { ig += 2; dc += 1; }
+  if (owned.has('Improved Ignore Hardness')) { ig += 2; dc += 1; }
+  if (owned.has('Advanced Ignore Hardness')) { ig += 2; dc += 1; }
+  return (ig || dc) ? { ignore: ig, breakDC: dc, mode: 'base', instances: 0, tier, from: 'Ignore Hardness tree (Ex)' } : null;
+}
+// v8.88.0 (Adam's dramatic-effect ruling): beyond the 5-ton line, carrying
+// numbers list in TONS, rounding down (short ton, 2,000 lb).
+function fmtCarry(lb) {
+  return lb >= 10000 ? `${Math.floor(lb / 2000).toLocaleString()} tons` : `${Math.floor(lb).toLocaleString()} lb`;
 }
 const SIZE_LADDER = ['Fine', 'Diminutive', 'Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan', 'Colossal'];
 // Natural-weapon die progression for sizes past the catalogued L die
@@ -38744,10 +38793,21 @@ function renderSheet(){
       // (HH p.263 Supernatural Strength sidebar) finally reach the sheet.
       {
         const cc = computeCarryCapacity(c);
-        const lift = `Lift over head ${cc.liftOverHead} lb · off ground ${cc.liftOffGround} lb (stagger, 5 ft) · push/drag ${cc.pushDrag} lb.`;
+        // v8.88.0 (Adam's dramatic-effect ruling): past the 5-ton line the
+        // numbers read in tons, rounding down — fmtCarry.
+        const lift = `Lift over head ${fmtCarry(cc.liftOverHead)} · off ground ${fmtCarry(cc.liftOffGround)} (stagger, 5 ft) · push/drag ${fmtCarry(cc.pushDrag)}.`;
         // v8.12.2 (Adam): Grapple moved out of this line — it now sits in the
         // combat stat cells beside BAB/Defense where it belongs.
-        bits.push(`<b style="color:rgba(200,151,30,.85);">Carry:</b> <span style="cursor:help;" title="${escapeHTML(cc.parts.join('\n') + '\n' + lift + '\nMedium load: max Dex +3, −3 check penalty, reduced speed. Heavy load: max Dex +1, −6, run ×3 (HH p.261–262).')}">light ≤${cc.light} · med ≤${cc.medium} · heavy ≤${cc.heavy} lb</span>`);
+        bits.push(`<b style="color:rgba(200,151,30,.85);">Carry:</b> <span style="cursor:help;" title="${escapeHTML(cc.parts.join('\n') + '\n' + lift + '\nMedium load: max Dex +3, −3 check penalty, reduced speed. Heavy load: max Dex +1, −6, run ×3 (HH p.261–262). Tons are short tons (2,000 lb), rounded down.')}">light ≤${fmtCarry(cc.light)} · med ≤${fmtCarry(cc.medium)} · heavy ≤${fmtCarry(cc.heavy)}</span>`);
+        // v8.88.0 (Adam's Titanic-parity ruling): the 💥 demolition line —
+        // only when a Mangler instance is live (base tree shows on the
+        // Talents page's effects panel instead).
+        const _hiD = (typeof computeHardnessIgnore === 'function') ? computeHardnessIgnore(c) : null;
+        if (_hiD && _hiD.mode === 'mangler') {
+          bits.push(`<b style="color:#d4865a;">💥 Demolition:</b> <span style="cursor:help;" title="${escapeHTML(`${_hiD.from}${_hiD.instances > 1 ? ' — Titanic Strength acts as a second instance of Mangler (hardness & break-DC only; the ×4/+1 riders are already counted per talent). Ruled 2026-10-03.' : ''} Keyed to the ${['','Ignore Hardness','Improved Ignore Hardness','Advanced Ignore Hardness'][_hiD.tier]} tier. Su — falls under a Null Power Field (the Ex tree values stand back up).`)}">ignore ${_hiD.ignore} hardness · break DC −${_hiD.breakDC}${_hiD.instances > 1 ? ' <span style="font-size:10px;color:#c499d4;">×2 (Titanic echo)</span>' : ''}</span>`);
+        } else if (_hiD && _hiD.mode === 'latent') {
+          bits.push(`<b style="color:#d4865a;">💥 Demolition:</b> <span style="cursor:help;font-style:italic;opacity:.65;" title="${escapeHTML(_hiD.from)}">Mangler function latent — enter the Ignore Hardness tree</span>`);
+        }
         // v8.13.x Segment A (Adam's active-loadout ruling): the piloted
         // vehicle joins the combat dashboard.
         const pv = (typeof pilotedVehicle === 'function') ? pilotedVehicle(c) : null;
@@ -51036,7 +51096,9 @@ function printSheet(){
     const pcc = computeCarryCapacity(c);
     const pgr = computeGrapple(c);
     const pSz = SIZE_LADDER[effectiveSizeIndex(c)];
-    carryBlock = `<div style="font-size:7.5pt;margin-top:3px;"><b>Carry:</b> light ≤${pcc.light} · med ≤${pcc.medium} · heavy ≤${pcc.heavy} lb · lift over head ${pcc.liftOverHead} · off ground ${pcc.liftOffGround} · push/drag ${pcc.pushDrag} lb · <b>Grapple</b> ${pgr.total>=0?'+':''}${pgr.total}${pcc.superTalents.length?` · 🦾 ×${Math.pow(4,pcc.superTalents.length)} carry, ${pSz} for natural dice/grapple/Jump (Su)`:''}${pcc.supremeEffortOwned?' · Supreme Effort: ×4 carry &amp; +1 size while performing':''}</div>`;
+    // v8.88.0: tons past the 5-ton line (fmtCarry) + the 💥 demolition line.
+    const pHi = (typeof computeHardnessIgnore === 'function') ? computeHardnessIgnore(c) : null;
+    carryBlock = `<div style="font-size:7.5pt;margin-top:3px;"><b>Carry:</b> light ≤${fmtCarry(pcc.light)} · med ≤${fmtCarry(pcc.medium)} · heavy ≤${fmtCarry(pcc.heavy)} · lift over head ${fmtCarry(pcc.liftOverHead)} · off ground ${fmtCarry(pcc.liftOffGround)} · push/drag ${fmtCarry(pcc.pushDrag)} · <b>Grapple</b> ${pgr.total>=0?'+':''}${pgr.total}${pcc.superTalents.length?` · 🦾 ×${Math.pow(4,pcc.superTalents.length)} carry, ${pSz} for natural dice/grapple/Jump (Su)`:''}${pcc.supremeEffortOwned?' · Supreme Effort: ×4 carry &amp; +1 size while performing':''}${pHi && pHi.mode === 'mangler' ? ` · 💥 ignore ${pHi.ignore} hardness, break DC −${pHi.breakDC}${pHi.instances > 1 ? ' (Mangler ×2: Titanic echo)' : ''}` : ''}</div>`;
     gearBlock = gearBlock
       ? gearBlock.replace('</div></div>', carryBlock + '</div></div>')
       : `<div class="ps-sec"><div class="ps-sec-head">Equipped Gear</div><div class="ps-sec-body">${carryBlock}</div></div>`;
