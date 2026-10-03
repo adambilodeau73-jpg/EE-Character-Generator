@@ -319,7 +319,7 @@ details.cls-det>summary:hover{background:rgba(200,151,30,.16)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.81.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.82.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1281,6 +1281,14 @@ details.cls-det>summary:hover{background:rgba(200,151,30,.16)}
       <!-- v8.38.0: count rendered live from SPELLS_DB.length (was hardcoded
            "(666)" and silently frozen there through three corpus growths). -->
       <button id="pw-browse-toggle" class="btn btn-sm" onclick="togglePwBrowse()">⌕ Browse the Catalogue</button>
+    </div>
+    <!-- v8.82.0 (Adam's taxonomy tweak): ✨ SUPERNATURAL ATTRIBUTES — the
+         Su [Attribute] ladder shops HERE (it is supernatural: NPF-nullified
+         and "super" in nature), immediately accessible, not behind the
+         browse. Purchases record as mutations (single source of truth) and
+         appear on the 🧬 Mutations tab and the Sheet. -->
+    <div id="pw-su-attrs" style="display:none;margin-bottom:.8rem;"></div>
+    <div class="btn-row" style="display:none;">
     </div>
     <div id="pw-browse-wrap" style="display:none;">
       <div class="sec-head sm">Browse the Catalogue <span id="pw-browse-count" style="font-weight:400;font-size:10px;opacity:.6;"></span></div>
@@ -43511,6 +43519,61 @@ function renderMutations() {
   renderMutationsBrowse();
 }
 
+// ============================================================================
+// v8.82.0 (Adam's taxonomy tweak): ✨ SUPERNATURAL ATTRIBUTES — the ladder
+// shops on the Powers side (supernatural = NPF-nullified = super in nature),
+// while the records remain MUTATIONS (single source of truth: the 🧬 tab,
+// the Sheet bakes, suBakedPerAttr's NPF suppression all read them as ever).
+// Pricing note (the §218 sources interlock): the chapter prices each STEP
+// (Ex 2 / Su I 3 / II 4 / III 5 / IV 6) and the p.424 list prints the
+// CUMULATIVE investment (2/5/9/14/20) — they agree exactly.
+const SU_ATTR_LADDER = ['Extraordinary [Attribute]', 'Supernatural [Attribute] I', 'Supernatural [Attribute] II', 'Supernatural [Attribute] III', 'Supernatural [Attribute] IV'];
+function renderSuAttrPanel(c) {
+  const el = document.getElementById('pw-su-attrs'); if (!el) return;
+  const st = (typeof getMPState === 'function') ? getMPState(c) : null;
+  if (!st || !st.isSuperMutant || _pwMode !== 'powers') { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = '';
+  const cum = [2, 5, 9, 14, 20];
+  const rows = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map(a => {
+    const owned = SU_ATTR_LADDER.filter(nm => (c.mutations || []).some(m => m.name === nm && m.attr === a)).length;
+    const bonus = owned * 4;
+    const next = owned < 5 ? SU_ATTR_LADDER[owned] : null;
+    const nextMp = next ? (MUTATIONS_DB.find(m => m.name === next) || {}).mp : null;
+    const state = owned === 0 ? `<span style="opacity:.45;">—</span>`
+      : `<b style="color:${owned > 1 ? '#c499d4' : 'var(--gold)'};">+${bonus}</b> <span style="font-size:9px;opacity:.6;">(Ex +4${owned > 1 ? ` · Su +${(owned - 1) * 4}` : ''})</span>`;
+    const btn = next
+      ? `<button class="btn btn-sm" style="font-size:9px;padding:1px 6px;${owned === 0 ? '' : 'border-color:rgba(196,153,212,.5);color:#c499d4;'}" title="${owned === 0
+          ? `Extraordinary [${a}] — +4 EXTRAORDINARY bonus (never suppressed; an Advantage: the record lands on the 🧬 Mutations tab and bakes into the Sheet). 2 MP.`
+          : `${next} (${a}) — a further +4 SUPERNATURAL bonus (total +${bonus + 4}; suppressed by a Null Power Field). Step cost ${nextMp} MP — cumulative investment ${cum[owned]} MP (HH p.424). Requires the previous tier on the same attribute.`}" onclick="buySuAttrStep('${a}')">${owned === 0 ? `+ Ex [${a}] · 2 MP` : `◈ ${next.replace('Supernatural [Attribute] ', 'Su ')} · ${nextMp} MP`}</button>`
+      : `<span style="font-size:9px;color:#c499d4;">+20 — ladder complete</span>`;
+    return `<div style="display:flex;align-items:center;gap:8px;padding:2px 0;border-bottom:1px solid rgba(200,151,30,.06);font-size:11.5px;"><span style="width:34px;font-family:'Epics Serif','Cinzel',serif;font-size:10px;color:var(--bronze);">${a}</span><span style="width:120px;">${state}</span>${btn}</div>`;
+  }).join('');
+  el.innerHTML = `<div class="sec-head sm" style="color:#c499d4;">✨ Supernatural Attributes <span class="cite cite-HH" title="Hero's Handbook pp.420-421 (the Extraordinary/Supernatural [Attribute] ladder) + p.669 (Supernatural [Attribute] I-IV as super-powers; the Extraordinary base is never suppressed, the Su tiers are)">HH 420</span></div>
+    <div style="font-size:10px;color:rgba(200,151,30,.55);margin-bottom:4px;">Purchases record as mutations — they appear on the 🧬 Mutations tab and bake into the Sheet. The Ex base (+4) is never suppressed; the Su tiers (+4 each, to +20 total) fall to a Null Power Field. Banked: <b style="color:var(--gold);">${st.balance} MP</b>.</div>${rows}`;
+}
+async function buySuAttrStep(attrKey) {
+  const c = chars.find(x => x.id === curId); if (!c) return;
+  if (!c.mutations) c.mutations = [];
+  const owned = SU_ATTR_LADDER.filter(nm => c.mutations.some(m => m.name === nm && m.attr === attrKey)).length;
+  if (owned >= 5) return;
+  const mut = MUTATIONS_DB.find(m => m.name === SU_ATTR_LADDER[owned]); if (!mut) return;
+  const problems = mutationPrereqProblems(c, mut, attrKey);
+  if (problems.length) {
+    if (!(await confirmModal(`"${mut.name}" (${attrKey}): ${problems.join('; ')}.\n\nTake anyway as a GM-approved exception?`))) return;
+    logPowerException(c, `${mut.name} (${attrKey})`, problems.join('; '));
+  }
+  const st = getMPState(c);
+  if ((mut.mp || 0) > st.balance) {
+    if (!(await confirmModal(`"${mut.name}" costs ${mut.mp} MP but only ${st.balance} MP is banked.\n\nTake anyway as a GM-approved exception?`))) return;
+    logPowerException(c, mut.name, `taken at ${mut.mp} MP with only ${st.balance} banked`);
+  }
+  c.mutations.push({ name: mut.name, kind: mut.kind, mp: mut.mp, attr: attrKey, grantedAt: { level: c.totalLvl || 1, atDate: new Date().toLocaleDateString() } });
+  refreshEclXp(c);
+  reconcileGrantedFeats(c);
+  const baked = reconcileAttributeMutations(c);
+  save(); renderPowers(); if (typeof renderMutations === 'function') renderMutations(); renderSheet();
+  toast(`Gained ${mut.name} (${attrKey}) — −${mut.mp} MP${baked ? `, +4 ${attrKey} applied (now ${c.attrs[ATTR_KEY_IDX[attrKey]]})` : ''}. Recorded on the 🧬 Mutations tab.`);
+}
 function renderMutationsBrowse() {
   if (!_muBrowseOpen) return;  // collapsed — skip the 65-entry render (v8.6.0)
   const c = chars.find(x => x.id === curId); if (!c) return;
@@ -43532,7 +43595,9 @@ function renderMutationsBrowse() {
     return `<div style="padding:6px 9px;border-bottom:1px solid rgba(200,151,30,.08);">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
         <div style="cursor:pointer;flex:1;" onclick="toggleMuDetail('${escapeHTML(m.name).replace(/'/g, "\\'")}')"><b>${escapeHTML(m.name)}</b> <span style="font-size:10px;opacity:.6;">${sign}${m.mp} MP</span>${tags} <span style="font-size:10px;opacity:.4;">${open ? '▾' : '▸'}</span></div>
-        <button class="btn btn-sm btn-pri" style="font-size:10px;" onclick="addMutationFromBrowse(${i})">+ ${m.kind === 'drawback' ? 'Take' : 'Add'}</button>
+        ${/^Supernatural \[Attribute\]/.test(m.name)
+          ? `<span style="font-size:9px;color:#c499d4;border:1px dashed rgba(196,153,212,.35);padding:2px 6px;border-radius:2px;white-space:nowrap;cursor:help;" title="v8.82.0 (Adam's taxonomy ruling): the Supernatural [Attribute] ladder is SUPERNATURAL — it shops in the ✨ Supernatural Attributes panel on the ◈ Powers tab (its records still live here and on the Sheet).">↗ ✨ Powers tab</span>`
+          : `<button class="btn btn-sm btn-pri" style="font-size:10px;" onclick="addMutationFromBrowse(${i})">+ ${m.kind === 'drawback' ? 'Take' : 'Add'}</button>`}
       </div>
       ${open ? `<div style="font-size:11.5px;margin-top:5px;line-height:1.55;color:var(--parch);">${m.flavor ? '<i>' + escapeHTML(m.flavor) + '</i><br>' : ''}${escapeHTML(m.benefit || m.drawback || '')}${m.special ? '<br><b>Special:</b> ' + escapeHTML(m.special) : ''}${m.prerequisite ? '<br><b>Prerequisite:</b> ' + escapeHTML(m.prerequisite) : ''}</div>` : ''}
     </div>`;
@@ -46551,6 +46616,8 @@ function renderPowers() {
   const budget = getPowersBudget(c);
   const mpSt = getMPState(c);
   const cStats = computeCasterStats(c);
+  // v8.82.0: the ✨ Supernatural Attributes panel (Powers side, super-capables).
+  if (typeof renderSuAttrPanel === 'function') renderSuAttrPanel(c);
   let budgetHTML = Object.keys(budget).filter(pool => modePools.includes(pool)).length
     ? Object.entries(budget).filter(([pool]) => modePools.includes(pool)).map(([pool, b]) => {
         const pp = getPoolPPState(c, pool);
