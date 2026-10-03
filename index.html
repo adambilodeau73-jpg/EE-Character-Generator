@@ -303,7 +303,7 @@ details.hy-det[open]>summary::before{content:'▾ '}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.74.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.75.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -11669,7 +11669,7 @@ function renderGear() {
         const statStrip = s.statStrip ? `<div style="font-size:9.5px;color:rgba(200,151,30,.55);margin-top:1px;cursor:help;" title="crit threat/multiplier · range increment · Rate of Fire (S = semiautomatic, A = automatic) · magazine${s.rangeRule ? escapeHTML('\n\n' + s.rangeRule) : ''}">${escapeHTML(s.statStrip)}</div>` : '';
         return `<tr><td>${escapeHTML(s.name)}${unarmedTag}${integTag}${handChip}${capFlag}${s.proficient ? '' : ' <span style="color:#d4865a;font-size:10px;" title="-4 not proficient">⚠ not proficient</span>'}${statStrip}</td>`
       + `<td style="cursor:help;" title="${escapeHTML(atkTip + atkIterTip)}">${atkText}</td><td>${escapeHTML(s.damage)} ${escapeHTML(s.damageLabel)}${dmgInfo}</td>`
-      + `<td style="font-size:10px;opacity:.8;cursor:help;" title="Resisted by: ${escapeHTML(s.resistances.join('; ') || '—')}${s.vsObjects ? escapeHTML('\nVs objects: ' + s.vsObjects) : ''}${(((s.typeLabel||'').toLowerCase().includes('ballistic')) || (s.damageTypes||[]).includes('ballistic')) ? escapeHTML('\n\nOverpenetration (Ballistic — ruled 2026-09-24): critical confirmations roll 2d20, keep the better. A confirmed critical that deals damage passes through the target: apply the same attack roll against the next target directly behind along the line of fire, which takes normal (non-critical) weapon damage. One pass-through per attack. A shooter with Precise Shot never endangers allies this way — a pass-through that would strike an ally is wasted instead.') : ''}">${escapeHTML(s.typeLabel || (s.damageTypes || []).join('/') || '—')}</td>`
+      + `<td style="font-size:10px;opacity:.8;cursor:help;" title="Resisted by: ${escapeHTML(s.resistances.join('; ') || '—')}${s.vsObjects ? escapeHTML('\nVs objects: ' + s.vsObjects) : ''}">${escapeHTML(s.typeLabel || (s.damageTypes || []).join('/') || '—')}</td>`
       + `<td style="font-size:10px;">${s.altModes.length ? s.altModes.map(m => m.spike
           ? `<div title="${escapeHTML(m.label)}" style="color:${m.path ? 'rgba(220,205,138,.95)' : 'rgba(220,205,138,.4)'};white-space:nowrap;cursor:help;">↳ ⚡ ${escapeHTML(m.name)}: ${escapeHTML(m.display)}${m.path ? ` <button class="btn btn-sm" style="font-size:9px;padding:0 5px;margin-left:4px;" onclick="weaponSpikeUse('${escapeHTML(m.dispFeat)}','${m.dice}','${m.path}')">Expend Focus</button>` : ''}</div>`
           : `<div title="${escapeHTML(m.label)}" style="color:rgba(120,175,205,.9);cursor:help;white-space:nowrap;">↳ ${escapeHTML(m.name)}: ${m.display ? escapeHTML(m.display) : `${m.atk >= 0 ? '+' : ''}${m.atk} atk / ×${m.dmgMult} dmg${m.roundsCost ? ` <span style="opacity:.55;">(${m.roundsCost} rds)</span>` : ''}`}</div>`).join('') : '<span style="opacity:.4;">—</span>'}</td></tr>`
@@ -16781,7 +16781,7 @@ const FEATS_DB = [
   {n:'Point-Blank Shot',family:'Fighter',d:'You use ranged weapons with greater accuracy at close range.'},
   {n:'Power Attack',family:'Fighter',prereqs:[[{type:'attr',name:'STR',min:13}]],d:'You can deliver more damage in your melee attacks by sacrificing accuracy.'},
   {n:'Power Crit',family:'Fighter',prereqs:[[{type:'sixLevel',axis:'heroic',min:1}],[{type:'bab',min:10}],[{type:'note',text:'proficiency with weapon'}]],d:'You may threaten a critical hit if you succeed in hitting an opponent.'},
-  {n:'Precise Shot',family:'Fighter',prereqs:[[{type:'feat',name:'Point-Blank Shot'}]],d:'You know how to place your shot in tight quarters. Your shots never endanger allies through Overpenetration — a ballistic pass-through that would strike an ally is wasted instead.'},  // Overpenetration rider ruled 2026-09-25 (Adam); book addendum on the TODO
+  {n:'Precise Shot',family:'Fighter',prereqs:[[{type:'feat',name:'Point-Blank Shot'}]],d:'You know how to place your shot in tight quarters.'},  // v8.75.0: Overpenetration rider REVERSED (Adam, 2026-10-03 — the rule is withdrawn; ballistic = Tech Piercing, full damage to objects, nothing more)
   {n:'Quick Draw',family:'Fighter',prereqs:[[{type:'bab',min:1}]],d:'You are quick on the draw.'},
   {n:'Quick Reload',family:'Fighter',prereqs:[[{type:'bab',min:1}],[{type:'note',text:'proficiency with the weapon to be reloaded'}]],d:'You are adept at quickly reloading firearms, including crossbows.'},
   {n:'Rapid Shot',family:'Fighter',prereqs:[[{type:'attr',name:'DEX',min:13}],[{type:'feat',name:'Point-Blank Shot'}]],d:'You can make a barrage of ranged attacks at the cost of accuracy.'},
@@ -42745,6 +42745,27 @@ function superBuySpec(spell) {
   }
   return { mp: null, levels: spell.levels, mpNote: spell.mp_note, via: null };
 }
+// v8.75.0 (Adam's ruling): the HH p.670 SUITE DISCOUNT — "once a character
+// has two powers from the same super-power suite, any further super-powers
+// taken from that same suite cost 1 MP less." Flat −1 per the book's
+// wording (never stacks across multiple qualifying suites); floor 1 MP (a
+// power never becomes free). Ownership counts SUPER-pool records only (the
+// rule is about super-powers); membership via the variant-expanded theme
+// sets. Historical purchases keep their paid price — removing an anchor
+// power later never retro-reprices earlier buys (GM territory).
+function suiteDiscountFor(c, spell) {
+  if (typeof POWER_THEMES === 'undefined') return null;
+  const sets = _powerThemeSets();
+  const owned = (c.powers || []).filter(p => p.pool === 'super').map(p => p.name);
+  let best = null;
+  for (const th in sets) {
+    const s = sets[th];
+    if (!s.has(spell.name)) continue;
+    const n = owned.filter(nm => s.has(nm) && nm !== spell.name).length;
+    if (n >= 2 && (!best || n > best.count)) best = { suite: th, count: n };
+  }
+  return best;
+}
 function superBuyEligibility(c, spell) {
   const st = getMPState(c);
   if (!st.isSuperMutant) return { ok: false, why: 'requires the Supernatural Mutation feat' };
@@ -42756,9 +42777,14 @@ function superBuyEligibility(c, spell) {
   const minLvl = (specLevels && specLevels.length) ? Math.min(...specLevels.map(l => l.lvl)) : 1;
   const [lo, hi] = st.tier.spell_levels;
   if (minLvl < lo || minLvl > hi) return { ok: false, why: `${st.tier.tier} tier reaches level ${lo}-${hi} only (this is level ${minLvl})` };
+  // Tier cap tests the power's BASE cost (the cap is a magnitude gate — a
+  // suite discount cheapens the price, not the power).
   if (st.tier.max_mp_per_power !== null && spec.mp > st.tier.max_mp_per_power)
     return { ok: false, why: `${st.tier.tier} tier caps single-power cost at ${st.tier.max_mp_per_power} MP (this costs ${spec.mp})` };
-  return { ok: true, minLvl, mp: spec.mp, via: spec.via };
+  // v8.75.0: apply the suite discount to the price actually paid.
+  const disc = suiteDiscountFor(c, spell);
+  const mpPay = disc ? Math.max(1, spec.mp - 1) : spec.mp;
+  return { ok: true, minLvl, mp: mpPay, mpBase: spec.mp, suite: disc ? disc.suite : null, suiteOwned: disc ? disc.count : 0, via: spec.via };
 }
 
 // Complimentary super-powers ("includes X and Y" MP notes) cascade for free,
@@ -42792,20 +42818,26 @@ async function buySuperPower(idx) {
   const elig = superBuyEligibility(c, spell);
   if (!elig.ok) { toast(`Cannot buy: ${elig.why}.`); return; }
   // v8.8.0: variant entries buy at the PARENT's MP cost (superBuySpec).
+  // v8.75.0: the price paid is elig.mp — the suite discount (HH p.670,
+  // Adam's ruling) is already applied there; the record stamps the paid
+  // price plus suite provenance, and the MP ledger reads the stamp.
   const spec = superBuySpec(spell);
+  const payMp = elig.mp;
   const st = getMPState(c);
-  if (spec.mp > st.balance) {
+  if (payMp > st.balance) {
     if (!(await confirmModal(
-      `"${spell.name}" costs ${spec.mp} MP but only ${st.balance} MP is banked (earned ${st.totalEarned}, spent ${st.totalSpent}).\n\nBuy anyway as a GM-approved exception?`))) return;
-    logPowerException(c, spell.name, `super-power bought at ${spec.mp} MP with only ${st.balance} banked`);
+      `"${spell.name}" costs ${payMp} MP${elig.suite ? ` (suite discount −1 via ${elig.suite})` : ''} but only ${st.balance} MP is banked (earned ${st.totalEarned}, spent ${st.totalSpent}).\n\nBuy anyway as a GM-approved exception?`))) return;
+    logPowerException(c, spell.name, `super-power bought at ${payMp} MP with only ${st.balance} banked`);
   }
   const isBuff = /(^|\|)\s*Buff/i.test(spec.mpNote || '');
-  c.powers.push({ name: spell.name, pool: 'super', mp: spec.mp, buff: isBuff || undefined, grantedAt: { level: c.totalLvl || 1, atDate: new Date().toLocaleDateString() } });
+  c.powers.push({ name: spell.name, pool: 'super', mp: payMp,
+    ...(elig.suite ? { suiteDisc: 1, suite: elig.suite } : {}),
+    buff: isBuff || undefined, grantedAt: { level: c.totalLvl || 1, atDate: new Date().toLocaleDateString() } });
   const visited = new Set([spell.name]);
   grantComplimentarySuperPowers(c, spell, spell.name, visited);
   const freebies = visited.size - 1;
   save(); renderPowers();
-  toast(`Bought ${spell.name} as a super-power (${spec.mp} MP${spec.via ? ` — priced as ${spec.via}` : ''}${freebies ? `, +${freebies} complimentary` : ''}).`);
+  toast(`Bought ${spell.name} as a super-power (${payMp} MP${elig.suite ? ` — ◈ suite discount −1: ${elig.suite}, ${elig.suiteOwned} owned` : ''}${spec.via ? ` — priced as ${spec.via}` : ''}${freebies ? `, +${freebies} complimentary` : ''}).`);
 }
 
 // ----- Mutations tab -----
@@ -45113,21 +45145,21 @@ const STARSHIP_ARMOR = [
 // speed = 5K ft per MOVE action, 10K ft (40 hexes)/round (ruled 2026-09-07).
 const STARSHIP_WEAPONS = [
   { name: 'Fusion Beam', ts: 6, mss: 'Gargantuan', dc: 36, stat: '10d8 [1d4D] Plasma (ignores hardness) · crit 20 · RI 2K ft [8 hx] · Single · Mil (+3)' },
-  { name: 'Gauss Gun', ts: 6, mss: 'Gargantuan', dc: 34, stat: '12d6 [1d4D] Ballistic (Overpen) · crit 20 · RI 4K ft [16 hx] · Single · Res (+2)' },
+  { name: 'Gauss Gun', ts: 6, mss: 'Gargantuan', dc: 34, stat: '12d6 [1d4D] Ballistic · crit 20 · RI 4K ft [16 hx] · Single · Res (+2)' },
   { name: 'Laser', ts: 6, mss: 'Huge', dc: 29, stat: '8d8 [1d3D] Laser · crit 20 · RI 5K ft [20 hx] · Single/Auto · Lic (+1)' },
   { name: 'Laser, Heavy', ts: 6, mss: 'Gargantuan', dc: 31, stat: '10d8 [1d4D] Laser · crit 20 · RI 6K ft [24 hx] · Single [S/A adv.] · Res (+2)' },
   { name: 'Mine, Fusion', ts: 6, mss: 'Colossal', dc: 34, stat: '5d100 [2d12D] Plasma · hex + adjacent · Mil (+3)' },
   { name: 'Missile, CHE', ts: 6, mss: 'Gargantuan', dc: 25, stat: '12d6 [1d3D] Energy · crit 19-20 · 5K ft/move [20 hx] · Single/Volley · Mil (+3)' },
-  { name: 'Missile, KE Submunition', ts: 6, mss: 'Gargantuan', dc: 22, stat: '8d12 [1d4D] Ballistic (Overpen) · crit 19-20 · 5K ft/move · Single/Volley · ½ dmg vs Hardness 20+ armor · Lic (+1)' },
+  { name: 'Missile, KE Submunition', ts: 6, mss: 'Gargantuan', dc: 22, stat: '8d12 [1d4D] Ballistic · crit 19-20 · 5K ft/move · Single/Volley · ½ dmg vs Hardness 20+ armor · Lic (+1)' },
   { name: 'Missile, Nuclear', ts: 6, mss: 'Gargantuan', dc: 45, stat: '10d12 [1d6D] Energy · crit 19-20 · 5K ft/move · Single/Volley · Mil (+3)' },
-  { name: 'Needle Driver', ts: 6, mss: 'Gargantuan', dc: 35, stat: '8d12 [1d4D] Ballistic (Overpen) · crit 20 · RI 4K ft [16 hx] · Single/Auto · Lic (+1)' },
+  { name: 'Needle Driver', ts: 6, mss: 'Gargantuan', dc: 35, stat: '8d12 [1d4D] Ballistic · crit 20 · RI 4K ft [16 hx] · Single/Auto · Lic (+1)' },
   { name: 'Neutron Gun', ts: 6, mss: 'Gargantuan', dc: 28, stat: '8d8 [1d3D] AA Energy (ignores 1D hardness; ×2 vs force fields) · crit 20 · RI 3K ft [12 hx] · Single · Mil (+3)' },
   { name: 'Neutron Gun, Heavy', ts: 6, mss: 'Colossal', dc: 30, stat: '10d8 [1d4D] AA Energy · crit 20 · RI 4K ft [16 hx] · Single · Mil (+3)' },
-  { name: 'Rail Cannon', ts: 6, mss: 'Gargantuan', dc: 28, stat: '6d12 [1d3D] Ballistic (Overpen) · crit 20 · RI 3K ft [12 hx] · Single/Auto · Lic (+1)' },
+  { name: 'Rail Cannon', ts: 6, mss: 'Gargantuan', dc: 28, stat: '6d12 [1d3D] Ballistic · crit 20 · RI 3K ft [12 hx] · Single/Auto · Lic (+1)' },
   { name: 'Antimatter Gun', ts: 7, mss: 'Colossal', dc: 38, stat: '10d8 [1d4D] Energy · crit 19-20 · RI 5K ft [20 hx] · Single · Mil (+3)' },
   { name: 'Ion Cannon', ts: 7, mss: 'Gargantuan', dc: 39, stat: '10d6 [1d3D] Ionic (nonlethal, ignores hardness, ×2 vs force fields — 09-07 amendment) · crit 20 · RI 3K ft · Single [S/A adv.] · Lic (+1)' },
-  { name: 'Mass Cannon', ts: 7, mss: 'Gargantuan', dc: 37, stat: '8d12 [1d4D] Ballistic (Overpen) · crit 20 · RI 5K ft [20 hx] · Single/Auto · Lic (+1)' },
-  { name: 'Mass Cannon, Heavy', ts: 7, mss: 'Gargantuan', dc: 40, stat: '10d12 [1d6D] Ballistic (Overpen) · crit 20 · RI 6K ft [24 hx] · Single/Auto · Res (+2)' },
+  { name: 'Mass Cannon', ts: 7, mss: 'Gargantuan', dc: 37, stat: '8d12 [1d4D] Ballistic · crit 20 · RI 5K ft [20 hx] · Single/Auto · Lic (+1)' },
+  { name: 'Mass Cannon, Heavy', ts: 7, mss: 'Gargantuan', dc: 40, stat: '10d12 [1d6D] Ballistic · crit 20 · RI 6K ft [24 hx] · Single/Auto · Res (+2)' },
   { name: 'Mine, Gravitic', ts: 7, mss: 'Colossal', dc: 43, stat: '10d100 [4d12D] Energy · 4-polyhex (37 hexes) · Mil (+3)' },
   { name: 'Missile, Mass Reaction', ts: 7, mss: 'Colossal', dc: 50, stat: '12d12 [2d4-1D] Energy · crit 19-20 · 5K ft/move · Single/Volley · Mil (+3)' },
   { name: 'Missile, Plasma', ts: 7, mss: 'Gargantuan', dc: 46, stat: '16d8 [1d6D] Plasma (ignores hardness) · crit 19-20 · 5K ft/move · Single/Volley · Mil (+3)' },
@@ -45138,14 +45170,27 @@ const STARSHIP_WEAPONS = [
   { name: 'Quantum Cannon', ts: 7, mss: 'Gargantuan', dc: 45, stat: '12d8 [1d4D] Energy (ignores force fields; +20 to hit, no auto-miss on nat 1 — 09-07 amendment) · crit 20 · RI 6K ft [24 hx] · Single · Mil (+3)' },
   { name: 'Antimatter Cannon', ts: 8, mss: 'Colossal', dc: 40, stat: '10d12 [1d6D] Energy · crit 18-20 · RI 6K ft [24 hx] · Single · Mil (+3)' },
   { name: 'Ion Cannon, Heavy', ts: 8, mss: 'Colossal', dc: 41, stat: '16d6 [1d4D] Ionic (as Ion Cannon: nonlethal, ignores hardness, ×2 vs force fields) · crit 20 · RI 4K ft [16 hx] · Single [S/A adv.] · Res (+2)' },
-  { name: 'Kinetic Lance', ts: 8, mss: 'Colossal', dc: 42, stat: '10d12 [1d6D] Energy (×2 vs force fields) · crit 20 · RI 3K ft [12 hx] · Single · Mil (+3)' },
-  { name: 'Maser Cannon', ts: 8, mss: 'Gargantuan', dc: 42, stat: '14d8 [2d3-1D] Energy · crit 20 · RI 6K ft [24 hx] · Single/Auto · Res (+2)' },
+  // v8.75.0 (Adam's secondary-finding rulings, 2026-10-03 — HELM-calibrated):
+  // Kinetic Lance was range-starved (RI 12 hx = shortest TS-8; lost 83-98%
+  // to every kinetic on the approach despite healthy mirror lethality) →
+  // RI 3K → 5K ft; damage and DC untouched. Maser Cannon was strictly
+  // dominated by the Antimatter Cannon at a higher price (slowest TS-8
+  // mirror) → DC 42 → 40 + crit 19-20 (thermal bloom); it also inherits the
+  // TS-8 fighter-gun niche from the Sliver's Colossal eviction. Book
+  // letters on the TODO.
+  { name: 'Kinetic Lance', ts: 8, mss: 'Colossal', dc: 42, stat: '10d12 [1d6D] Energy (×2 vs force fields) · crit 20 · RI 5K ft [20 hx] · Single · Mil (+3)' },
+  { name: 'Maser Cannon', ts: 8, mss: 'Gargantuan', dc: 40, stat: '14d8 [2d3-1D] Energy · crit 19-20 · RI 6K ft [24 hx] · Single/Auto · Res (+2)' },
   { name: 'Maser Cannon, Heavy', ts: 8, mss: 'Colossal', dc: 45, stat: '18d8 [2d4-1D] Energy · crit 20 · RI 8K ft [32 hx] · Single [S/A adv.] · Mil (+3)' },
   { name: 'Mine, Zero Point', ts: 8, mss: 'Colossal', dc: 48, stat: '15d100 [6d12D] Energy · Mil (+3)' },
   { name: 'Missile, Nova Burst', ts: 8, mss: 'Gargantuan', dc: 45, stat: '20d8 [1d8D] Plasma · crit 19-20 · 5K ft/move · Single/Volley · Mil (+3)' },
   { name: 'Missile, Starload', ts: 8, mss: 'Huge', dc: 45, stat: '20d8 [1d8D] Energy · crit 18-20 · 5K ft/move · Single/Volley · Mil (+3)' },
-  { name: 'Neutronium Driver', ts: 8, mss: 'Colossal', dc: 42, stat: '12d12 [2d4-1D] Ballistic (Overpen) · crit 20 · RI 5K ft [20 hx] · Single · Res (+2)' },
-  { name: 'Sliver Gun', ts: 8, mss: 'Gargantuan', dc: 39, stat: '8d12 [1d4D] AA Ballistic (auto-confirms crits; Overpen) · crit 19-20 · RI 7K ft [28 hx] · Single/Auto · Mil (+3)' },
+  { name: 'Neutronium Driver', ts: 8, mss: 'Colossal', dc: 42, stat: '12d12 [2d4-1D] Ballistic · crit 20 · RI 5K ft [20 hx] · Single · Res (+2)' },
+  // v8.75.0 (Adam's Sliver rebalance, 2026-10-03 — HELM-calibrated): AA capped
+  // at the printed 20 (mastercrafted flechettes, R31 ladder does NOT apply);
+  // lingering magnetic resonance = auto-confirm only from a rested barrel, no
+  // autofire, 1 round's rest dissipates; capacitor banks demand Colossal; DC
+  // 39 → 42. Book letter on the TODO; HELM R34.
+  { name: 'Sliver Gun', ts: 8, mss: 'Colossal', dc: 42, stat: '8d12 [1d4D] AA Ballistic (AA capped at 20 HP / 4d / 1D — the mastercrafted flechettes never exceed the printed figure) · auto-confirms crits from a RESTED barrel only (lingering magnetic resonance: consecutive-round fire confirms normally; one round without firing dissipates it) · crit 19-20 · RI 7K ft [28 hx] · Single · Mil (+3)' },
   { name: 'Zero Bore', ts: 8, mss: 'Colossal', dc: 52, stat: '16d8 [2d4-1D] Disintegration (ignores hardness; ×2 vs force fields) · crit 20 · RI 6K ft [24 hx] · Single · Mil (+3)' },
   { name: 'Blacklaser', ts: 9, mss: 'Huge', dc: 50, stat: '16d8 [2d4-1D] Energy · crit 20 · RI 8K ft [32 hx] · Single/Auto · Mil (+3)' },
   { name: 'Mine, Null', ts: 9, mss: 'Colossal', dc: 53, stat: '20d100 [5d20D] Disintegration (ignores hardness) · 4-polyhex · Mil (+3)' },
@@ -45503,7 +45548,7 @@ const STARSHIP_SUBTYPE_STATS = {
 const STARSHIP_COMBAT_REF = {
  "round": "A starship's round (GMG p.506; Adam's whole-turn ruling 2026-09-08, R26): TWO move actions + ONE attack/standard action, in any order the commander chooses (standard/move/move, move/standard/move, or move/move/standard) — or a single full-round action. Each starship takes its ENTIRE turn at its initiative slot, then the next ship acts (replaces the printed phased Steps 4-9; book edit pending). ~6 seconds per round; 1 stellar hex = 250 ft.",
  "initiative": "Stellar initiative (GMG pp.506-507): commanders of Ultralight-Colossal and SMALLER ships roll DEXTERITY checks; commanders of Light-Colossal and LARGER ships roll CHARISMA checks. Every ship starts flat-footed until it acts; surprise round = one standard action for the aware.",
- "attack": "Gunner attack roll (GMG p.507): 1d20 + gunner's ranged attack bonus + range penalty (−2 per full range increment; beams max 10 increments, projectiles unlimited) + ship size modifier (Huge −2 / Gargantuan −4 / Colossal −8) + targeting-system equipment bonus (by ship size: Huge +1 / Garg +2 / Colossal +3; TS 7 improved: +3/+4/+5). Starship Gunnery feat assumed — without it, −4. Nat 1 misses, nat 20 hits and threatens. OVERPENETRATION (Ballistic weapons — ruled 2026-09-24): critical confirmations roll 2d20, keep the better; a confirmed ballistic critical additionally deals one-half the attack's BASE damage (before any multipliers), in capital dice rounded down (minimum 1D), to the Infrastructure — if the attack was already striking the Infrastructure (breached flank, or from within), the additional half adds to the damage dealt. Rides on top of the standard even crit split.",
+ "attack": "Gunner attack roll (GMG p.507): 1d20 + gunner's ranged attack bonus + range penalty (−2 per full range increment; beams max 10 increments, projectiles unlimited) + ship size modifier (Huge −2 / Gargantuan −4 / Colossal −8) + targeting-system equipment bonus (by ship size: Huge +1 / Garg +2 / Colossal +3; TS 7 improved: +3/+4/+5). Starship Gunnery feat assumed — without it, −4. Nat 1 misses, nat 20 hits and threatens. Ballistic weapons are Tech Piercing — unlike normal piercing's half, they deal FULL damage to objects and structures.",
  "tac": "Touch AC (GMG p.508): piloted = 10 + size mod + pilot's Dex mod (transferring full Dex to the ship costs the pilot their own Dex-to-Defense that round; none while flat-footed). Autopiloted = 10 + size mod + autopilot equipment bonus (by size: Colossal +1 / Garg +2 / Huge +3; TS 7 improved +2 higher). Total AC (either way) = touch AC + pilot's Defense bonus (full — Starship Operation assumed; a 2nd-level Ace Pilot moves it to TOUCH AC instead) + ONE-FIFTH armor hardness (amended from ½ in the 09-07 GMG so crits actually land at table hardness values).",
  "crew": "Crew quality (GMG p.509): Untrained (skills +0 · pilot Def +1 · Dex +0 · gunner −4 · ship DC −4) · Trained (+5 · +3 · +2 · +2 · ±0) · Expert (+10 · +5 · +4 · +4 · +4) · Ace (+15 · +7-to-TOUCH · +6 · +8/+3 · +8). Improvement: Trained needs 6+ months; Expert 12+ months & 4+ battles; Ace 3+ years & 12+ battles.",
  "actions": "Actions by role (GMG p.510): Aid another — commander/copilot/sensor op (DC 10, +2 to the aided). Ranged attack — pilot/copilot/gunner (each weapon system fires once/round). Grapple — pilot/copilot/gunner (AoO). Operate sensors, send/jam — sensor op/pilot/copilot/engineer. Total defense, feint (Starship Feint), escape grapple — pilot. MOVE: move/pivot (AoO), ram (AoO), dodge (Starship Dodge, amended 09-07: ready as a move action taking only ½ move; Pilot check vs the incoming attack's to-hit result; up to twice per round, once per move action). FULL-ROUND: damage control (engineer), jump to cruising speed (AoO), surge forward (AoO). FREE: automated damage control, comms, fight defensively (+2 dodge AC), turning during forward movement. Only ships with point-defense systems make attacks of opportunity — resolved per the FF Point-Defense entry (amended 09-07): a turret VOLLEY at the ship's targeting-system bonus, 1-5 turrets by the size-vs-size ladder; the optional 'Broadside' protocol trades missile defense + AoOs for automatic attacks on any ship passing within 1 hex.",
@@ -46598,7 +46643,9 @@ function renderPowersBrowse() {
         buyBtn = `<span style="font-size:10px;color:#b58fd4;">◈ owned</span>`;
       } else {
         const elig = superBuyEligibility(c, s);
-        if (elig.ok) buyBtn = `<button class="btn btn-sm" style="font-size:10px;border-color:rgba(181,143,212,.5);color:#b58fd4;" title="Buy as a permanent super-power (spends banked MP)${elig.via ? ` — priced as its parent power, ${elig.via}` : ''}" onclick="buySuperPower(${i})">◈ Buy ${elig.mp} MP</button>`;
+        // v8.75.0: the suite discount (HH p.670, Adam's ruling) shows on the
+        // button itself — the player sees the real price and why.
+        if (elig.ok) buyBtn = `<button class="btn btn-sm" style="font-size:10px;border-color:rgba(181,143,212,.5);color:#b58fd4;" title="Buy as a permanent super-power (spends banked MP)${elig.suite ? ` — SUITE DISCOUNT: you own ${elig.suiteOwned} ${escapeHTML(elig.suite)} powers, so this costs ${elig.mp} MP instead of ${elig.mpBase} (HH p.670: two powers from one suite make further suite powers 1 MP less)` : ''}${elig.via ? ` — priced as its parent power, ${elig.via}` : ''}" onclick="buySuperPower(${i})">◈ Buy ${elig.mp} MP${elig.suite ? ` <span style="font-size:8px;opacity:.85;">(suite −1)</span>` : ''}</button>`;
       }
     }
     return `<div style="padding:6px 9px;border-bottom:1px solid rgba(200,151,30,.08);">
@@ -46608,7 +46655,20 @@ function renderPowersBrowse() {
         ${addBtn}
       </div>
       <div style="font-size:10px;opacity:.55;">${escapeHTML(s.school_raw)} · ${escapeHTML((s.levels || []).map(l => l.cls + ' ' + l.lvl + (l.lvl_max ? '-' + l.lvl_max : '')).join(', '))}${s.mp ? ' · ' + s.mp + ' MP' : ''}</div>
-      ${open ? `<div style="font-size:11px;opacity:.75;margin-top:4px;line-height:1.5;">${spellStatLine(s)}</div><div style="font-size:11.5px;margin-top:5px;line-height:1.55;color:var(--parch);">${escapeHTML(s.d)}</div>${(() => { const ths = _themesOfPower(s.name); return ths.length ? `<div style="font-size:10px;margin-top:4px;color:#b58fd4;" title="Super-Power Suites by Theme (HH Ch.XI). Own two powers from one suite and further powers from that suite cost 1 MP less (GM adjudicates).">◈ Suites: ${ths.map(escapeHTML).join(' · ')}</div>` : ''; })()}` : ''}
+      ${open ? `<div style="font-size:11px;opacity:.75;margin-top:4px;line-height:1.5;">${spellStatLine(s)}</div><div style="font-size:11.5px;margin-top:5px;line-height:1.55;color:var(--parch);">${escapeHTML(s.d)}</div>${(() => { const ths = _themesOfPower(s.name); if (!ths.length) return '';
+        // v8.75.0: progress-aware suite tags for super-capable characters —
+        // ◈−1 when the discount is live, (n/2) while building toward it.
+        const _superCap = (typeof getMPState === 'function') && getMPState(c).isSuperMutant;
+        const sets = _powerThemeSets();
+        const ownedSup = (c.powers || []).filter(p => p.pool === 'super').map(p => p.name);
+        const bits = ths.map(th => {
+          if (!_superCap) return escapeHTML(th);
+          const n = ownedSup.filter(nm => sets[th].has(nm) && nm !== s.name).length;
+          if (n >= 2) return `<b title="You own ${n} ${escapeHTML(th)} powers — further ${escapeHTML(th)} purchases cost 1 MP less (HH p.670).">${escapeHTML(th)} ◈−1</b>`;
+          if (n === 1) return `<span title="Own one more ${escapeHTML(th)} power to unlock the suite discount (−1 MP on further ${escapeHTML(th)} purchases, HH p.670).">${escapeHTML(th)} (1/2)</span>`;
+          return escapeHTML(th);
+        });
+        return `<div style="font-size:10px;margin-top:4px;color:#b58fd4;" title="Super-Power Suites by Theme (HH Ch.XI). Own two powers from one suite and further powers from that suite cost 1 MP less.">◈ Suites: ${bits.join(' · ')}</div>`; })()}` : ''}
     </div>`;
   }).join('') || `<div style="padding:.9rem;font-size:12px;color:rgba(200,151,30,.45);text-align:center;">Nothing matches the current filters.</div>`)
   + (_pwBrowseList.length > CAP ? `<div style="padding:6px 9px;font-size:11px;color:rgba(200,151,30,.5);text-align:center;">…and ${_pwBrowseList.length - CAP} more — refine the filters to see them.</div>` : '');
