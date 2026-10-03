@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.88.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.88.2</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -38684,15 +38684,24 @@ function renderSheet(){
   const _ud = (typeof uncannyDodgeTier === 'function') ? uncannyDodgeTier(c) : null;
   const _udTag = _ud ? `<span style="display:block;font-size:9px;color:#9cc3da;font-style:italic;" title="${_ud.tier >= 2 ? 'Improved Uncanny Dodge: you keep your Dex bonus to AC while flat-footed or struck by an invisible attacker, AND you cannot be flanked (a Rogue needs 4+ more Rogue levels to sneak-attack you via flanking).' : 'Uncanny Dodge: you keep your Dex bonus to AC while flat-footed or struck by an invisible attacker.'} Sources: ${_ud.srcs.join(', ')}. Uncanny Dodge from a second class upgrades to Improved automatically.">${_ud.tier >= 2 ? 'Imp. Uncanny Dodge' : 'Uncanny Dodge'}</span>` : '';
   const _dpTag = (typeof _cfLvlOf === 'function' && _cfLvlOf(c, 'Sharpshooter') >= 4) ? `<span style="display:block;font-size:9px;color:#d4b870;font-style:italic;" title="Defensive Positioning (Sharpshooter 4): when in ANY cover, your cover bonus to Defense and Reflex saves is +2 higher than normal.">+2 cover (conditional)</span>` : '';
-  const statCells = [
-    {l:'Base Attack',
+  // v8.88.2 (Adam's priority re-order, 2026-10-03): the cells rank by their
+  // relative importance at the table — Row 1: Max HP, AC, Initiative, Action
+  // Points; Row 2: Base Attack, Grapple, Speed, Reputation; Row 3: Defense
+  // Bonus, Parry, Dodge; then the as-incurred defensive cells (Nat.
+  // Hardness, SR, DR, …) trail only when the character has them.
+  const spd = computeSpeeds(c);
+  const spdVal = `${spd.walk}′${spd.modes.map(m => ` / ${m.type} ${m.speed}′`).join('')}`;
+  // v8.8.0 (Adam's Talents sweep): the Initiative CELL shows the full
+  // computed total (Improved Initiative, talent init bonuses).
+  const initTotal = (typeof computeStatBlock === 'function' && computeStatBlock(c).init) ? computeStatBlock(c).init.total : dM;
+  const _baCell = {l:'Base Attack',
      v: _dclSpent ? `${_effBA >= 0 ? '+' : ''}${_effBA}` : (c.bab>=0?'+':'')+c.bab,
      k:'bab',
      tooltip: _dclOwn ? `Declared stance — holds until re-declared. Power Attack ${_dcl.pa} · Combat Expertise ${_dcl.ce} · base Base Attack ${(c.bab>=0?'+':'')+(c.bab||0)}. ▼ assigns a point of Base Attack to a modifier; ▲ returns one. Melee attack rows apply the penalty; Power Attack adds damage (×2 two-handed, none on light weapons); Combat Expertise adds Defense.` : undefined,
-     extraHtml: _dclOwn ? `<span style="display:block;margin-top:2px;white-space:nowrap;"><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_dclSpent >= ((c.bab)||0) ? 'opacity:.35;' : ''}" title="Assign a point of Base Attack to Power Attack / Combat Expertise" onclick="event.stopPropagation();baDeclAdjust(-1)">▼</button><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_dclSpent <= 0 ? 'opacity:.35;' : ''}" title="Return a point of Base Attack" onclick="event.stopPropagation();baDeclAdjust(1)">▲</button>${_dclSpent ? `<span style="font-size:9px;color:#d4b870;margin-left:4px;">PA ${_dcl.pa} · CE ${_dcl.ce}</span>` : ''}</span>` : ''},
-    // v8.65.0 (Adam's go): Best Defense stepper — the BA-card idiom mirrored
-    // (Survivor 5+ only; free action to adjust, holds until re-declared).
-    (() => {
+     extraHtml: _dclOwn ? `<span style="display:block;margin-top:2px;white-space:nowrap;"><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_dclSpent >= ((c.bab)||0) ? 'opacity:.35;' : ''}" title="Assign a point of Base Attack to Power Attack / Combat Expertise" onclick="event.stopPropagation();baDeclAdjust(-1)">▼</button><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_dclSpent <= 0 ? 'opacity:.35;' : ''}" title="Return a point of Base Attack" onclick="event.stopPropagation();baDeclAdjust(1)">▲</button>${_dclSpent ? `<span style="font-size:9px;color:#d4b870;margin-left:4px;">PA ${_dcl.pa} · CE ${_dcl.ce}</span>` : ''}</span>` : ''};
+  // v8.65.0 (Adam's go): Best Defense stepper — the BA-card idiom mirrored
+  // (Survivor 5+ only; free action to adjust, holds until re-declared).
+  const _defCell = (() => {
       const _bdCap = (typeof bestDefenseCap === 'function') ? bestDefenseCap(c) : 0;
       const _bdN = _dcl.bd || 0;
       const _effDef = (c.def || 0) - _bdN;
@@ -38701,9 +38710,30 @@ function renderSheet(){
         k:'def',
         tooltip: _bdCap ? `Best Defense (Survivor, HH p.137) — trade up to +${_bdCap} of Defense Bonus (your Survivor class Defense Bonus) for an equal bonus on melee attack rolls; adjustable as a FREE action, holds until re-declared. Currently trading ${_bdN}. The spend reaches AC, Parry, Dodge, and Grapple like Power Attack's reaches Base Attack.` : undefined,
         extraHtml: _bdCap ? `<span style="display:block;margin-top:2px;white-space:nowrap;"><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_bdN >= _bdCap ? 'opacity:.35;' : ''}" title="Trade a point of Defense Bonus for +1 on melee attack rolls (Best Defense)" onclick="event.stopPropagation();bdDeclAdjust(-1)">▼</button><button class="btn btn-sm" style="font-size:9px;padding:0 6px;${_bdN <= 0 ? 'opacity:.35;' : ''}" title="Return a point of Defense Bonus" onclick="event.stopPropagation();bdDeclAdjust(1)">▲</button>${_bdN ? `<span style="font-size:9px;color:#d4b870;margin-left:4px;">BD ${_bdN}</span>` : ''}</span>` : ''};
-    })(),
-    ...(grap ? [{l:'Grapple', v:(grap.total>=0?'+':'')+grap.total, tooltip: grap.parts.join(' + ') + ' — size uses the effective category (Super-Strong riders included).'}] : []),
+    })();
+  // v8.64.0/v8.66.0: Reputation card — full computed total, Artisan flag.
+  const _repCell = (() => {
+      let raTag = '';
+      if (typeof _cfLvlOf === 'function' && _cfLvlOf(c, 'Expert') >= 15) {
+        const art = (c.classChoices || {})['exp_art_5'];
+        const ranks = art ? ((c.skills || {})[art] || 0) : 0;
+        if (art && ranks >= 15) raTag = `<span style="display:block;font-size:9px;color:#d4b870;font-style:italic;" title="Renowned Artisan (Expert 15; ruled 2026-10-02: feature text canonical — Renowned 15th / Master 10th, table row is the typo): the equivalent of Renown, but ONLY in matters of ${escapeHTML(art)}. Call the +3 out in real time when the audience cares about the craft — it is NOT in the headline total. Also +1 Purchase DC on your works (apply at the table).">+3 Artisan renown (conditional)</span>`;
+      }
+      return {l:'Reputation',v:(typeof computeStatBlock==='function'?computeStatBlock(c).rep.total:(c.rep||0)),k:'rep',extraHtml:raTag};
+    })();
+  const statCells = [
+    // Row 1 — the vitals.
+    {l:'Max HP',v:c.maxHP,k:'hp'},
     {l:acDisp.label, v:acDisp.value, k:'ac', extraHtml:_ceTag + _roTag + _udTag + _dpTag},
+    {l:'Initiative',v:(initTotal>=0?'+':'')+initTotal,k:'init'},
+    {l:'Action Points',v:`${c.ap||0}/${c.apMax||0}`},
+    // Row 2 — the actives.
+    _baCell,
+    ...(grap ? [{l:'Grapple', v:(grap.total>=0?'+':'')+grap.total, tooltip: grap.parts.join(' + ') + ' — size uses the effective category (Super-Strong riders included).'}] : []),
+    {l:'Speed', v: spdVal, tooltip: `Walk ${spd.walk}′ (${spd.parts.join(' · ')}) · Run ${spd.run}${spd.modes.map(m => ` · ${m.type} ${m.speed}′ — ${m.note}`).join('')}`},
+    _repCell,
+    // Row 3 — the defensive ladder.
+    _defCell,
     {l:'Parry', v:(parry.total>=0?'+':'')+parry.total, k:'parry', extraHtml:_ceTag + _roTag},
     {l:'Dodge', v:(dodge.total>=0?'+':'')+dodge.total, k:'dodge', extraHtml:_ceTag + _roTag + _udTag},
   ];
@@ -38726,37 +38756,9 @@ function renderSheet(){
     statCells.push({l:'DR', v:`${_drBest.value}/${_drBest.bypass}`,
       tooltip:`Damage Reduction — subtract from each weapon or natural-attack hit unless the attack bypasses it (the “/X” names what gets through; “/—” = nothing does). Instances OVERLAP, never stack: the best applicable applies per attack (FF p.523; class-level x/− pooling already folded in).\n${_drCell.map(d => `${d.value}/${d.bypass} — ${d.source}${d.conditional ? ' (CONDITIONAL: ' + d.conditional + ')' : ''}${d.note ? ' · ' + d.note : ''}`).join('\n')}`});
   }
-  // v8.8.0 (Adam's speed system): Walk (armor-limited, talent-boosted,
-  // Reduced Speed) + other movement modes (Wings' fly). Tooltip = provenance.
-  const spd = computeSpeeds(c);
-  const spdVal = `${spd.walk}′${spd.modes.map(m => ` / ${m.type} ${m.speed}′`).join('')}`;
-  // v8.8.0 (Adam's Talents sweep): the Initiative CELL now shows the full
-  // computed total (Improved Initiative, talent init bonuses) — previously
-  // it displayed the bare Dex mod while its own drilldown knew better.
-  const initTotal = (typeof computeStatBlock === 'function' && computeStatBlock(c).init) ? computeStatBlock(c).init.total : dM;
-  statCells.push(
-    {l:'Speed', v: spdVal, tooltip: `Walk ${spd.walk}′ (${spd.parts.join(' · ')}) · Run ${spd.run}${spd.modes.map(m => ` · ${m.type} ${m.speed}′ — ${m.note}`).join('')}`},
-    {l:'Initiative',v:(initTotal>=0?'+':'')+initTotal,k:'init'},
-    {l:'Action Points',v:`${c.ap||0}/${c.apMax||0}`},
-    {l:'Max HP',v:c.maxHP,k:'hp'},
-    // v8.64.0 (Phase 2 sift): the card now shows the FULL computed total
-    // (feat ±3s and the class-feature Rep quartet included) — the stored
-    // c.rep is class-progression only, and the card/drilldown mismatch was
-    // the same disease the v8.6.0 save cells had.
-    // v8.66.0 (Adam's ruling): Renowned Artisan (Expert 15 — TEXT canonical
-    // over the table, errata ruled 2026-10-02, Word doc updated) is a
-    // SCOPED +3: flagged on the card for real-time call-out, NEVER folded
-    // into the headline total.
-    (() => {
-      let raTag = '';
-      if (typeof _cfLvlOf === 'function' && _cfLvlOf(c, 'Expert') >= 15) {
-        const art = (c.classChoices || {})['exp_art_5'];
-        const ranks = art ? ((c.skills || {})[art] || 0) : 0;
-        if (art && ranks >= 15) raTag = `<span style="display:block;font-size:9px;color:#d4b870;font-style:italic;" title="Renowned Artisan (Expert 15; ruled 2026-10-02: feature text canonical — Renowned 15th / Master 10th, table row is the typo): the equivalent of Renown, but ONLY in matters of ${escapeHTML(art)}. Call the +3 out in real time when the audience cares about the craft — it is NOT in the headline total. Also +1 Purchase DC on your works (apply at the table).">+3 Artisan renown (conditional)</span>`;
-      }
-      return {l:'Reputation',v:(typeof computeStatBlock==='function'?computeStatBlock(c).rep.total:(c.rep||0)),k:'rep',extraHtml:raTag};
-    })(),
-  );
+  // v8.88.2: Speed/Initiative/AP/HP/Reputation moved into the ordered array
+  // above (Adam's priority re-order) — only the as-incurred defensive cells
+  // (Nat. Hardness / SR / DR) append past the fixed eleven.
   document.getElementById('sh-stats').innerHTML = statCells.map(s=>{
     const drillCls=s.k?'stat-cell drillable':'stat-cell';
     const click=s.k?` onclick="showStatBreakdown('${s.k}')"`:'';
@@ -38798,16 +38800,18 @@ function renderSheet(){
         const lift = `Lift over head ${fmtCarry(cc.liftOverHead)} · off ground ${fmtCarry(cc.liftOffGround)} (stagger, 5 ft) · push/drag ${fmtCarry(cc.pushDrag)}.`;
         // v8.12.2 (Adam): Grapple moved out of this line — it now sits in the
         // combat stat cells beside BAB/Defense where it belongs.
-        bits.push(`<b style="color:rgba(200,151,30,.85);">Carry:</b> <span style="cursor:help;" title="${escapeHTML(cc.parts.join('\n') + '\n' + lift + '\nMedium load: max Dex +3, −3 check penalty, reduced speed. Heavy load: max Dex +1, −6, run ×3 (HH p.261–262). Tons are short tons (2,000 lb), rounded down.')}">light ≤${fmtCarry(cc.light)} · med ≤${fmtCarry(cc.medium)} · heavy ≤${fmtCarry(cc.heavy)}</span>`);
-        // v8.88.0 (Adam's Titanic-parity ruling): the 💥 demolition line —
-        // only when a Mangler instance is live (base tree shows on the
-        // Talents page's effects panel instead).
+        // v8.88.1 (Adam's placement tweak): the 💥 Demolition line sits
+        // UNDERNEATH Carrying Capacity, not trailing it — a block-level
+        // second row nested inside the Carry bit, so the inline ·-joined
+        // strip never grows stray separators around a line break.
         const _hiD = (typeof computeHardnessIgnore === 'function') ? computeHardnessIgnore(c) : null;
+        let _demoRow = '';
         if (_hiD && _hiD.mode === 'mangler') {
-          bits.push(`<b style="color:#d4865a;">💥 Demolition:</b> <span style="cursor:help;" title="${escapeHTML(`${_hiD.from}${_hiD.instances > 1 ? ' — Titanic Strength acts as a second instance of Mangler (hardness & break-DC only; the ×4/+1 riders are already counted per talent). Ruled 2026-10-03.' : ''} Keyed to the ${['','Ignore Hardness','Improved Ignore Hardness','Advanced Ignore Hardness'][_hiD.tier]} tier. Su — falls under a Null Power Field (the Ex tree values stand back up).`)}">ignore ${_hiD.ignore} hardness · break DC −${_hiD.breakDC}${_hiD.instances > 1 ? ' <span style="font-size:10px;color:#c499d4;">×2 (Titanic echo)</span>' : ''}</span>`);
+          _demoRow = `<span style="display:block;margin-top:2px;"><b style="color:#d4865a;">💥 Demolition:</b> <span style="cursor:help;" title="${escapeHTML(`${_hiD.from}${_hiD.instances > 1 ? ' — Titanic Strength acts as a second instance of Mangler (hardness & break-DC only; the ×4/+1 riders are already counted per talent). Ruled 2026-10-03.' : ''} Keyed to the ${['','Ignore Hardness','Improved Ignore Hardness','Advanced Ignore Hardness'][_hiD.tier]} tier. Su — falls under a Null Power Field (the Ex tree values stand back up).`)}">ignore ${_hiD.ignore} hardness · break DC −${_hiD.breakDC}${_hiD.instances > 1 ? ' <span style="font-size:10px;color:#c499d4;">×2 (Titanic echo)</span>' : ''}</span></span>`;
         } else if (_hiD && _hiD.mode === 'latent') {
-          bits.push(`<b style="color:#d4865a;">💥 Demolition:</b> <span style="cursor:help;font-style:italic;opacity:.65;" title="${escapeHTML(_hiD.from)}">Mangler function latent — enter the Ignore Hardness tree</span>`);
+          _demoRow = `<span style="display:block;margin-top:2px;"><b style="color:#d4865a;">💥 Demolition:</b> <span style="cursor:help;font-style:italic;opacity:.65;" title="${escapeHTML(_hiD.from)}">Mangler function latent — enter the Ignore Hardness tree</span></span>`;
         }
+        bits.push(`<b style="color:rgba(200,151,30,.85);">Carry:</b> <span style="cursor:help;" title="${escapeHTML(cc.parts.join('\n') + '\n' + lift + '\nMedium load: max Dex +3, −3 check penalty, reduced speed. Heavy load: max Dex +1, −6, run ×3 (HH p.261–262). Tons are short tons (2,000 lb), rounded down.')}">light ≤${fmtCarry(cc.light)} · med ≤${fmtCarry(cc.medium)} · heavy ≤${fmtCarry(cc.heavy)}</span>${_demoRow}`);
         // v8.13.x Segment A (Adam's active-loadout ruling): the piloted
         // vehicle joins the combat dashboard.
         const pv = (typeof pilotedVehicle === 'function') ? pilotedVehicle(c) : null;
