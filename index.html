@@ -176,6 +176,18 @@ details.hy-det>summary{cursor:pointer;color:rgba(200,151,30,.75);font-size:11.5p
 details.hy-det>summary::-webkit-details-marker{display:none}
 details.hy-det>summary::before{content:'▸ '}
 details.hy-det[open]>summary::before{content:'▾ '}
+/* v8.78.0 (Adam's Rhad report): class-collapsible headers — with several
+   classes expanded, plain summaries drowned in their own bodies. These wear
+   the house header idiom (Cinzel, bronze left rule, parchment-gold wash) so
+   the class titles read as demarcation bars and collapse targets at a
+   glance; the open state brightens the rule and the wash. */
+details.cls-det{margin-top:6px;font-size:12px}
+details.cls-det>summary{cursor:pointer;list-style:none;user-select:none;display:block;padding:4px 9px;background:rgba(200,151,30,.07);border:1px solid rgba(200,151,30,.22);border-left:3px solid var(--bronze);border-radius:0 3px 3px 0;font-family:'Epics Serif','Cinzel',serif;letter-spacing:.04em}
+details.cls-det>summary::-webkit-details-marker{display:none}
+details.cls-det>summary::before{content:'▸ ';color:var(--bronze);font-size:10px}
+details.cls-det[open]>summary::before{content:'▾ ';color:var(--gold);font-size:10px}
+details.cls-det[open]>summary{background:rgba(200,151,30,.13);border-left-color:var(--gold)}
+details.cls-det>summary:hover{background:rgba(200,151,30,.16)}
 /* FEATS TABLE */
 .feat-entry{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:start;padding:6px 8px;border-bottom:1px solid rgba(200,151,30,.08)}
 .feat-entry:hover{background:rgba(200,151,30,.03)}
@@ -307,7 +319,7 @@ details.hy-det[open]>summary::before{content:'▾ '}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.77.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.78.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -38809,7 +38821,7 @@ function renderSheet(){
       const strays = chSpecs.filter(s => !consumedSpecs.has(s.key) && s.className === e.name);
       for (const s of strays) { consumedSpecs.add(s.key); body += `<div style="font-size:11px;margin-top:3px;">L${s.atLvl} · ${escapeHTML(s.feature)}${s.idx > 1 ? ` #${s.idx}` : ''}: ${s.chosen ? `<b style="color:rgba(120,175,205,.95);">${escapeHTML(s.chosen)}</b>` : '<span style="color:#d4b870;">⚑ unchosen — 🎓 Class Choices</span>'}</div>`; }
       body += `</div>`;
-      cfa += `<details class="hy-det"><summary><b style="color:var(--gold);">${_hiero ? 'Ecclesiarch (Hierophant)' : escapeHTML(e.name)} ${e.level}</b>${citeHTML('classes', e.name)} <span style="font-size:10px;color:rgba(200,151,30,.5);">${tierLabel}</span> — Hit Die d${cls.hd} · Key ${cls.attr} · ${cls.sp}+Int SP/lvl${apHint}${feats.length ? ` · ${feats.length} feature${feats.length === 1 ? '' : 's'}` : ''}${_hiero ? ' <span style="font-size:9px;" title="GG p.161: the Ecclesiarch is ‘known sometimes as a Hierophant’ — the Druid-rooted ones answer to it.">ⓘ</span>' : ''}</summary>${body}</details>`;
+      cfa += `<details class="cls-det"><summary><b style="color:var(--gold);">${_hiero ? 'Ecclesiarch (Hierophant)' : escapeHTML(e.name)} ${e.level}</b>${citeHTML('classes', e.name)} <span style="font-size:10px;color:rgba(200,151,30,.5);">${tierLabel}</span> <span style="font-size:10.5px;color:rgba(200,200,160,.75);font-family:Georgia,serif;letter-spacing:0;">— Hit Die d${cls.hd} · Key ${cls.attr} · ${cls.sp}+Int SP/lvl${apHint}${feats.length ? ` · ${feats.length} feature${feats.length === 1 ? '' : 's'}` : ''}</span>${_hiero ? ' <span style="font-size:9px;" title="GG p.161: the Ecclesiarch is ‘known sometimes as a Hierophant’ — the Druid-rooted ones answer to it.">ⓘ</span>' : ''}</summary>${body}</details>`;
     }
     // Feature groups whose class isn't a current class entry (Heritage
     // grants and kin) — rendered so nothing active ever disappears.
@@ -38818,7 +38830,7 @@ function renderSheet(){
       let body = `<div style="padding:3px 0 2px 12px;">`;
       for (const f of byClass[cn]) body += featureRow(cn, f);
       body += `</div>`;
-      cfa += `<details class="hy-det"><summary><b style="color:var(--gold);">${escapeHTML(cn)}</b> <span style="font-size:10px;color:rgba(200,151,30,.5);">granted abilities</span> · ${byClass[cn].length} feature${byClass[cn].length === 1 ? '' : 's'}</summary>${body}</details>`;
+      cfa += `<details class="cls-det"><summary><b style="color:var(--gold);">${escapeHTML(cn)}</b> <span style="font-size:10px;color:rgba(200,151,30,.5);">granted abilities</span> <span style="font-size:10.5px;color:rgba(200,200,160,.75);font-family:Georgia,serif;letter-spacing:0;">· ${byClass[cn].length} feature${byClass[cn].length === 1 ? '' : 's'}</span></summary>${body}</details>`;
     }
     featuresHtml += cfa;
   }
@@ -50575,16 +50587,17 @@ function printSheet(){
       perDiemBlock = `<div class="ps-sec"><div class="ps-sec-head">Per-Diem Abilities</div><div class="ps-sec-body">${rows}</div></div>`;
     }
   }
-  // Chosen class-feature selections + Favored Enemies (Race & Class block).
+  // v8.78.0: the chosen picks now ride INLINE on the level-by-level record
+  // (psClassBlock) — this strip keeps only the pending-count advisory and
+  // the Favored Enemies consolidation.
   let psChoiceRows = '';
   if (typeof computeClassChoiceSpecs === 'function') {
     const ccSpecs = computeClassChoiceSpecs(c);
-    const ccChosen = ccSpecs.filter(s => s.chosen);
-    const ccPending = ccSpecs.length - ccChosen.length;
+    const ccPending = ccSpecs.filter(s => !s.chosen).length;
     const fe = (typeof computeFavoredEnemies === 'function') ? computeFavoredEnemies(c) : [];
-    if (ccChosen.length || fe.length) {
-      psChoiceRows = `<div style="margin-top:6px;padding-top:4px;border-top:1px solid #c8a02d;"><div style="font-family:'Cinzel',Georgia,serif;font-size:7pt;text-transform:uppercase;letter-spacing:.06em;color:#6b5320;margin-bottom:2px;">Class Choices${ccPending?` (${ccPending} pending — see the Sheet)`:''}</div>
-      ${ccChosen.map(s=>`<div style="font-size:7.5pt;color:#555;">${s.className} — ${s.feature}: <b>${s.chosen}</b></div>`).join('')}
+    if (ccPending || fe.length) {
+      psChoiceRows = `<div style="margin-top:6px;padding-top:4px;border-top:1px solid #c8a02d;">
+      ${ccPending?`<div style="font-size:7.5pt;color:#7a5c00;"><b>⚑ ${ccPending} class choice${ccPending===1?'':'s'} pending</b> — pick in 🎓 Class Choices on the Sheet.</div>`:''}
       ${fe.length?`<div style="font-size:7.5pt;color:#555;"><b>Favored Enemies:</b> ${fe.map(f=>`${f.type} +${f.bonus}`).join(', ')} (damage &amp; Bluff/Listen/Sense Motive/Spot/Survival vs the type)</div>`:''}</div>`;
     }
   }
@@ -50684,14 +50697,53 @@ function printSheet(){
   }
   // Class summary line for the header
   const classSummary=classArr.map(e=>`${e.name} ${e.level}`).join(' + ')||'—';
-  // Per-class detail rows for the Race & Class Features block
+  // v8.78.0 (Adam's print-parity ask): per-class detail rows for the Class
+  // Features & Abilities block — the screen's v8.77.0 restructure on paper
+  // (everything expanded by nature, compact by necessity): base line, the
+  // class's tree talents, slotSource bonus feats, and the LEVEL-by-LEVEL
+  // record with 🎓 picks resolved in place. Feature descriptions stay on
+  // the screen — paper lists the record, the book carries the prose.
   const tierLabels={hero:'',basic:' (Basic)',advanced:' (Advanced)',prestige:' (Prestige)'};
-  const classDetailRows=classArr.map(e=>{
-    const cls=getClassEntry(e); if(!cls)return'';
-    const apHint=e.tier==='hero'?` · AP pool: ${c.apMax||0}/level`:'';
-    const presMax=e.tier==='prestige'?`, max ${cls.maxLvl||10}`:'';
-    return`<div class="ps-class-row"><span class="ps-class-nm">${e.name}</span><span class="ps-class-det">Lvl ${e.level} · d${cls.hd}${tierLabels[e.tier]}${presMax}</span></div><div style="font-size:8pt;color:#555;margin-bottom:4px;">Key Attr: ${cls.attr} · ${cls.sp}+Int SP/lvl${apHint}</div>`;
+  const psActiveFeats = (typeof getActiveClassFeatures === 'function') ? getActiveClassFeatures(c) : [];
+  const psByClass = {};
+  for (const f of psActiveFeats) { (psByClass[f.className] = psByClass[f.className] || []).push(f); }
+  const psSpecs = (typeof computeClassChoiceSpecs === 'function') ? computeClassChoiceSpecs(c) : [];
+  const psConsumed = new Set();
+  const psRendered = new Set();
+  const psClassBlock = (name, e, cls) => {
+    const apHint = e ? (e.tier==='hero'?` · AP pool: ${c.apMax||0}/level`:'') : '';
+    const presMax = e && e.tier==='prestige'?`, max ${cls.maxLvl||10}`:'';
+    const _hiero = e && e.name === 'Ecclesiarch' && (c.druidOption || migrateLegacyClasses(c).some(x => x._heritageChoice === 'Cleric (Druid Option)'));
+    let out = e
+      ? `<div class="ps-class-row"><span class="ps-class-nm">${_hiero ? 'Ecclesiarch (Hierophant)' : e.name}</span><span class="ps-class-det">Lvl ${e.level} · d${cls.hd}${tierLabels[e.tier]}${presMax}</span></div><div style="font-size:8pt;color:#555;">Key Attr: ${cls.attr} · ${cls.sp}+Int SP/lvl${apHint}</div>`
+      : `<div class="ps-class-row"><span class="ps-class-nm">${escapeHTML(name)}</span><span class="ps-class-det">granted abilities</span></div>`;
+    if (e && e.tier === 'hero') {
+      const tl2 = (c.talents||[]).filter(t => { const td = TALENTS_DB.find(x => x.n === (t.name||t.n)); return td && td.hero_class === e.name; }).map(t => (t.name||t.n) + (t.param?` (${t.param})`:''));
+      if (tl2.length) out += `<div style="font-size:7.5pt;color:#555;">🎭 Talents (this class's trees): <b>${tl2.map(escapeHTML).join(', ')}</b></div>`;
+    }
+    const bf = (c.feats||[]).filter(f => typeof f.slotSource === 'string' && f.slotSource.startsWith(`classFeature:${name}:`)).map(f => f.name + (f.param?` (${f.param})`:''));
+    if (bf.length) out += `<div style="font-size:7.5pt;color:#555;">★ Bonus feats (this class's slots): <b>${bf.map(escapeHTML).join(', ')}</b></div>`;
+    const byLvl = {};
+    for (const f of (psByClass[name]||[])) { (byLvl[f.feature.lvl] = byLvl[f.feature.lvl] || []).push(f); }
+    for (const lvl of Object.keys(byLvl).map(Number).sort((a,b)=>a-b)) {
+      const bits = byLvl[lvl].map(f => {
+        const myPicks = psSpecs.filter(s => !psConsumed.has(s.key) && s.className === name && s.atLvl === lvl && (s.feature === f.name || s.feature.startsWith(f.name) || f.name.startsWith(s.feature)));
+        for (const s of myPicks) psConsumed.add(s.key);
+        const pk = myPicks.map(s => s.chosen ? `<b>${escapeHTML(s.chosen)}</b>` : '<i>unchosen</i>').join(', ');
+        return escapeHTML(f.name) + (pk ? ` — ${pk}` : '');
+      });
+      out += `<div style="font-size:7.5pt;color:#555;"><span style="color:#8a6d1f;">L${lvl}:</span> ${bits.join(' · ')}</div>`;
+    }
+    const strays = psSpecs.filter(s => !psConsumed.has(s.key) && s.className === name);
+    for (const s of strays) { psConsumed.add(s.key); out += `<div style="font-size:7.5pt;color:#555;"><span style="color:#8a6d1f;">L${s.atLvl}:</span> ${escapeHTML(s.feature)}${s.idx>1?` #${s.idx}`:''} — ${s.chosen?`<b>${escapeHTML(s.chosen)}</b>`:'<i>unchosen</i>'}</div>`; }
+    return out + `<div style="margin-bottom:4px;"></div>`;
+  };
+  let classDetailRows = classArr.map(e => {
+    const cls = getClassEntry(e); if (!cls) return '';
+    psRendered.add(e.name);
+    return psClassBlock(e.name, e, cls);
   }).join('');
+  for (const cn in psByClass) if (!psRendered.has(cn)) classDetailRows += psClassBlock(cn, null, null);
 
   // v8.33.0 (Adam): the print sheet mirrors the nav attention dots — one
   // consolidated "Outstanding Selections" strip under the header when any
@@ -50832,14 +50884,26 @@ function printSheet(){
         </div>
       </div>
 
+      <!-- v8.78.0 (Adam's print-parity ask): the v8.77.0 screen restructure
+           on paper — Scenario leads, race follows (Hybrid parents included),
+           then the conflated Class Features & Abilities with the
+           level-by-level record. -->
       <div class="ps-sec">
-        <div class="ps-sec-head">Race &amp; Class Features</div>
+        <div class="ps-sec-head">Scenario &amp; Racial Features</div>
         <div class="ps-sec-body ps-classes">
-          <div class="ps-class-row"><span class="ps-class-nm">${c.race}</span><span class="ps-class-det">ECL +${(typeof raceEclOf==='function')?raceEclOf(c):(RACES[c.race]?.ecl||0)}</span></div>
-          <div style="font-size:8pt;color:#555;margin-bottom:4px;">${RACES[c.race]?.notes||''}</div>
+          ${c.sixLevels?`<div style="margin-bottom:5px;"><div style="font-family:'Cinzel',Georgia,serif;font-size:7pt;text-transform:uppercase;letter-spacing:.06em;color:#6b5320;margin-bottom:2px;">Scenario: ${normalizePresetName(c.scenarioPreset||'Custom')}</div><div style="font-size:8pt;color:#555;">${['arcane','divine','heroic','mutation','psionic','tech'].map(a=>`${SIX_LEVELS[a].short} ${c.sixLevels[a]||0}`).join(' · ')}</div></div>`:''}
+          <div class="ps-class-row"><span class="ps-class-nm">${(typeof raceDisplayOf==='function')?raceDisplayOf(c):c.race}</span><span class="ps-class-det">${(typeof hybridInfo==='function'&&hybridInfo(c))?'RLM':'ECL'} +${(typeof raceEclOf==='function')?raceEclOf(c):(RACES[c.race]?.ecl||0)}</span></div>
+          ${(() => { const hy = (typeof hybridInfo==='function') ? hybridInfo(c) : null;
+            if (!hy) return `<div style="font-size:8pt;color:#555;">${RACES[c.race]?.notes||''}</div>`;
+            return `<div style="font-size:7.5pt;color:#555;"><b>${escapeHTML(hy.a)}:</b> ${hy.A.notes||'—'}</div><div style="font-size:7.5pt;color:#555;"><b>${escapeHTML(hy.b)}:</b> ${hy.B.notes||'—'}</div>`; })()}
+        </div>
+      </div>
+
+      <div class="ps-sec">
+        <div class="ps-sec-head">Class Features &amp; Abilities</div>
+        <div class="ps-sec-body ps-classes">
           ${classDetailRows}
           ${psChoiceRows}
-          ${c.sixLevels?`<div style="margin-top:6px;padding-top:4px;border-top:1px solid #c8a02d;"><div style="font-family:'Cinzel',Georgia,serif;font-size:7pt;text-transform:uppercase;letter-spacing:.06em;color:#6b5320;margin-bottom:2px;">Scenario: ${normalizePresetName(c.scenarioPreset||'Custom')}</div><div style="font-size:8pt;color:#555;">${['arcane','divine','heroic','mutation','psionic','tech'].map(a=>`${SIX_LEVELS[a].short} ${c.sixLevels[a]||0}`).join(' · ')}</div></div>`:''}
         </div>
       </div>
 
