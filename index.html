@@ -303,7 +303,7 @@ details.hy-det[open]>summary::before{content:'▾ '}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.73.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.74.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1271,6 +1271,10 @@ details.hy-det[open]>summary::before{content:'▾ '}
         <select id="pw-lvl-filter" onchange="renderPowersBrowse()" style="font-size:11px;">
           <option value="">Any level</option><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option>
         </select>
+        <!-- v8.74.0 (Adam's mission): Power-Type theme filter — the HH Ch.XI
+             Super-Power Suites, a builder's-eye lens on the whole corpus.
+             Options populated from POWER_THEMES at first render. -->
+        <select id="pw-theme-filter" onchange="renderPowersBrowse()" style="font-size:11px;max-width:200px;" title="Super-Power Suites by Theme (HH Ch.XI, pp.670+) — the book's thematic groupings of spells &amp; powers, a different perspective to build from (especially for super-mutants, who may buy up to 9th-level spells &amp; powers at creation with GM permission). Suite rule, applied at the table: once a character owns TWO powers from one suite, further powers from that same suite cost 1 MP less."></select>
         <label style="font-size:11px;"><input type="checkbox" id="pw-castable-only" checked onchange="renderPowersBrowse()"> <span id="pw-castable-lbl">castable by this character</span></label>
       </div>
       <div id="pw-browse-list" style="border:1px solid rgba(200,151,30,.15);border-radius:3px;"></div>
@@ -46418,6 +46422,91 @@ function renderPowers() {
   renderPowersBrowse();
 }
 
+// ============================================================================
+// v8.74.0 (Adam's mission): SUPER-POWER SUITES BY THEME — HH Ch.XI (pp.670+)
+// classifies the spell/power corpus into 47 thematic suites ("a different
+// perspective from which to build", esp. for super-mutants, who may buy up
+// to 9th-level spells & powers at creation with GM permission). Extracted
+// from the HH docx in flow order (the PDF text interleaves columns); names
+// reconciled to SPELLS_DB: 618 exact + alias map (the theme list's 3.5-era
+// names — Expeditious Retreat→Route, Sound Blast→Burst, Transport via
+// Plants→Teleport, Greater [its Druid Variant], Energy Resistance→Resist
+// Energy [the book's own "See" cross-reference], alignment-specific
+// entries→their [Alignment] umbrellas, aka-suffixed psionics) + 19 variant
+// display names resolved through VARIANT_NAMES parents at set-build time.
+// 1,095 entries, 100% reaching a real catalogue power. SUITE RULE (p.670,
+// table-side for now): own two powers from one suite and further powers
+// from that suite cost 1 MP less — surfaced in the filter tooltip; wiring
+// the discount into MP purchase math awaits Adam's ruling.
+const POWER_THEMES = {
+  'Acid': ['Acid Arrow','Acid Fog','Breath of the Black Dragon','Dissolving Touch','Dissolving Weapon','Exhalation of the Black Dragon','Storm of Vengeance'],
+  'Air and Lightning': ['Call Lightning','Call Lightning Storm','Chain Lightning','Control Air','Control Electricity','Control Winds','Electromagnetic Pulse','Feather Fall','Fly','Gust of Wind','Ionic Bolt','Lightning Bolt','Overland Flight','Planar Ally','Shocking Grasp','Shutdown','Tornado Blast','Whirlwind','Whispering Wind','Wind Walk','Wind Wall'],
+  'Aligned': ['Align Weapon','Detect [Alignment]','Dispel [Alignment]','Magic Circle Against [Alignment]','Planar Ally','Protection from [Alignment]','Undetectable Alignment'],
+  'Animals': ['Animal Affinity','Animal Growth','Animal Messenger','Animal Trance','Bite of the Wolf','Catfall','Chameleon','Claws of the Beast','Creeping Doom','Detect Animals or Plants','Lion’s Charge','Magic Fang','Magic Fang, Greater','Metaphysical Claw','Mount','Poison','Repel Vermin','Scent of the Quarry','Speak with Animals','Spider Climb','Summon Nature’s Ally (I-IX)','Summon Swarm','Wildshape'],
+  'Astral Savant': ['Astral Construct','Astral Projection','Bolt','Concealing Amorpha','Concealing Amorpha, Greater','Creation, Major','Creation, Minor','Crystal Shard','Crystallize','Dismiss Ectoplasm','Ecto Protection','Ectoplasmic Cocoon','Ectoplasmic Cocoon, Mass','Ectoplasmic Form','Entangling Ectoplasm','Evade Burst','Grease (aka Ectoplasmic Sheen)','Hail of Crystals','Planar Ally','Remote Viewing','Swarm of Crystals','Wall of Ectoplasm'],
+  'Bane': ['Bane','Bestow Curse','Blindness/Deafness','Deceleration','Doom','Mind Fog','Poison','Ray of Enfeeblement','Ray of Exhaustion','Slow','Waves of Exhaustion','Waves of Fatigue','Web'],
+  'Bazaar of the Bizarre': ['Black Tentacles','Form of Doom','Quintessence','Transformation'],
+  'Boon': ['Aid','Animal Affinity','Barkskin','Biofeedback','Blur','Burst','Chameleon','Displacement','Expeditious Route','Freedom of Movement','Grip of Iron','Heroism','Heroism, Greater','Immovability','Jump','Longstrider','Prayer','Protection from [Alignment]','Regenerate','Resistance','Scent of the Quarry','See Invisibility','Synchronicity'],
+  'Chaos and Luck': ['Chaos Hammer','Cloak of Chaos','Detect [Alignment]','Dispel [Alignment]','Entropic Shield','Fate of One','Freedom','Karmic Favor','Magic Circle Against [Alignment]','Planar Ally','Protection from [Alignment]','Synchronicity','Word of Chaos'],
+  'Dimensional Traveler': ['Anchored Navigation','Astral Projection','Baleful Teleport','Banishment','Blink','Call Weaponry','Decerebrate','Detect Teleportation','Dimension Door','Dimension Slide','Dimension Swap','Dimensional Anchor','Dimensional Lock','Dissipating Touch','Divert Teleport','Ethereal Jaunt','Etherealness','Gate','Instant Reload','Maze','Phase Step','Plane Shift','Retrieve','Teleport','Teleport, Greater','Teleport Trigger','Time Hop','Time Hop, Mass','Trace Teleport','Tree Stride'],
+  'Divine Faith': ['Aid','Banishment','Bless','Bless Weapon','Commune','Contact Other Plane','Divine Favor','Divine Power','Disrupting Weapon','Flame Strike','Mark of Justice','Miracle','Planar Ally','Prayer','Purify Food and Drink','Righteous / Riotous Might','Sanctuary','Shield of Faith','Spiritual Weapon','Synchronicity'],
+  'Diviner': ['Clairtangent Hand','Clairvoyant Sense','Commune','Contact Other Plane','Contingency','Danger Sense','Destiny Dissonance','Detect [Alignment]','Detect Remote Viewing','Discern Lies','Discern Location','Divination','Fate Link','Fate of One','Find the Path','Find Traps','Foresight','Know Direction and Location','Legend Lore','Locate Creature','Locate Object','Moment of Prescience','Object Reading','Precognition','Precognition, Combat','Precognition, Defensive','Precognition, Greater','Precognition, Offensive','Prescience, Offensive','Prying Eyes','Prying Eyes, Greater','Read Magic','Recall Agony','Recall Death','Remote Viewing','Scrying','Scrying, Greater','Second Chance','See Invisibility','Speak with Animals','Speak with Dead','Speak with Plants','Status','Tongues','Trace Teleport','True Seeing','True Strike','Ubiquitous Vision','Vision'],
+  'Dreams': ['Deep Slumber','Dream','Dream Travel','False Sensory Input','Fly','Form of Doom','Microcosm','Nightmare','Phantasmal Killer','Remote Viewing','Sleep'],
+  'Earth Lord': ['Earthquake','Immovability','Iron Body','Meld into Stone','Move Earth','Planar Ally','Repel Metal or Stone','Reverse Gravity','Rusting Grasp','Soften Earth and Stone','Spike Stones','Stomp','Stone Shape','Stoneskin','Stone Tell','Transmute Mud to Rock','Transmute Rock to Mud','Wall of Stone'],
+  'Empath': ['Affinity Field','Attraction','Aversion','Calm Animals','Calm Emotions','Cause Fear','Crushing Despair','Danger Sense','Detect Hostile Intent','Doom','Empathic Feedback','Empathic Transfer','Empathic Transfer, Hostile','Empathy','Fear','Good Hope','Rage','Sensitivity to Psychic Impressions','Share Pain','Share Pain, Forced','Telempathic Projection'],
+  'Energy Wielders': ['Energy Blast','Energy Bolt','Energy Cone (aka Dragon’s Breath)','Energy Conversion','Energy Current (aka Energy Conduit)','Energy Missile','Energy Push (aka Energy Charge)','Energy Ray','Resist Energy','Energy Retort (aka Energy Backlash)','Energy Stun (aka Energy Overload)','Energy Wall','Energy Wave (aka Wyrm’s Breath)','Protection from Energy','Universal Energy Resistance','Whitefire'],
+  'Evil and Profane': ['Animate Dead','Bane','Bestow Curse','Blasphemy','Contagion','Create Undead','Creeping Doom','Death Knell','Death Urge','Deathwatch','Detect [Alignment]','Dispel [Alignment]','Eyebite','Finger of Death','Magic Circle Against [Alignment]','Mind Seed','Nightmare','Planar Ally','Protection from [Alignment]','Unholy Aura','Unholy Blight'],
+  'Fire Friend': ['Burning Hands','Control Flames','Fiery Discorporation','Fire Seeds','Fire / Chill Shield','Fire Storm','Fireball','Flame Arrow / Bullet','Flame Blade','Flame Strike','Flaming Sphere','Heat Metal','Incendiary Cloud','Matter Agitation','Meteor Swarm','Planar Ally','Produce Flame','Pyrotechnics','Scorching Ray','Wall of Fire'],
+  'Force Adept': ['Blade Barrier','Clenched Fist of Force','Concussion Blast','Crushing Hand of Force','Force Screen / Shield','Forcecage','Forceful Hand of Force','Grasping Hand of Force','Inertial Armor','Interposing Hand of Force','Magic Missile','Repulsion Field','Resilient Sphere','Spiritual Weapon','Unseen Servant','Wall of Force'],
+  'Gaseous Assassin': ['Acid Fog','Cloudkill','Fog Cloud','Gaseous Form','Incendiary Cloud','Mind Fog','Obscuring Mist','Solid Fog','Stinking Cloud','Wind Walk'],
+  'Good': ['Detect [Alignment]','Dispel [Alignment]','Good Hope','Holy Aura','Holy Smite','Holy Word','Magic Circle Against [Alignment]','Planar Ally','Protection from [Alignment]'],
+  'Healer': ['Body Adjustment','Body Purification','Cure Wounds','Heal','Heal, Mass','Immunity to Disease','Immunity to Poison','Psychic Chirurgery','Raise Dead','Recharge','Regenerate','Remove Blindness/Deafness','Remove Curse','Restoration','Restoration, Greater','Restoration, Lesser','Restore Body','Resurrection','True Resurrection'],
+  'Ice Mastery': ['Chill Metal','Cone of Cold','Fire / Chill Shield','Freezing Sphere','Ice Storm','Matter Inertia','Polar Ray','Wall of Ice'],
+  'Illusions and Shadows': ['Blur','Displacement','Glitterdust','Hallucinatory Terrain','Hypnotic Pattern','Illusory Wall','Invisibility','Invisibility, Greater','Invisibility, Mass','Machine Invisibility','Magic Aura','Major Image','Mask Metal','Minor Image','Mirage Arcana','Mirror Image','Misdirection','Mislead','Nightmare','Permanent Image','Persistent Image','Phantasmal Killer','Project Image','Rainbow Pattern','Scintillating Pattern','Seeming','Shades','Shadow Body','Shadow Conjuration','Shadow Conjuration, Greater','Shadow Evocation','Shadow Evocation, Greater','Shadow Walk','Silence','Silent Image','Veil','Ventriloquism','Weird'],
+  'Law': ['Detect [Alignment]','Dictum','Dispel [Alignment]','Magic Circle Against [Alignment]','Mark of Justice','Order’s Wrath','Planar Ally','Protection from [Alignment]','Shield of Law','True Seeing','Zone of Truth'],
+  'Matter Master': ['Baleful Polymorph','Bend Reality','Compression','Creation, Major','Creation, Minor','Creation, True','Fission','Flesh to Stone','Fly','Fuse Flesh','Fusion','Graft Weapon','Heal','Heat Metal','Immovability','Iron Body','Limited Wish','Matter Agitation','Matter Inertia','Matter Manipulation','Oak Body','Phantom Chopper','Phantom Steed','Polymorph Any Object','Regenerate','Repel Metal or Stone','Repel Wood','Rusting Grasp','Shades','Stone to Flesh','Stoneskin','Sustenance','Transmute Mud to Rock','Transmute Rock to Mud','Warp Wood'],
+  'Machine Maester': ['Animate Objects','Burglar’s Buddy','Clean','Control Object','Creation, Major','Creation, Minor','Creation, True','Dataread','Degauss','Electromagnetic Pulse','Electronic Fog','Fabricate','Graft Weapon','Haywire','Instant Connectivity','Instant Reload','Ionic Bolt','Knock','Lock','Machine Invisibility','Make Repairs','Mask Metal','Matter Manipulation','Object Reading','Phantom Chopper','Polymorph Any Object','Power Device','Protection from Arrows / Bullets','Recharge','Relay Text','Repel Metal or Stone','Repel Wood','Rusting Grasp','Shatter','Shrink Item','Shutdown','Signal Feed','Trace Purge','Wall of Iron','White Noise','Wire Walk','Wood Shape'],
+  'Metapower and Dispelling': ['Aura Alteration','Bestow Power','Break Enchantment','Detect Magic & Psionics','Dispel Magic & Psionics','Dispelling Buffer','Divert Teleport','Escape Detection','Feat Leech','Leech Field','Metaconcert','Misdirection','Nondetection','Null Power Field','Power Leech','Apopsi (aka “Power Purge”)','Catapsi (aka Power Suppression)','Protection from Spells and Powers','Remove Curse','Spell / Power Turning','Shatter Mind Blank','Spell / Power Immunity','Spell / Power Immunity, Greater'],
+  'Mindkiller': ['Brain Lock','Cause Fear','Confusion','Confusion, Lesser','Crisis of Breath','Crisis of Life','Death Urge','Decerebrate','Disable','Ego Whip','Fear','Feeblemind','Hold Being','Id Insinuation','Inflict Pain','Insanity','Mental Pinnacle','Microcosm','Mind Fog','Mind Seed','Nightmare','Personality Parasite','Phantasmal Killer','Power Leech','Psionic Blast','Psychic Crush','Psychic Vampire','Recall Agony','Recall Death','Scare','Share Pain, Forced','Shatter Mind Blank','Touch of Idiocy','Ultrablast','Weird'],
+  'Moon and Night': ['Darkness','Darkvision','Deep Slumber','Nightmare','Phantasmal Killer','Shades','Shadow Body','Sleep'],
+  'Nature & the Natural World': ['Animal Messenger','Animate Plants','Barkskin','Blight','Call Lightning','Call Lightning Storm','Calm Animals','Commune with Nature','Contagion','Control Plants','Control Weather','Creeping Doom','Detect Animals or Plants','Detect Snares and Pits','Endure Elements','Entangle','Faerie Fire','Giant Vermin','Gust of Wind','Hide from Animals','Immunity to Poison','Insect Plague','Mount','Oak Body','Obscuring Mist','Pass without Trace','Plant Growth','Poison','Regenerate','Repel Vermin','Repel Wood','Scent of the Quarry','Sleep','Sleet Storm','Speak with Animals','Speak with Plants','Spider Climb','Spike Growth','Storm of Vengeance','Summon Nature’s Ally (I-IX)','Summon Swarm','Tornado Blast','Teleport, Greater','Tree Shape','Tree Stride','Wall of Thorns','Web','Wood Shape'],
+  'Necromancy': ['Animate Dead','Antilife Shell','Blight','Chill Touch','Control Undead','Create Undead','Death Knell','Death Ward','Deathwatch','Detect Undead','Energy Drain','Enervation','Eyebite','Finger of Death','Halt Undead','Harm','Hide from Undead','Horrid Wilting','Inflict Wounds','Paralyzing Touch','Poison','Ray of Enfeeblement','Ray of Exhaustion','Scare','Slay Living','Speak with Dead','Spectral Hand','Touch of Fatigue','Vampiric Touch','Via Negativa','Wail of the Banshee','Waves of Exhaustion','Waves of Fatigue'],
+  'Overpower': ['Assimilate','Bend Reality','Command','Command, Greater','Control Body (aka “Puppeteer”)','Control Object','Control Weather','Death Knell','Death Urge','Demand','Destiny Dissonance','Destruction','Disintegrate','Dissipating Touch','Dominate Being','Energy Drain','Expansion','Finger of Death','Fly','Gate','Globe of Invulnerability','Harm','Hold Being','Implosion','Limited Wish','Mental Pinnacle','Metamorphosis, Greater','Meteor Swarm','Mind Seed','Mind Thrust','Miracle','Null Power Field','Planar Ally','Polymorph Any Object','Power Word: Blind','Power Word: Kill','Power Word: Stun','Precognition, Greater','Psychic Crush','Reality Revision','Regenerate','Resurrection','Reverse Gravity','Shades','Slay Living','Storm of Vengeance','Summon Monster (I-IX)','Telekinesis (aka “TK”)','Teleport, Greater','Temporal Stasis','Time Regression','Timeless Body (aka Invulnerability)','True Metabolism','True Resurrection','True Seeing','Wish'],
+  'Protective': ['Barkskin','Biofeedback','Blur','Cloak of Chaos','Concealing Amorpha','Concealing Amorpha, Greater','Death Ward','Displacement','Endure Elements','Resist Energy','Entropic Shield','Escape Detection','Evade Burst','Fire / Chill Shield','Force Screen / Shield','Globe of Invulnerability','Globe of Invulnerability, Lesser','Inertial Armor','Inertial Barrier','Interposing Hand of Force','Intellect Fortress','Iron Body','Mental Barrier','Mind Blank','Mirror Image','Misdirection','Nondetection','Null Power Field','Obscuring Mist','Power / Spell Resistance','Prayer','Prismatic Sphere','Prismatic Wall','Protection from Arrows / Bullets','Protection from [Alignment]','Protection from Energy','Protection from Spells and Powers','Sanctuary','Spell / Power Turning','Sequester','Shield of Faith','Shield of Law','Shield Other','Spell / Power Immunity','Spell / Power Immunity, Greater','Universal Energy Resistance'],
+  'Resilience': ['Adapt Body','Biofeedback','Immunity to Disease','Immunity to Fear','Immunity to Paralysis','Immunity to Poison','Iron Body','Oak Body','Power / Spell Resistance','Protection from Energy','Protection from Spells and Powers','Regenerate','Remove Blindness/Deafness','Thicken Skin','True Metabolism','Universal Energy Resistance','Vigor'],
+  'Self-Mastery': ['Adapt Body','Biofeedback','Body Adjustment','Body Equilibrium','Body Purification','Empty Mind','Good Hope','Heroism','Heroism, Greater','Immunity to Disease','Immunity to Fear','Immunity to Paralysis','Immunity to Poison','Mental Pinnacle','Mind Blank','Prowess','Psychofeedback','Regenerate','Scent of the Quarry','Schism','Steadfast Perception','Suspend Life','Sustenance','Thicken Skin','True Metabolism'],
+  'Senses': ['Arcane Sight','Aura Sight','Clairvoyant Sense','Danger Sense','Darkvision','Deathwatch','Detect [Alignment]','Detect Animals or Plants','Detect Hostile Intent','Detect Magic & Psionics','Detect Remote Viewing','Detect Secret Doors','Detect Snares and Pits','Detect Teleportation','Detect Thoughts','Detect Undead','Elfsight','Locate Creature','Locate Object','Precognition','Precognition, Combat','Precognition, Defensive','Precognition, Greater','Precognition, Offensive','Prescience, Offensive','Remote Viewing','Scent of the Quarry','See Invisibility','Steadfast Perception','Synesthete','Touchsight','True Seeing','Ubiquitous Vision'],
+  'Shapeshifter': ['Alter Self','Compression','Expansion','Fission','Fusion','Gaseous Form','Grip of Iron','Iron Body','Meld into Stone','Metamorphosis','Metamorphosis, Greater','Oak Body','Regenerate','Shadow Body','Stoneskin','Thicken Skin','Transformation','Wind Walk'],
+  'Sonic Specialist': ['Blasphemy','Command','Command, Greater','Control Sound','Create Sound','Dictum','Holy Word','Power Word: Blind','Power Word: Kill','Power Word: Stun','Sculpt Sound','Shatter','Shout','Shout, Greater','Silence','Song of Discord','Sound Burst','Suggestion (Mass)','Sympathetic Vibration','Ventriloquism','Wail of the Banshee','Whispering Wind','Word of Chaos','Zone of Silence'],
+  'Speed Demon': ['Burst','Expeditious Route','Fly','Haste','Hustle','Jump','Lion’s Charge','Longstrider','Overland Flight','Prowess','Skate','Temporal Acceleration','Time Stop'],
+  'Sun and Spectrum': ['Color Spray','Control Light','Daylight','Fly','Glitterdust','Hypnotic Pattern','Invisibility','Invisibility, Greater','Invisibility, Mass','Invisibility Purge','Invisibility Sphere','Minor Image','Mirror Image','My Light','Prismatic Sphere','Prismatic Spray','Prismatic Wall','Rainbow Pattern','Scintillating Pattern','Searing Light','Sunbeam','Sunburst'],
+  'Supra-Genius': ['Call to Mind','Comprehend Languages','Conceal Thoughts','Contingency','Detect Magic & Psionics','Detect Secret Doors','Detect Snares and Pits','Fate of One','Find the Path','Find Traps','Foresight','Glibness','Hypercognition','Identify','Know Direction and Location','Legend Lore','Locate Creature','Locate Object','Metafaculty','Mind Blank','Mind Trap','Mislead','Prying Eyes','Prying Eyes, Greater','Psychofeedback','Read Magic','Schism','Second Chance','Sense Link','Sensitivity to Psychic Impressions','Steadfast Perception','Thought Shield','Tongues','True Strike','Ubiquitous Vision'],
+  'Telekinetic': ['Far Hand','Floating Disk','Fly','Force Screen / Shield','Inertial Barrier','Intellect Fortress','Knock','Levitate','Lock','Telekinesis (aka “TK”)','Telekinetic Sphere','Touchsight','Unseen Servant'],
+  'Telepath': ['Attraction','Aversion','Brain Lock','Brain Spider','Cloud Mind','Cloud Mind, Mass','Conceal Thoughts','Confusion','Confusion, Lesser','Correspond','Daze Creature','Detect Thoughts','Distract','False Sensory Input','Id Insinuation','Mental Disruption','Metaconcert','Mind Blank','Mind Probe','Mind Seed','Mind Switch','Mind Switch, True','Mindlink','Mindlink, Thieving','Mindwipe','Missive','Missive, Mass','Modify Memory','Personality Parasite','Phantasmal Killer','Psionic Blast','Psychic Chirurgery','Schism','Sending','Sense Link','Sense Link, Forced','Tower of Iron Will','Ultrablast'],
+  'Warrior': ['Animal Affinity','Bite of the Wolf','Call Weaponry','Claw of Energy','Claws of the Beast','Claws of the Vampire','Danger Sense','Detect Hostile Intent','Disrupting Weapon','Dissolving Touch','Dissolving Weapon','Duodimensional Claw','Float','Freedom of Movement','Ghost Shot','Graft Weapon','Grip of Iron','Hammer','Haste','Hustle','Instant Reload','Jump','Keen Edge','Lion’s Charge','Metaphysical Weapon','Painful Strike','Precognition, Combat','Precognition, Defensive','Precognition, Offensive','Prescience, Offensive','Prevenom','Prevenom Weapon','Prowess','Psychic Vampire','Rage','Stomp','Strength of the Enemy','Transformation','True Strike','Truevenom','Truevenom Weapon','Vampiric Blade','Weapon of Energy'],
+  'Water Wyrd': ['Control Water','Create Water','Float','Freezing Sphere','Horrid Wilting','Ice Storm','Planar Ally','Quench','Sleet Storm','Water Breathing','Water Walk'],
+  'Willbender': ['Attraction','Aversion','Charm Being','Charm Person','Command','Command, Greater','Confusion','Confusion, Lesser','Control Body (aka “Puppeteer”)','Control Plants','Control Undead','Demand','Dominate Being','Enthrall','False Sensory Input','Geas/Quest','Geas, Lesser','Glibness','Good Hope','Halt Undead','Hold Being','Hypnotic Pattern','Hypnotism','Scare','Sleep','Suggestion (Mass)','Zone of Truth'],
+};
+// Lazy theme sets: theme -> Set of SPELLS_DB names (variant display names
+// expand to their parents, so "Wildshape" lights up Metamorphosis).
+let _pwThemeSets = null;
+function _powerThemeSets() {
+  if (_pwThemeSets) return _pwThemeSets;
+  _pwThemeSets = {};
+  const vn = (typeof VARIANT_NAMES !== 'undefined') ? VARIANT_NAMES : {};
+  for (const th in POWER_THEMES) {
+    const s = new Set();
+    for (const n of POWER_THEMES[th]) { s.add(n); if (vn[n] && vn[n].parent) s.add(vn[n].parent); }
+    _pwThemeSets[th] = s;
+  }
+  return _pwThemeSets;
+}
+// Reverse lookup for the expanded browse rows: which suites claim this power?
+function _themesOfPower(name) {
+  const sets = _powerThemeSets(), out = [];
+  for (const th in sets) if (sets[th].has(name)) out.push(th);
+  return out;
+}
 function renderPowersBrowse() {
   if (!_pwBrowseOpen) return;  // collapsed — skip the heaviest render (C1)
   const c = chars.find(x => x.id === curId); if (!c) return;
@@ -46426,6 +46515,15 @@ function renderPowersBrowse() {
   const poolF = document.getElementById('pw-pool-filter').value;
   const lvlF = document.getElementById('pw-lvl-filter').value;
   const castableOnly = document.getElementById('pw-castable-only').checked;
+  // v8.74.0: the Power-Type theme filter (HH Ch.XI suites). Options are
+  // populated once from POWER_THEMES; each option carries its suite size.
+  const thSel = document.getElementById('pw-theme-filter');
+  if (thSel && thSel.options.length <= 1) {
+    thSel.innerHTML = '<option value="">All themes (HH Ch.XI)</option>' +
+      Object.keys(POWER_THEMES).map(th => `<option value="${escapeHTML(th)}">${escapeHTML(th)} (${POWER_THEMES[th].length})</option>`).join('');
+  }
+  const themeF = thSel ? thSel.value : '';
+  const themeSetF = themeF ? _powerThemeSets()[themeF] : null;
   const poolsInfo = getCasterPoolsInfo(c);
   // v8.6.0 split: routes are filtered to this mode's pools; the catalogue
   // underneath stays the one unified Ch.IX listing. Rebuild the pool filter's
@@ -46445,10 +46543,18 @@ function renderPowersBrowse() {
   }
   const poolF2 = pfSel ? pfSel.value : poolF;
 
+  // v8.74.0 (found wiring the theme filter): a PURE super-mutant with
+  // "manifestable by this character" checked saw an EMPTY catalogue — super
+  // purchases aren't list-routes, so nothing ever counted as available. On
+  // the Powers side, an entry the character could BUY as a super-power now
+  // passes the availability filter (and the label says so).
+  const superCapable = _pwMode === 'powers' && (typeof getMPState === 'function') && getMPState(c).isSuperMutant;
+  if (clbl && superCapable) clbl.textContent = 'manifestable / ◈ buyable by this character';
   _pwBrowseList = SPELLS_DB.filter(s => {
     if (q && !(s.name.toLowerCase().includes(q) || s.school_raw.toLowerCase().includes(q))) return false;
+    if (themeSetF && !themeSetF.has(s.name)) return false;  // v8.74.0: theme suite filter
     const opts = routesOf(s);
-    if (castableOnly && !opts.some(o => !o.overMax)) return false;
+    if (castableOnly && !opts.some(o => !o.overMax) && !(superCapable && superBuyEligibility(c, s).ok)) return false;
     if (poolF2 && !opts.some(o => o.pool === poolF2)) return false;
     if (lvlF !== '' && !(s.levels || []).some(l => l.lvl === Number(lvlF) || (l.lvl_max && Number(lvlF) >= l.lvl && Number(lvlF) <= l.lvl_max))) return false;
     return true;
@@ -46502,7 +46608,7 @@ function renderPowersBrowse() {
         ${addBtn}
       </div>
       <div style="font-size:10px;opacity:.55;">${escapeHTML(s.school_raw)} · ${escapeHTML((s.levels || []).map(l => l.cls + ' ' + l.lvl + (l.lvl_max ? '-' + l.lvl_max : '')).join(', '))}${s.mp ? ' · ' + s.mp + ' MP' : ''}</div>
-      ${open ? `<div style="font-size:11px;opacity:.75;margin-top:4px;line-height:1.5;">${spellStatLine(s)}</div><div style="font-size:11.5px;margin-top:5px;line-height:1.55;color:var(--parch);">${escapeHTML(s.d)}</div>` : ''}
+      ${open ? `<div style="font-size:11px;opacity:.75;margin-top:4px;line-height:1.5;">${spellStatLine(s)}</div><div style="font-size:11.5px;margin-top:5px;line-height:1.55;color:var(--parch);">${escapeHTML(s.d)}</div>${(() => { const ths = _themesOfPower(s.name); return ths.length ? `<div style="font-size:10px;margin-top:4px;color:#b58fd4;" title="Super-Power Suites by Theme (HH Ch.XI). Own two powers from one suite and further powers from that suite cost 1 MP less (GM adjudicates).">◈ Suites: ${ths.map(escapeHTML).join(' · ')}</div>` : ''; })()}` : ''}
     </div>`;
   }).join('') || `<div style="padding:.9rem;font-size:12px;color:rgba(200,151,30,.45);text-align:center;">Nothing matches the current filters.</div>`)
   + (_pwBrowseList.length > CAP ? `<div style="padding:6px 9px;font-size:11px;color:rgba(200,151,30,.5);text-align:center;">…and ${_pwBrowseList.length - CAP} more — refine the filters to see them.</div>` : '');
