@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.92.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.93.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -5960,7 +5960,7 @@ function buildDerivedSkillBonuses(c) {
 
 function computeSkillMiscBonuses(c) {
   const merged = {};
-  for (const src of [buildFeatBonuses(c), buildOccupationBonuses(c), buildTalentBonuses(c), buildItemBonuses(c), buildScale0VariantBonuses(c), buildMutationBonuses(c), buildMagicItemBonuses(c), buildDerivedSkillBonuses(c), buildRacialBonuses(c.race) /* v8.16.0 Races pass: skill: targets */, (typeof buildClassChoiceBonuses === 'function' ? buildClassChoiceBonuses(c) : {}), (typeof buildCompanionSkillPerks === 'function' ? buildCompanionSkillPerks(c) : {}), (typeof buildAdvancedClassSkillBonuses === 'function' ? buildAdvancedClassSkillBonuses(c) : {}), (typeof buildPowerArmorSkillBonuses === 'function' ? buildPowerArmorSkillBonuses(c) : {}), (typeof activeBuffBonuses === 'function' ? activeBuffBonuses(c) : {}) /* v8.42.0: transient wired buffs */, (typeof buildCyberneticsBonuses === 'function' ? buildCyberneticsBonuses(c) : {}) /* v8.91.0: implants */]) {
+  for (const src of [buildFeatBonuses(c), buildOccupationBonuses(c), buildTalentBonuses(c), buildItemBonuses(c), buildScale0VariantBonuses(c), buildMutationBonuses(c), buildMagicItemBonuses(c), buildDerivedSkillBonuses(c), buildRacialBonuses(c.race) /* v8.16.0 Races pass: skill: targets */, (typeof buildClassChoiceBonuses === 'function' ? buildClassChoiceBonuses(c) : {}), (typeof buildCompanionSkillPerks === 'function' ? buildCompanionSkillPerks(c) : {}), (typeof buildAdvancedClassSkillBonuses === 'function' ? buildAdvancedClassSkillBonuses(c) : {}), (typeof buildPowerArmorSkillBonuses === 'function' ? buildPowerArmorSkillBonuses(c) : {}), (typeof activeBuffBonuses === 'function' ? activeBuffBonuses(c) : {}) /* v8.42.0: transient wired buffs */, (typeof buildCyberneticsBonuses === 'function' ? buildCyberneticsBonuses(c) : {}) /* v8.91.0: implants */, (typeof buildArmorCheckPenaltyBonuses === 'function' ? buildArmorCheckPenaltyBonuses(c) : {}) /* v8.93.0: ACP reaches the skill table */]) {
     for (const key in src) {
       if (!key.startsWith('skill:')) continue;
       (merged[key] = merged[key] || []).push(...src[key]);
@@ -7570,14 +7570,35 @@ function marketAdjustedDC(baseDc, itemTs, marketTs) {
 }
 // Small reusable price span with the fluctuation advisory pop-up. Pass
 // itemTs to apply the market adjustment (tooltip shows the math).
-function priceSpan(dc, techScale, itemTs) {
+function priceSpan(dc, techScale, itemTs, extraNote) {
   if (!dc) return '';
   const adj = (itemTs == null) ? dc : marketAdjustedDC(dc, itemTs, techScale);
   const lbl = priceLabel(adj, techScale);
   if (!lbl) return '';
   const mathNote = (itemTs != null && adj !== dc)
     ? `Base DC ${dc} (TS${itemTs} item) ${adj < dc ? '−2 DC per Tech Scale below' : '+5 DC per Tech Scale above'} the TS${techScale} market → DC ${adj}.\n\n` : '';
-  return `<span style="font-size:10px;opacity:.6;cursor:help;" title="${escapeHTML(mathNote + PRICE_FLUX_NOTE)}">${escapeHTML(lbl)}</span>`;
+  return `<span style="font-size:10px;opacity:.6;cursor:help;" title="${escapeHTML((extraNote ? extraNote + '\n\n' : '') + mathNote + PRICE_FLUX_NOTE)}">${escapeHTML(lbl)}</span>`;
+}
+
+// v8.93.0 (Adam's task 2): an item's EFFECTIVE Purchase DC — base catalog DC
+// + the mastercraft tier's purchase_dc_mod (HH p.275: +1/+2/+3) + each
+// installed gadget's purchase_dc_mod (tiered gadgets use the chosen tier).
+function itemEffectivePDC(it, def) {
+  const base = parseInt(def && def.dc, 10) || (def && def.purchase_dc) || 0;
+  if (!base) return { dc: 0, base: 0, parts: [] };
+  let dc = base; const parts = [];
+  if (it && it.mastercraft && it.mastercraft.bonus) {
+    const tier = (MASTERCRAFT_RULES.bonus_tiers || []).find(t => t.bonus === it.mastercraft.bonus);
+    if (tier && tier.purchase_dc_mod) { dc += tier.purchase_dc_mod; parts.push(`mastercraft +${it.mastercraft.bonus} → +${tier.purchase_dc_mod} Purchase DC (HH p.275)`); }
+  }
+  for (const gg of ((it && it.gadgets) || [])) {
+    const g = GADGETS_CATALOG.find(x => x.name === gg.ref && x.type === (it.catalogue === 'armor' ? 'armor' : it.catalogue));
+    if (!g) continue;
+    let mod = g.purchase_dc_mod;
+    if (Array.isArray(mod)) mod = mod[Math.max(0, Math.min(mod.length - 1, (gg.tier || 1) - 1))];
+    if (typeof mod === 'number' && mod) { dc += mod; parts.push(`${gg.ref}${gg.tier ? ' (tier ' + gg.tier + ')' : ''} → +${mod} Purchase DC`); }
+  }
+  return { dc, base, parts };
 }
 // Funds (a raw universal amount: 1 unit = 1 cp = $1 = 1 credit) rendered in
 // the scenario era's currencies.
@@ -11842,6 +11863,15 @@ function setItemMastercraft(itemId, bonus, target) {
   const cap2 = gadgetSlotCount(it, scenarioTechScale(c));
   if (it.gadgets && it.gadgets.length > cap2) it.gadgets = it.gadgets.slice(0, cap2);
   save(); renderGear(); renderSheet(); renderSkills();
+  // v8.93.0 (Adam's task 2): the mastercraft tier carries a Purchase DC
+  // modifier (HH p.275) — say what the item is now WORTH. Buying it at this
+  // grade costs the new DC; upgrading an owned piece is a Craft project
+  // (XP + Craft DC per the tier) or a GM-priced trade-in.
+  const defMc = getCatalogueEntry(it.catalogue, it.ref);
+  if (defMc && typeof itemEffectivePDC === 'function') {
+    const e2 = itemEffectivePDC(it, defMc);
+    if (e2.parts.length) toast(`${it.ref}: effective Purchase DC ${e2.dc} (${e2.parts.join('; ')}).`);
+  }
 }
 
 async function addGadgetToItem(itemId, gadgetName) {
@@ -11883,6 +11913,13 @@ async function addGadgetToItem(itemId, gadgetName) {
   }
   it.gadgets.push({ ref: gadgetName });
   save(); renderGear(); renderSheet(); renderSkills();
+  // v8.93.0 (Adam's task 2): the gadget's Purchase DC modifier now speaks —
+  // the inventory price reflects it, and the toast states the new worth.
+  const defG = getCatalogueEntry(it.catalogue, it.ref);
+  if (defG && typeof itemEffectivePDC === 'function') {
+    const eG = itemEffectivePDC(it, defG);
+    if (eG.parts.length) toast(`${gadgetName} attached — ${it.ref}: effective Purchase DC ${eG.dc} (${eG.parts.join('; ')}).`);
+  }
 }
 
 function removeGadgetFromItem(itemId, idx) {
@@ -12074,7 +12111,7 @@ function renderInventoryList(items, techScale, catalogue) {
     })() : '';
     return `<div style="border:1px solid rgba(200,151,30,.15);border-radius:3px;padding:6px 8px;margin-bottom:5px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-        <div><b${nameTip}>${escapeHTML((enchInfo || it.customName) ? enchantDisplayName(it) : it.ref)}</b>${it.customName ? ` <span style="font-size:9px;opacity:.55;">(${escapeHTML(it.ref)})</span>` : ''}${enchantTags}${profFlag} <span style="font-size:10px;opacity:.6;">(${catalogue}${it.equipped ? ', equipped' : ''})</span>${it.provenance ? ` <span style="font-size:10px;cursor:help;" title="${it.provenance === 'purchased' ? 'Purchased — paid from funds' : 'Acquired — loot, gift, or GM grant'}">${it.provenance === 'purchased' ? '💰' : '🎁'}</span>` : ''} ${(() => { const pts = (_priceCheckTs != null) ? _priceCheckTs : techScale; return enchInfo ? priceSpan(dcForDollars(enchInfo.cost * 100), pts) : priceSpan(parseInt(def.dc, 10) || def.purchase_dc || 0, pts, (def.tl != null ? def.tl : def.tech_scale) || 0); })()}${armorStrip}</div>
+        <div><b${nameTip}>${escapeHTML((enchInfo || it.customName) ? enchantDisplayName(it) : it.ref)}</b>${it.customName ? ` <span style="font-size:9px;opacity:.55;">(${escapeHTML(it.ref)})</span>` : ''}${enchantTags}${profFlag} <span style="font-size:10px;opacity:.6;">(${catalogue}${it.equipped ? ', equipped' : ''})</span>${it.provenance ? ` <span style="font-size:10px;cursor:help;" title="${it.provenance === 'purchased' ? 'Purchased — paid from funds' : 'Acquired — loot, gift, or GM grant'}">${it.provenance === 'purchased' ? '💰' : '🎁'}</span>` : ''} ${(() => { const pts = (_priceCheckTs != null) ? _priceCheckTs : techScale; if (enchInfo) return priceSpan(dcForDollars(enchInfo.cost * 100), pts); const eff = (typeof itemEffectivePDC === 'function') ? itemEffectivePDC(it, def) : { dc: parseInt(def.dc, 10) || def.purchase_dc || 0, parts: [] }; return priceSpan(eff.dc, pts, (def.tl != null ? def.tl : def.tech_scale) || 0, eff.parts.length ? `Effective Purchase DC ${eff.dc} = base ${eff.base} + ${eff.parts.join(' + ')}.` : ''); })()}${armorStrip}</div>
         <div style="display:flex;align-items:center;gap:6px;">${equipToggle}${handSwap}${gripBtn}${enchantBtn}${mcControl}<button class="btn btn-sm" style="font-size:10px;" onclick="renameItem('${it.id}')" title="Give this item a custom name (flavor only)">✎</button><button class="btn btn-sm" style="font-size:10px;" onclick="sellItem('${it.id}')" title="Sell — into any market's Tech Scale (cross-scalar; HH p.257 Sale Price rule applies)">💱</button><button class="btn btn-sm" style="font-size:10px;" onclick="removeItemFromChar('${it.id}')" title="Remove from inventory">🗑</button></div>
       </div>
       ${effectNote}${gadgetHtml}
@@ -48634,12 +48671,58 @@ function parseArmorCheckPenalty(a) {
   return /[-–−]\s*\d+\s*$/.test(String(a.armor_check_penalty)) ? -n : 0;
 }
 
+// v8.93.0 (Adam's Ultralight report): ARMOR CHECK PENALTY finally reaches
+// the SKILL TABLE — the "separate, not-yet-modeled rule" confessed below
+// since §32. Ultralight Composition's easing had nothing to ease until now.
+// Proficient wearers: ACP applies to the HH's ACP-flagged skills (the Skill
+// Descriptions qualifier line). Non-proficient wearers: that piece's ACP
+// applies to ALL Str-/Dex-based skill checks instead (d20 rule). E&E Swim
+// takes SINGLE ACP — the book replaces 3.5's doubling with its own −1 per
+// 5 lb of gear Special (absence of a 3.5 modifier is intentional).
+const ACP_SKILLS = ['Balance', 'Climb', 'Escape Artist', 'Hide', 'Jump', 'Move Silently', 'Sleight of Hand', 'Swim', 'Tumble'];
+function equippedACPPieces(c) {
+  const parts = [];
+  for (const it of getCharItems(c)) {
+    if (it.catalogue !== 'armor' || !it.equipped) continue;
+    const def = getCatalogueEntry('armor', it.ref);
+    if (!def) continue;
+    let acp = parseArmorCheckPenalty(def);
+    const eased = [];
+    // GMG p.240: mastercraft armor (and enchanted/imbued armor, which is
+    // mastercrafted by definition) eases the armor check penalty by 1.
+    if (acp < 0 && (it.enchant || it.mastercraft)) { acp = Math.min(0, acp + 1); eased.push('mastercraft +1'); }
+    if (acp < 0) {
+      for (const gg of (it.gadgets || [])) {
+        const gdef = GADGETS_CATALOG.find(x => x.name === gg.ref && x.type === 'armor');
+        for (const contrib of ((gdef && gdef.effect && gdef.effect.contributions) || [])) {
+          if (contrib.kind === 'armorCheckPenalty' && typeof contrib.amount === 'number') { acp = Math.min(0, acp + contrib.amount); eased.push(gg.ref + ' +' + contrib.amount); }
+        }
+      }
+    }
+    if ((c.mutations || []).some(m => m.name === 'Festering Sores')) acp -= 4;
+    if (acp < 0) parts.push({ name: it.ref, acp, eased, proficient: isProficientWithArmor(c, it.ref) });
+  }
+  return parts;
+}
+function buildArmorCheckPenaltyBonuses(c) {
+  const out = {};
+  const strDex = (typeof SKILLS !== 'undefined' ? SKILLS : []).filter(sk => sk.k === 'STR' || sk.k === 'DEX').map(sk => sk.n);
+  for (const p of equippedACPPieces(c)) {
+    const targets = p.proficient ? ACP_SKILLS : strDex;
+    const label = `${p.name} armor check penalty${p.eased.length ? ' (eased: ' + p.eased.join(', ') + ')' : ''}${p.proficient ? '' : ' — NON-PROFICIENT: all Str/Dex checks'}`;
+    for (const sk of targets) {
+      (out['skill:' + sk] = out['skill:' + sk] || []).push({ type: BONUS_TYPES.UNTYPED, source: 'acp:' + p.name, value: p.acp, label });
+    }
+  }
+  return out;
+}
+
 // d20 non-proficiency rule: wearing armor (or bearing a shield) without the
 // matching proficiency applies its armor check penalty to attack rolls and
 // to all Str-/Dex-based checks. Summed across every equipped offender —
 // consumed by computeEquippedWeaponSummaries and flagged on the Gear tab.
-// (ACP on skill checks for PROFICIENT wearers is a separate, not-yet-modeled
-// rule — noted in v8.5.4_Notes §32.)
+// (The skill-side application lives in buildArmorCheckPenaltyBonuses above
+// as of v8.93.0 — this function keeps the ATTACK-ROLL side.)
 function nonProficientArmorPenalty(c) {
   const parts = [];
   for (const it of getCharItems(c)) {
@@ -48649,7 +48732,7 @@ function nonProficientArmorPenalty(c) {
     let acp = parseArmorCheckPenalty(def);
     // v8.6.1: enchanted/imbued armor is mastercrafted by definition, easing
     // the armor check penalty by 1 (GMG p.240).
-    if (acp < 0 && it.enchant) acp = Math.min(0, acp + 1);
+    if (acp < 0 && (it.enchant || it.mastercraft)) acp = Math.min(0, acp + 1); // v8.93.0: mastercraft itself eases 1 (GMG p.240) — parity with the skill-side pass
     // v8.8.0 gadget wiring: Morphic Metal Alloy / Ultralight Composition
     // each ease the armor check penalty by 1 (data-driven from their
     // armorCheckPenalty contributions).
