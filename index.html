@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.91.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.92.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -7425,6 +7425,15 @@ function buildCyberneticsBonuses(c) {
     if (def.n === 'Skill Implant' && r.param) push('skill:' + r.param, 2, def.n + ' (' + r.param + ')');
     if (def.n === 'Data Archive') for (const sk of (typeof SKILLS !== 'undefined' ? SKILLS : [])) { if (sk.n.startsWith('Knowledge (')) push('skill:' + sk.n, 4, 'Data Archive'); }
   }
+  // v8.92.0 (Adam: "wire the negative level modifier for completeness"):
+  // −1 per negative level on ALL skill checks (HH p.333) — one untyped
+  // entry per catalog skill; saves ride the statblock lanes, attack rolls
+  // the RO lane, grapple its own compute. Ability-check −1, effective-level
+  // die rolls, and the lost top spell/power remain table-adjudicated.
+  const nl = (typeof cyberExcess === 'function') ? cyberExcess(c) : 0;
+  if (nl > 0) for (const sk of (typeof SKILLS !== 'undefined' ? SKILLS : [])) {
+    (out['skill:' + sk.n] = out['skill:' + sk.n] || []).push({ type: BONUS_TYPES.UNTYPED, source: 'cybernetic:negative-levels', value: -nl, label: `Negative level${nl > 1 ? 's' : ''} ×${nl} (cybernetic overload — HH p.333)` });
+  }
   return out;
 }
 
@@ -7447,7 +7456,7 @@ function renderCybernetics(c) {
   sumEl.innerHTML = `${count} of ${max} attachments` + (excess ? ` <span style="color:#e08080;font-weight:bold;">⚠ +${excess} negative level${excess > 1 ? 's' : ''}</span>` : '');
   const bits = [];
   // doctrine strip
-  bits.push(`<div style="font-size:11px;color:rgba(120,175,205,.75);margin-bottom:.5rem;">Maximum attachments = 1 + Con modifier (${max}; supernatural Con excluded — HH p.333). Each excess attachment = 1 negative level (−1 on attacks, saves, skill & ability checks; −1 effective level; casters/manifesters lose a top-level spell/power) until removed. Removal without <i>Cybernetic Surgery</i>: 1d4 permanent Con drain. Implants cost −2 Purchase DC per Tech Scale above their own (scenario TS ${ts}).</div>`);
+  bits.push(`<div style="font-size:11px;color:rgba(120,175,205,.75);margin-bottom:.5rem;">Maximum attachments = 1 + Con modifier (${max}; supernatural Con excluded — HH p.333). Each excess attachment = 1 negative level — the −1 on attack rolls, saves, grapple, and all skill checks is WIRED LIVE (v8.92.0) with provenance on each cell; the −1 on ability checks, −1 effective level on die rolls, and a caster/manifester's lost top-level spell/power stay at the table (choice-dependent). Removal without <i>Cybernetic Surgery</i>: 1d4 permanent Con drain. Implants cost −2 Purchase DC per Tech Scale above their own (scenario TS ${ts}).</div>`);
   if (owned.length && !hasAntiShock) bits.push(`<div style="font-size:11px;color:#d4b870;margin-bottom:.5rem;" title="HH p.333: a creature with one or more cybernetic attachments takes 50% more damage from any attack that deals electricity damage. An Anti-Shock Implant (TS 6) negates this.">⚡ Electricity vulnerability: +50% electricity damage (no Anti-Shock Implant)</div>`);
   if (owned.length && hasAntiShock) bits.push(`<div style="font-size:11px;color:rgba(120,200,140,.8);margin-bottom:.5rem;">⚡ Electricity vulnerability negated — Anti-Shock Implant.</div>`);
   if (hasLostArm(c)) {
@@ -9120,6 +9129,14 @@ function computeGrapple(c) {
     total -= 2;
     parts.push('Lost Arm −2 (install a cybernetic arm to lift)');
   }
+  // v8.92.0: cybernetic negative levels ride Grapple too — a grapple check
+  // is like a melee attack roll (the RO doctrine), and HH p.333 hits all
+  // attack rolls.
+  const _cybNLg = (typeof cyberExcess === 'function') ? cyberExcess(c) : 0;
+  if (_cybNLg) {
+    total -= _cybNLg;
+    parts.push(`negative levels −${_cybNLg} (cybernetic overload)`);
+  }
   // v8.63.1 (Adam's redirect): Reckless Offense RIDES Grapple — "a grapple
   // check is like a melee attack roll" and starting one "requires a
   // successful melee attack roll" (HH grapple rules), so the +2 applies.
@@ -9943,6 +9960,14 @@ function computeEquippedWeaponSummaries(c) {
     if (!isRangedWeapon(def) && _decl.bd) {
       attackBonus += _decl.bd;
       mods.push({ label: `Best Defense (declared — Defense −${_decl.bd})`, value: _decl.bd });
+    }
+    // v8.92.0 (Adam's completeness ruling): cybernetic negative levels —
+    // −1 per excess attachment on ALL attack rolls (HH p.333), melee and
+    // ranged alike (attack ROLLS, never Base Attack — the RO doctrine).
+    const _cybNLw = (typeof cyberExcess === 'function') ? cyberExcess(c) : 0;
+    if (_cybNLw) {
+      attackBonus -= _cybNLw;
+      mods.push({ label: `Negative level${_cybNLw > 1 ? 's' : ''} ×${_cybNLw} (cybernetic overload — HH p.333)`, value: -_cybNLw });
     }
     // v8.5.2: alternate-attack-mode feats (Burst Fire, Double Tap) — gated on
     // owning the feat AND the equipped weapon's parsed rof[] supporting it
@@ -12370,6 +12395,7 @@ const BONUS_TYPES = {
   SHIELD:       'shield',
   SIZE:         'size',
   SYNERGY:      'synergy',        // v8.3.9: 5+ ranks in skill X → +2 to related skill Y. Different sources stack.
+  TECH:         'tech',           // v8.92.0 (Adam's ruling): cybernetic subq body armor = a TECH bonus to Natural AC — stacks with biological natural armor, best-of-type among tech sources, and feeds the ×5-HP rule like any other permanent NAC.
   MUTATION:     'mutation',       // DEPRECATED (Adam's ruling 2026-09-01): Advantages are EXTRAORDINARY (Ex) modifiers, not a "mutation" stacking type — their bonuses are untyped-Ex (different sources stack; the book's "+N mutation bonus" phrasing names the Ex category, not a stacking type). Constant retained for data compatibility only.
   UNTYPED:      'untyped',
   // Internal types not in the GM's table but mechanically distinct in the engine:
@@ -12602,10 +12628,14 @@ function computeNaturalAC(c) {
   // v8.6.0: mutation-granted natural armor (Exoskeleton +3, Scaly Armor +2)
   // joins the same aggregation — flows into T/ACtical + the ×5-HP rule.
   const mutNat = buildMutationBonuses(c).naturalAC || [];
-  // v8.91.0: Subcutaneous Body Armor (cybernetic) — a NATURAL armor bonus
-  // per HH p.336 (+2/+5/+8 by density); typed stacking handles overlaps.
+  // v8.91.0: Subcutaneous Body Armor (cybernetic) — +2/+5/+8 by density
+  // (HH p.336). v8.92.0 RULED (Adam): a TECH bonus to Natural AC — stacks
+  // with biological natural armor and counts as PERMANENT for the ×5-HP
+  // rule ("the built-in armor gives its HP to the cyborg"): the rule even
+  // reproduces the implant table's own HP column exactly (+2→10, +5→25,
+  // +8→40).
   const cybNat = (typeof getCyber === 'function')
-    ? getCyber(c).map(r => cyberDef(r.n)).filter(d => d && d.nac).map(d => ({ type: BONUS_TYPES.NATURAL, source: 'cybernetic:' + d.n, value: d.nac, label: d.n + ' (cybernetic)' }))
+    ? getCyber(c).map(r => cyberDef(r.n)).filter(d => d && d.nac).map(d => ({ type: BONUS_TYPES.TECH, source: 'cybernetic:' + d.n, value: d.nac, label: d.n + ' (cybernetic — tech bonus to Natural AC)' }))
     : [];
   // v8.6.0 firm-wire: equipped Amulets of Natural Armor (enhancement type —
   // correctly superseded-by/superseding other enhancement NAC sources).
@@ -12616,11 +12646,10 @@ function computeNaturalAC(c) {
   const agg = aggregateBonuses(sources.concat(talentNat, mutNat, magNat, buffNat, cybNat));
   // permTotal excludes equipped-item NAC — the ×5-HP rule applies only to
   // PERMANENT natural armor (Adam's ruling: item NAC hit points would be
-  // temporary; hardness counts items, HP does not). v8.91.0: cybernetic
-  // subq armor joins the AC total but NOT permTotal — the implant carries
-  // its OWN object hardness/HP (HH table); ×5-HP on top would double-dip.
-  // OPEN RULING for Adam if he disagrees.
-  const permAgg = aggregateBonuses(sources.concat(talentNat, mutNat));
+  // temporary; hardness counts items, HP does not). v8.92.0 RULED: subq
+  // body armor (cybNat) IS permanent — "the built-in armor gives its HP to
+  // the cyborg" — and ×5 reproduces the implant table's HP column exactly.
+  const permAgg = aggregateBonuses(sources.concat(talentNat, mutNat, cybNat));
   return {total: agg.total, permTotal: permAgg.total, breakdown: agg.breakdown, sources: sources.concat(talentNat, mutNat, magNat, buffNat, cybNat)};
 }
 
@@ -12747,12 +12776,19 @@ function computeStatBlock(char, activeConditions) {
   // entries mirror the reconciler's bakes (card/drilldown parity), the save
   // entries ARE the wire (saves aren't baked). verifyParity subtracts these.
   const msLanes = (typeof buildMutantSubtypeLanes === 'function') ? buildMutantSubtypeLanes(char) : { bab: [], def: [], fort: [], ref: [], will: [] };
+  // v8.92.0 (Adam: "wire the negative level modifier for completeness"):
+  // excess cybernetic attachments — −1 per negative level on SAVES here;
+  // attack rolls ride the RO lane, skills ride the skill engine, grapple in
+  // computeGrapple. Effective-level die rolls + the lost top spell/power
+  // stay table-adjudicated (choice-dependent).
+  const _cybNL = (typeof cyberExcess === 'function') ? cyberExcess(char) : 0;
+  const _cybNLEntry = _cybNL ? [{ type: 'untyped', source: 'cybernetic:negative-levels', value: -_cybNL, label: `Negative level${_cybNL > 1 ? 's' : ''} ×${_cybNL} (cybernetic overload — HH p.333)` }] : [];
   const lists = {
     bab:  [...classBon.bab,  ...(featBon.bab||[]), ...((cfSaveBon && cfSaveBon.bab)||[]), ...msLanes.bab],
     def:  [...classBon.def,  ...(racialBon.def||[]),  ...(featBon.def||[]), ...((cfSaveBon && cfSaveBon.def)||[]), ...msLanes.def, ..._bdEntry],
-    fort: [...classBon.fort, buildAttributeBonus('CON', conM), ...(racialBon.fort||[]), ...(featBon.fort||[]), ...(mutBon.fort||[]), ...(mgBon.fort||[]), ...(cfSaveBon.fort||[]), ...(aeBon.fort||[]), ...msLanes.fort],
-    ref:  [...classBon.ref,  buildAttributeBonus('DEX', dexM), ...(racialBon.ref||[]),  ...(featBon.ref||[]),  ...(mutBon.ref||[]),  ...(mgBon.ref||[]),  ...(cfSaveBon.ref||[]),  ...(aeBon.ref||[]), ...msLanes.ref],
-    will: [...classBon.will, buildAttributeBonus('WIS', wisM), ...(racialBon.will||[]), ...(featBon.will||[]), ...(mutBon.will||[]), ...(mgBon.will||[]), ...(cfSaveBon.will||[]), ...(aeBon.will||[]), ...msLanes.will],
+    fort: [...classBon.fort, buildAttributeBonus('CON', conM), ...(racialBon.fort||[]), ...(featBon.fort||[]), ...(mutBon.fort||[]), ...(mgBon.fort||[]), ...(cfSaveBon.fort||[]), ...(aeBon.fort||[]), ...msLanes.fort, ..._cybNLEntry],
+    ref:  [...classBon.ref,  buildAttributeBonus('DEX', dexM), ...(racialBon.ref||[]),  ...(featBon.ref||[]),  ...(mutBon.ref||[]),  ...(mgBon.ref||[]),  ...(cfSaveBon.ref||[]),  ...(aeBon.ref||[]), ...msLanes.ref, ..._cybNLEntry],
+    will: [...classBon.will, buildAttributeBonus('WIS', wisM), ...(racialBon.will||[]), ...(featBon.will||[]), ...(mutBon.will||[]), ...(mgBon.will||[]), ...(cfSaveBon.will||[]), ...(aeBon.will||[]), ...msLanes.will, ..._cybNLEntry],
     rep:  [...classBon.rep,  ...(racialBon.rep||[]),  ...(featBon.rep||[]), ...((typeof buildClassFeatureRepBonuses === 'function') ? buildClassFeatureRepBonuses(char) : [])],
     // Armor Class: 10 base + size + DEX + def-bonus + natural + (future: armor, shield, deflection)
     ac:   [
