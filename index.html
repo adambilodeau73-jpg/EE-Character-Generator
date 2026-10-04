@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.90.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.91.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1135,6 +1135,12 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
       <div class="panel" style="overflow-x:auto;margin-bottom:.9rem;">
         <table class="sk-tbl"><thead><tr><th style="min-width:160px;">Slot</th><th>Affinity / Equipped</th></tr></thead><tbody id="gear-magic-slots"></tbody></table>
       </div>
+    </div>
+
+    <!-- v8.91.0: 🦾 CYBERNETICS — implant body slots (HH pp.332-339) -->
+    <div class="sec-head sm" onclick="toggleGearCyber()" style="cursor:pointer;user-select:none;border-top:1px solid rgba(120,175,205,.25);padding-top:8px;"><span id="gear-cyber-chev" style="font-size:9px;color:#78afcd;">▸</span> <span style="color:#78afcd;">🦾 Cybernetics</span> <span class="cite cite-HH" title="Hero's Handbook, pp. 332-339 — Cybernetic Attachments & Implants">HH 332</span> <span id="gear-cyber-summary" style="font-weight:400;font-size:11px;text-transform:none;letter-spacing:0;color:rgba(120,175,205,.85);margin-left:8px;"></span></div>
+    <div id="gear-cyber-wrap" style="display:none;border-bottom:1px solid rgba(120,175,205,.25);padding-bottom:10px;margin-bottom:.9rem;">
+      <div id="gear-cyber-body"></div>
     </div>
 
     <div class="sec-head sm">Inventory — Weapons</div>
@@ -5954,7 +5960,7 @@ function buildDerivedSkillBonuses(c) {
 
 function computeSkillMiscBonuses(c) {
   const merged = {};
-  for (const src of [buildFeatBonuses(c), buildOccupationBonuses(c), buildTalentBonuses(c), buildItemBonuses(c), buildScale0VariantBonuses(c), buildMutationBonuses(c), buildMagicItemBonuses(c), buildDerivedSkillBonuses(c), buildRacialBonuses(c.race) /* v8.16.0 Races pass: skill: targets */, (typeof buildClassChoiceBonuses === 'function' ? buildClassChoiceBonuses(c) : {}), (typeof buildCompanionSkillPerks === 'function' ? buildCompanionSkillPerks(c) : {}), (typeof buildAdvancedClassSkillBonuses === 'function' ? buildAdvancedClassSkillBonuses(c) : {}), (typeof buildPowerArmorSkillBonuses === 'function' ? buildPowerArmorSkillBonuses(c) : {}), (typeof activeBuffBonuses === 'function' ? activeBuffBonuses(c) : {}) /* v8.42.0: transient wired buffs */]) {
+  for (const src of [buildFeatBonuses(c), buildOccupationBonuses(c), buildTalentBonuses(c), buildItemBonuses(c), buildScale0VariantBonuses(c), buildMutationBonuses(c), buildMagicItemBonuses(c), buildDerivedSkillBonuses(c), buildRacialBonuses(c.race) /* v8.16.0 Races pass: skill: targets */, (typeof buildClassChoiceBonuses === 'function' ? buildClassChoiceBonuses(c) : {}), (typeof buildCompanionSkillPerks === 'function' ? buildCompanionSkillPerks(c) : {}), (typeof buildAdvancedClassSkillBonuses === 'function' ? buildAdvancedClassSkillBonuses(c) : {}), (typeof buildPowerArmorSkillBonuses === 'function' ? buildPowerArmorSkillBonuses(c) : {}), (typeof activeBuffBonuses === 'function' ? activeBuffBonuses(c) : {}) /* v8.42.0: transient wired buffs */, (typeof buildCyberneticsBonuses === 'function' ? buildCyberneticsBonuses(c) : {}) /* v8.91.0: implants */]) {
     for (const key in src) {
       if (!key.startsWith('skill:')) continue;
       (merged[key] = merged[key] || []).push(...src[key]);
@@ -7317,7 +7323,194 @@ function skillHoverText(c, sk) {
 }
 
 // ============================================================================
-// v8.7.0 PRICING (Adam's ruling, 2026-09-02). HH p.45 Wealth Score /
+// v8.91.0 🦾 CYBERNETICS (Adam's commission, 2026-10-04). HH pp.332-339:
+// implants = a body-slot gear system beside Equipped Items. Core rules wired:
+// max attachments = 1 + Con modifier (supernatural Con excluded, HH p.333);
+// excess → 1 negative level each (advisory chip — the full −1-everything
+// cascade is GM-applied); electricity vulnerability +50% unless Anti-Shock;
+// PDC −2 per Tech Scale step above the implant's own TS (HH p.334);
+// removal without Cybernetic Surgery = 1d4 permanent Con drain (toast).
+// LOST ARM interlock (task 3): the drawback removes the off hand until a
+// Prosthetic Arm replacement is installed; arm-mounted implants need the
+// prosthetic first (HH: "the recipient's prosthetic arm ends in a weapon").
+// ============================================================================
+const CYBER_SLOTS = { neural: '🧠 Neural', eyes: '👁 Eyes', torso: '🫀 Torso', skin: '🩹 Skin', skeleton: '🦴 Skeleton', arm: '💪 Arm', leg: '🦵 Leg', limb: '🦾 Limb (arm or leg)' };
+const CYBERNETICS_DB = [
+  { n: 'Artificial Organ', ts: 5, type: 'Internal', hard: '–/2', pdc: 19, rx: '—', slot: 'torso', d: 'Fully replaces a defective or destroyed biological organ (heart, lung, eye, ear…). Duplicates the function of its biological counterpart; no special game benefits.' },
+  { n: 'Prosthetic Arm', ts: 5, type: 'External', hard: '3/5', pdc: 17, rx: '—', slot: 'arm', replaceArm: true, d: 'Fully replaces a lost or destroyed biological arm (from shoulder, elbow, or wrist). Duplicates its biological counterpart; no special game benefits. RESTORES the off hand lost to the Lost Arm drawback.' },
+  { n: 'Prosthetic Leg', ts: 5, type: 'External', hard: '3/7', pdc: 17, rx: '—', slot: 'leg', replaceLeg: true, d: 'Fully replaces a lost or destroyed biological leg (from thigh, knee, or ankle). Duplicates its biological counterpart; no special game benefits.' },
+  { n: 'Artificial Organ Upgrade', ts: 6, type: 'Internal', hard: '–/4', pdc: 21, rx: '—', slot: 'torso', d: 'Upgraded TS 5 artificial organ — more resilient; cannot be disabled by massive damage effects.' },
+  { n: 'Prosthetic Arm Upgrade', ts: 6, type: 'External', hard: '5/10', pdc: 19, rx: '—', slot: 'arm', replaceArm: true, d: 'Upgraded TS 5 prosthetic arm — greater hardness and HP. RESTORES the off hand lost to the Lost Arm drawback.' },
+  { n: 'Prosthetic Leg Upgrade', ts: 6, type: 'External', hard: '5/15', pdc: 19, rx: '—', slot: 'leg', replaceLeg: true, d: 'Upgraded TS 5 prosthetic leg — greater hardness and HP.' },
+  { n: 'Anti-Shock Implant', ts: 6, type: 'Internal', hard: '–/1', pdc: 15, rx: '—', slot: 'neural', d: 'Embedded near the brain stem; protects itself and other cybernetic hardware. NEGATES the recipient’s electricity vulnerability from cybernetics.' },
+  { n: 'External Weapon Mount', ts: 6, type: 'External', hard: '10/5', pdc: 0, pdcNote: 'melee 15 / ranged 17 (+arm, +weapon)', rx: 'Mil (+3)', slot: 'arm', needsArm: true, d: 'The prosthetic arm ends in a weapon instead of a hand. Disarm attempts automatically fail (the weapon can still be attacked). Base PDC: melee mount 15, ranged mount 17 — prosthetic arm and weapon not included. REQUIRES a prosthetic arm.' },
+  { n: 'Identity Chip', ts: 6, type: 'Internal', hard: '–/1', pdc: 5, rx: '—', slot: 'torso', d: 'Subcutaneous legal ID + credit card; use your Wealth even when separated from your funds.' },
+  { n: 'Injector Unit', ts: 6, type: 'External', hard: '2/5', pdc: 15, rx: 'Lic (+1)', slot: 'limb', d: 'Forearm/thigh unit with three hypo-syringes (antitox, boost, neutrad, sporekill [TS 6], or biocort [TS 7]). Inject any or all as a FREE action; replacing a drained hypo is a full-round action.' },
+  { n: 'Nightvision Optics', ts: 6, type: 'Internal', hard: '–/2 (per eye)', pdc: 19, rx: '—', slot: 'eyes', d: 'All eyes replaced with ocular implants: darkvision 60 ft.' },
+  { n: 'Skill Implant', ts: 6, type: 'Internal', hard: '–/1', pdc: 20, rx: '—', slot: 'neural', param: 'skill', d: '+2 competence bonus on one CLASS skill of your choice. Each skill needs its own implant (each a separate attachment; see Skill Plexus).' },
+  { n: 'Stabilizer', ts: 6, type: 'Internal', hard: '–/3', pdc: 22, rx: '—', slot: 'torso', d: 'Installed near the heart: if reduced to negative hit points, you automatically stabilize.' },
+  { n: 'Subcutaneous Body Armor (Light)', ts: 6, type: 'Internal', hard: '10/10', pdc: 15, rx: 'Mil (+3)', slot: 'skin', cnt: 1, nac: 2, d: 'Flexible armor plates under the skin: +2 natural armor bonus to AC. Counts as 1 implant.' },
+  { n: 'Subcutaneous Body Armor (Medium)', ts: 6, type: 'Internal', hard: '10/25', pdc: 20, rx: 'Mil (+3)', slot: 'skin', cnt: 2, nac: 5, d: 'Flexible armor plates under the skin: +5 natural armor bonus to AC. Counts as 2 implants.' },
+  { n: 'Subcutaneous Body Armor (Heavy)', ts: 6, type: 'Internal', hard: '10/40', pdc: 25, rx: 'Mil (+3)', slot: 'skin', cnt: 3, nac: 8, d: 'Flexible armor plates under the skin: +8 natural armor bonus to AC. Counts as 3 implants.' },
+  { n: 'Subcutaneous Cell Phone', ts: 6, type: 'Internal', hard: '–/2', pdc: 16, rx: '—', slot: 'skin', d: 'Throat transceiver + ear speaker: converse without raising your voice above a whisper (Listen checks to overhear at −4); only you hear the other side.' },
+  { n: 'Telescopic Optics', ts: 6, type: 'Internal', hard: '–/2 (per eye)', pdc: 15, rx: '—', slot: 'eyes', d: 'All eyes replaced: Spot range penalty becomes −1 per 30 ft (instead of −1 per 10 ft).' },
+  { n: 'Voice Stress Analyzer', ts: 6, type: 'Internal', hard: '–/4', pdc: 17, rx: '—', slot: 'neural', skill: ['Sense Motive', 4], d: 'Optic/inner-ear sensors read pulse and galvanic response: +4 equipment bonus on Sense Motive checks.' },
+  { n: 'Advanced Artificial Organ', ts: 7, type: 'Internal', hard: '–/4', pdc: 24, rx: '—', slot: 'torso', cnt: 0, d: 'Replaces a defective organ; cannot be disabled by massive damage; does NOT count toward the maximum number of attachments.' },
+  { n: 'Advanced Prosthetic Arm', ts: 7, type: 'External', hard: '10/10', pdc: 22, rx: '—', slot: 'arm', replaceArm: true, cnt: 0, d: 'Replaces a lost arm; does NOT count toward the maximum number of attachments. RESTORES the off hand lost to the Lost Arm drawback.' },
+  { n: 'Advanced Prosthetic Leg', ts: 7, type: 'External', hard: '10/15', pdc: 22, rx: '—', slot: 'leg', replaceLeg: true, cnt: 0, d: 'Replaces a lost leg; does NOT count toward the maximum number of attachments.' },
+  { n: 'Anti-Flare Implants', ts: 7, type: 'Internal', hard: '–/1 (per eye)', pdc: 14, rx: '—', slot: 'eyes', d: 'Artificial corneas with flare suppressors: blinding effects from bright lights have no effect on you.' },
+  { n: 'Anti-Stun Implant', ts: 7, type: 'Internal', hard: '–/4', pdc: 24, rx: 'Mil (+3)', slot: 'neural', d: 'Spine-embedded nervous-system shield: you cannot be stunned.' },
+  { n: 'Body Repair Weave', ts: 7, type: 'Internal', hard: '–/4', pdc: 21, rx: 'Lic (+1)', slot: 'skin', d: 'Subdermal biowire weave: you heal naturally at TWICE the normal rate.' },
+  { n: 'Data Archive', ts: 7, type: 'Internal', hard: '–/2', pdc: 27, rx: '—', slot: 'neural', d: 'Skull microcomputer with biochip database: ALL skills are class skills for you, and +4 equipment bonus on all Knowledge checks.' },
+  { n: 'Feat Implant', ts: 7, type: 'Internal', hard: '–/5', pdc: 25, rx: 'Mil (+3)', slot: 'neural', param: 'feat', d: 'Grants one feat (prerequisites must be met; not metamagic or psionic feats). If the implant is destroyed, the feat is lost.' },
+  { n: 'Fortified Skeleton', ts: 7, type: 'Internal', hard: '–/–', pdc: 32, rx: 'Mil (+3)', slot: 'skeleton', dr: 4, d: 'High-impact polymer skeletal fortification: damage reduction 4/—.' },
+  { n: 'Initiative Implant', ts: 7, type: 'Internal', hard: '–/10', pdc: 20, rx: 'Mil (+3)', slot: 'neural', init: 2, d: 'Spinal wire lattice stimulating faster response times: +2 equipment bonus on Initiative checks.' },
+  { n: 'Internal Weapon Mount', ts: 7, type: 'Internal', hard: '10/5', pdc: 0, pdcNote: 'melee 17 / ranged 19 (+prosthesis, +weapon)', rx: 'Mil (+3)', slot: 'arm', needsArm: true, d: 'Subcutaneous weapon in a prosthetic forearm/hand; extend/retract as a free action. Disarm fails automatically; hidden (Spot vs your Sleight of Hand). Base PDC: melee 17, ranged 19 — prosthesis and weapon not included. REQUIRES a prosthetic arm.' },
+  { n: 'Laser Optics', ts: 7, type: 'Internal', hard: '–/2 (per eye)', pdc: 28, rx: 'Mil (+3)', slot: 'eyes', d: 'Ocular implants firing thin lasers: attack action, no AoO; 2d6 fire, crit on natural 20, range increment 20 ft; +2 damage per additional eye (a pair deals 2d6+2, fired together at one target).' },
+  { n: 'Luminous Skin', ts: 7, type: 'Internal', hard: '–/–', pdc: 6, rx: '—', slot: 'skin', d: 'Luminous skin grafts (brightness controlled as a free action; can illuminate your hex and adjacent hexes) + built-in chronometer.' },
+  { n: 'Microcomputer', ts: 7, type: 'Internal', hard: '–/4', pdc: 36, rx: 'Res (+2)', slot: 'neural', d: 'Nervous-system computer at the skull base: Computer Use checks as a MOVE action (not full-round); remote operation time halved; data port for interface cable (PDC 5).' },
+  { n: 'Mindscreen Implant', ts: 7, type: 'Internal', hard: '–/2', pdc: 28, rx: 'Mil (+3)', slot: 'neural', d: '+2 equipment bonus on saving throws against mind-affecting attacks.' },
+  { n: 'Prosthetic Enhancer', ts: 7, type: 'Internal', hard: '–/2', pdc: 22, rx: '—', slot: 'limb', needsProsthetic: true, cnt: 0, d: 'Attaches to a prosthetic limb. Leg: +5 ft base speed, +1 unarmed damage with that leg. Arm: +2 on Str- and Dex-based ability/skill checks, +1 unarmed damage with that arm. Does NOT count toward the attachment maximum. REQUIRES a prosthetic arm or leg.' },
+  { n: 'Rage Implant', ts: 7, type: 'Internal', hard: '–/3', pdc: 24, rx: 'Res (+2)', slot: 'neural', d: '1/day free action: +4 Str, +4 Con, +2 morale on Will saves, −2 Defense for 3 + (new Con mod) rounds; no patience/concentration abilities while raging; fatigued after (as a Barbarian-style rage).' },
+  { n: 'Skill Plexus', ts: 7, type: 'Internal', hard: '–/4', pdc: 25, rx: '—', slot: 'neural', d: 'Brain unit letting up to FOUR skill implants count together as a single attachment (their PDCs not included). If the plexus is destroyed, the attached skill implants are destroyed too.' },
+  { n: 'Targeting Optics', ts: 7, type: 'Internal', hard: '–/2 (per eye)', pdc: 17, rx: 'Mil (+3)', slot: 'eyes', d: 'All eyes replaced; projected targeting reticle: +1 bonus on all RANGED attack rolls.' },
+  { n: 'Feat Plexus', ts: 8, type: 'Internal', hard: '–/4', pdc: 25, rx: 'Mil (+3)', slot: 'neural', d: 'Brain unit letting up to FOUR feat implants count together as a single attachment (their PDCs not included). If the plexus is destroyed, the attached feat implants are destroyed too.' },
+  { n: 'Invisiware', ts: 8, type: 'External', hard: '4/20', pdc: 35, rx: 'Mil (+3)', slot: 'skin', d: 'Crystalline skin refractors: turn invisible (free action) — +40 Hide immobile / +20 moving; pinpointing you is Spot DC 40/20; 50% concealment even when pinpointed. 10 rounds of use, then 1 hour of solar recharge.' },
+  { n: 'Psi Implant', ts: 8, type: 'Internal', hard: '–/2', pdc: 31, rx: 'Mil (+3)', slot: 'neural', d: 'Stimulates latent psionic regions of the brain: you gain the Wild Talent feat.' },
+];
+
+function getCyber(c) { return (c && c.cybernetics) || []; }
+function cyberDef(n) { return CYBERNETICS_DB.find(e => e.n === n) || null; }
+function hasLostArm(c) { return (c && c.mutations || []).some(m => m.name === 'Lost Arm'); }
+function hasCyberArm(c) { return getCyber(c).some(r => (cyberDef(r.n) || {}).replaceArm); }
+// The off hand exists unless Lost Arm stands UNreplaced (HH drawback Special:
+// "You can replace your lost arm with a cybernetic replacement arm").
+function offHandAvailable(c) { return !hasLostArm(c) || hasCyberArm(c); }
+function cyberMax(c) {
+  // 1 + Con modifier (minimum 0); supernatural Con modifiers excluded —
+  // c.attrs holds the baked PERMANENT score, which is the right base.
+  return Math.max(0, 1 + Math.floor((((c.attrs && c.attrs[2]) ?? 10) - 10) / 2));
+}
+function cyberCount(c) {
+  // Plexus rule: up to FOUR Skill (or Feat) Implants ride one plexus as a
+  // single attachment (the plexus's own 1). Advanced prostheses/organs and
+  // the Prosthetic Enhancer count 0 by their entries.
+  let skillImps = 0, featImps = 0, n = 0;
+  for (const r of getCyber(c)) {
+    const def = cyberDef(r.n); if (!def) { n += 1; continue; }
+    if (def.n === 'Skill Implant') { skillImps++; continue; }
+    if (def.n === 'Feat Implant') { featImps++; continue; }
+    n += (def.cnt !== undefined ? def.cnt : 1);
+  }
+  const hasSP = getCyber(c).some(r => r.n === 'Skill Plexus');
+  const hasFP = getCyber(c).some(r => r.n === 'Feat Plexus');
+  n += hasSP ? Math.max(0, skillImps - 4) : skillImps;
+  n += hasFP ? Math.max(0, featImps - 4) : featImps;
+  return n;
+}
+function cyberExcess(c) { return Math.max(0, cyberCount(c) - cyberMax(c)); }
+function cyberPDC(c, def) {
+  if (!def.pdc) return def.pdcNote || 'see text';
+  const steps = Math.max(0, scenarioTechScale(c) - def.ts);
+  return Math.max(1, def.pdc - 2 * steps);
+}
+// Bonus-engine source: implants with clean always-on numbers contribute live.
+function buildCyberneticsBonuses(c) {
+  const out = {};
+  const push = (target, value, label, type) => { (out[target] = out[target] || []).push({ type: type || BONUS_TYPES.EQUIPMENT || 'equipment', source: 'cybernetic:' + label, value, label: label + ' (cybernetic)' }); };
+  for (const r of getCyber(c)) {
+    const def = cyberDef(r.n); if (!def) continue;
+    if (def.init) push('init', def.init, def.n);
+    if (def.skill) push('skill:' + def.skill[0], def.skill[1], def.n);
+    if (def.n === 'Skill Implant' && r.param) push('skill:' + r.param, 2, def.n + ' (' + r.param + ')');
+    if (def.n === 'Data Archive') for (const sk of (typeof SKILLS !== 'undefined' ? SKILLS : [])) { if (sk.n.startsWith('Knowledge (')) push('skill:' + sk.n, 4, 'Data Archive'); }
+  }
+  return out;
+}
+
+function toggleGearCyber() {
+  const w = document.getElementById('gear-cyber-wrap'), ch = document.getElementById('gear-cyber-chev');
+  const open = w.style.display === 'none';
+  w.style.display = open ? '' : 'none';
+  ch.textContent = open ? '▾' : '▸';
+}
+
+function renderCybernetics(c) {
+  const sumEl = document.getElementById('gear-cyber-summary'), body = document.getElementById('gear-cyber-body');
+  if (!sumEl || !body) return;
+  const ts = scenarioTechScale(c);
+  const owned = getCyber(c);
+  const max = cyberMax(c), count = cyberCount(c), excess = cyberExcess(c);
+  const hasAntiShock = owned.some(r => r.n === 'Anti-Shock Implant');
+  // summary line beside the section head
+  if (ts < 5 && !owned.length) { sumEl.textContent = '— requires a Tech Scale 5+ scenario'; body.innerHTML = ''; return; }
+  sumEl.innerHTML = `${count} of ${max} attachments` + (excess ? ` <span style="color:#e08080;font-weight:bold;">⚠ +${excess} negative level${excess > 1 ? 's' : ''}</span>` : '');
+  const bits = [];
+  // doctrine strip
+  bits.push(`<div style="font-size:11px;color:rgba(120,175,205,.75);margin-bottom:.5rem;">Maximum attachments = 1 + Con modifier (${max}; supernatural Con excluded — HH p.333). Each excess attachment = 1 negative level (−1 on attacks, saves, skill & ability checks; −1 effective level; casters/manifesters lose a top-level spell/power) until removed. Removal without <i>Cybernetic Surgery</i>: 1d4 permanent Con drain. Implants cost −2 Purchase DC per Tech Scale above their own (scenario TS ${ts}).</div>`);
+  if (owned.length && !hasAntiShock) bits.push(`<div style="font-size:11px;color:#d4b870;margin-bottom:.5rem;" title="HH p.333: a creature with one or more cybernetic attachments takes 50% more damage from any attack that deals electricity damage. An Anti-Shock Implant (TS 6) negates this.">⚡ Electricity vulnerability: +50% electricity damage (no Anti-Shock Implant)</div>`);
+  if (owned.length && hasAntiShock) bits.push(`<div style="font-size:11px;color:rgba(120,200,140,.8);margin-bottom:.5rem;">⚡ Electricity vulnerability negated — Anti-Shock Implant.</div>`);
+  if (hasLostArm(c)) {
+    bits.push(hasCyberArm(c)
+      ? `<div style="font-size:11px;color:rgba(120,200,140,.8);margin-bottom:.5rem;">🦾 Lost Arm (drawback) — REPLACED by a cybernetic arm: off hand restored, two-handed weapons and the −2 Climb/Swim/grapple penalties lifted.</div>`
+      : `<div style="font-size:11px;color:#e08080;margin-bottom:.5rem;">🦾 Lost Arm (drawback) — no off hand, no two-handed weapons, −2 Climb/Swim/grapple. Install a Prosthetic Arm (any tier) to restore the arm; arm-mounted implants need the prosthetic first.</div>`);
+  }
+  // owned rows
+  if (owned.length) {
+    bits.push('<table class="sk-tbl" style="margin-bottom:.6rem;"><thead><tr><th>Implant</th><th>Slot</th><th>Type</th><th>Hard/HP</th><th></th></tr></thead><tbody>');
+    owned.forEach((r, i) => {
+      const def = cyberDef(r.n) || {};
+      const noCnt = def.cnt === 0 ? ' <span style="font-size:9px;color:rgba(120,200,140,.7);" title="Does not count toward the attachment maximum.">free</span>' : '';
+      bits.push(`<tr><td><span style="cursor:help;border-bottom:1px dotted rgba(120,175,205,.5);" title="${escapeHTML((def.d || '') + (def.rx && def.rx !== '—' ? '\nRestriction: ' + def.rx : ''))}">${escapeHTML(r.n)}</span>${r.param ? ` <span style="color:var(--gold);font-size:11px;">(${escapeHTML(r.param)})</span>` : ''}${noCnt}</td><td style="font-size:11px;">${CYBER_SLOTS[def.slot] || def.slot || ''}</td><td style="font-size:11px;">${def.type || ''}</td><td style="font-size:11px;">${escapeHTML(def.hard || '')}</td><td><button class="btn btn-sm" style="font-size:10px;" onclick="removeCyber(${i})">✕</button></td></tr>`);
+    });
+    bits.push('</tbody></table>');
+  }
+  // add browser (TS-gated)
+  const avail = CYBERNETICS_DB.filter(e => e.ts <= ts);
+  if (avail.length) {
+    bits.push(`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><select id="gear-cyber-sel" style="font-size:11px;max-width:330px;">` +
+      avail.map((e, idx) => `<option value="${CYBERNETICS_DB.indexOf(e)}">${escapeHTML(e.n)} — TS ${e.ts} · PDC ${escapeHTML(String(cyberPDC(c, e)))}${e.rx !== '—' ? ' · ' + escapeHTML(e.rx) : ''}</option>`).join('') +
+      `</select><button class="btn btn-sm btn-pri" style="font-size:10px;" onclick="addCyberFromSel()">+ Install</button><span style="font-size:10px;opacity:.55;">surgery assumed — Treat Injury / Cybernetic Surgery at the table</span></div>`);
+  } else {
+    bits.push(`<div style="font-size:11px;opacity:.6;">No implants available at Tech Scale ${ts} — cybernetics begins at TS 5.</div>`);
+  }
+  body.innerHTML = bits.join('');
+}
+
+function addCyberFromSel() {
+  const c = chars.find(x => x.id === curId); if (!c) return;
+  const sel = document.getElementById('gear-cyber-sel'); if (!sel) return;
+  const def = CYBERNETICS_DB[Number(sel.value)]; if (!def) return;
+  // Lost Arm interlock: arm-mounted implants need the prosthetic arm first.
+  if (def.needsArm && !hasCyberArm(c)) { toast(`${def.n} mounts IN a prosthetic arm — install a Prosthetic Arm first (HH p.335${hasLostArm(c) ? '; Lost Arm: the prosthetic also restores the off hand' : ''}).`); return; }
+  if (def.needsProsthetic && !hasCyberArm(c) && !getCyber(c).some(r => (cyberDef(r.n) || {}).replaceLeg)) { toast(`${def.n} attaches to a prosthetic limb — install a Prosthetic Arm or Leg first.`); return; }
+  const finish = (param) => {
+    c.cybernetics = getCyber(c).concat([{ n: def.n, ...(param ? { param } : {}), at: new Date().toLocaleDateString() }]);
+    const exc = cyberExcess(c);
+    save(); renderGear(); renderSheet(); renderSkills();
+    logAct(`🦾 Installed ${def.n}${param ? ' (' + param + ')' : ''} — PDC ${cyberPDC(c, def)}${def.rx !== '—' ? ', ' + def.rx : ''}.${exc ? ` ⚠ ${exc} attachment${exc > 1 ? 's' : ''} over the maximum — ${exc} negative level${exc > 1 ? 's' : ''} until removed or Con rises.` : ''}`);
+    toast(`${def.n} installed${exc ? ` — ⚠ over the attachment maximum (${exc} negative level${exc > 1 ? 's' : ''})` : ''}.`);
+  };
+  if (def.param === 'skill') {
+    const classSkills = (typeof SKILLS !== 'undefined' ? SKILLS : []).filter(sk => isClassSkill(sk.n, c)).map(sk => sk.n);
+    openChoiceModal('Skill Implant — choose one CLASS skill (+2 competence)', classSkills, v => { if (v) finish(v); });
+    return;
+  }
+  if (def.param === 'feat') {
+    openChoiceModal('Feat Implant — name the granted feat (prerequisites must be met; not metamagic/psionic)', (typeof FEATS_DB !== 'undefined' ? FEATS_DB.map(f => f.n) : []), v => { if (v) finish(v); });
+    return;
+  }
+  finish(null);
+}
+
+function removeCyber(idx) {
+  const c = chars.find(x => x.id === curId); if (!c) return;
+  const r = getCyber(c)[idx]; if (!r) return;
+  c.cybernetics = getCyber(c).filter((_, i) => i !== idx);
+  save(); renderGear(); renderSheet(); renderSkills();
+  logAct(`🦾 Removed ${r.n}. Without Cybernetic Surgery, removal deals 1d4 permanent Con drain (HH p.333) — adjudicate at the table.`);
+  toast(`${r.n} removed — 1d4 permanent Con drain unless removed with Cybernetic Surgery.`);
+}
 // Purchase DC currency table (DC 1-80), with the universal bridge:
 // 1 gp = 10 sp = 100 cp, and 1 cp = $1 = 1 credit (so DC 20 = $2,000 =
 // 20 gp = 200 sp = 2,000 credits). Prices display era-keyed by the
@@ -8647,6 +8840,9 @@ function computeDR(c) {
   if ((c.mutations || []).some(m => m.name === 'Force Barrier')) entries.push({ value: 3, bypass: '—', source: 'Force Barrier', conditional: 'while the barrier is up (free action, 3/day, Con-mod rounds; vs weapon attacks & force effects) — mutation x/−: does not stack with the class pool (FF p.523), best applicable applies' });
   // Typed / special DR: separate entries, best-per-attack.
   if ((c.mutations || []).some(m => m.name === 'Skeletal Reinforcement')) entries.push({ value: 3, bypass: 'bludgeoning', source: 'Skeletal Reinforcement' });
+  // v8.91.0: Fortified Skeleton (cybernetic implant, HH p.337) — DR 4/—.
+  // An implant instance: does not stack with the class pool (FF p.523).
+  if (typeof getCyber === 'function' && getCyber(c).some(r => r.n === 'Fortified Skeleton')) entries.push({ value: 4, bypass: '—', source: 'Fortified Skeleton (cybernetic)', note: 'implant x/− — does not stack with the class pool (FF p.523); best applicable applies' });
   if ((c.feats || []).some(f => (f.name || f.n) === 'Mental Resistance')) entries.push({ value: 3, bypass: '—', source: 'Mental Resistance feat', note: 'MENTAL — vs attribute damage only (not part of the physical pool)' });
   for (const it of getCharItems(c)) {
     if (!it.equipped) continue;
@@ -8917,6 +9113,12 @@ function computeGrapple(c) {
   if ((c.feats || []).some(f => (f.name || f.n) === 'Improved Grapple')) {
     total += 4;
     parts.push('Improved Grapple +4');
+  }
+  // v8.91.0 (task 3): Lost Arm's own −2 on grapple checks (HH drawback text)
+  // was never baked — now it is, and a cybernetic Prosthetic Arm lifts it.
+  if (typeof hasLostArm === 'function' && hasLostArm(c) && !(typeof hasCyberArm === 'function' && hasCyberArm(c))) {
+    total -= 2;
+    parts.push('Lost Arm −2 (install a cybernetic arm to lift)');
   }
   // v8.63.1 (Adam's redirect): Reckless Offense RIDES Grapple — "a grapple
   // check is like a melee attack roll" and starting one "requires a
@@ -10212,6 +10414,8 @@ function toggleTwoHandGrip(itemId) {
   if (!it.twoHandedGrip) {
     const offBusy = getCharItems(c).some(o => o.id !== it.id && o.equipped && o.slot === 'off_hand');
     if (offBusy) { toast('🤲 Off hand is occupied — free it first to take a two-handed grip.'); return; }
+    // v8.91.0 (task 3): no off hand to commit — Lost Arm unreplaced.
+    if (typeof offHandAvailable === 'function' && !offHandAvailable(c)) { toast('🤲 No off hand to commit — Lost Arm (drawback). Install a cybernetic Prosthetic Arm to restore it.'); return; }
     it.twoHandedGrip = true;
     if (typeof logAct === 'function') logAct(`🤲 ${it.ref}: two-handed grip — Str ×1.5 to damage, Power Attack counts double; the off hand is committed.`);
   } else {
@@ -11572,10 +11776,13 @@ function toggleItemEquipped(itemId) {
     // v8.8.0 (Adam's Advantages pass): Lost Arm — one arm means no
     // two-handed weapons (the entry's own restriction, now enforced via the
     // handedness measurable) and nothing in the Off Hand at all.
-    if (slotDef.category === 'held' && (c.mutations || []).some(m => m.name === 'Lost Arm')) {
+    // v8.91.0 (task 3): a cybernetic Prosthetic Arm REPLACES the lost arm
+    // (HH p.332 Replacements + the drawback's own Special line) — the off
+    // hand and two-handed weapons return with it.
+    if (slotDef.category === 'held' && typeof offHandAvailable === 'function' && !offHandAvailable(c)) {
       const defLA = it.catalogue === 'weapon' ? getCatalogueEntry('weapon', it.ref) : null;
-      if (defLA && weaponHands(defLA) === 2) { toast(`${it.ref} needs two hands — Lost Arm (mutation). GM may allow improvised bracing.`); return; }
-      if (it.slot === 'off_hand') { toast('Off Hand unavailable — Lost Arm (mutation).'); return; }
+      if (defLA && weaponHands(defLA) === 2) { toast(`${it.ref} needs two hands — Lost Arm (drawback). Install a cybernetic Prosthetic Arm (🦾 Cybernetics) to restore the arm; GM may allow improvised bracing.`); return; }
+      if (it.slot === 'off_hand') { toast('Off Hand unavailable — Lost Arm (drawback). Install a cybernetic Prosthetic Arm (🦾 Cybernetics) to restore it.'); return; }
     }
     // v8.6.1: two-handed occupancy checks (see weaponHands above).
     if (slotDef.category === 'held') {
@@ -11865,6 +12072,13 @@ function renderGear() {
   // virtual occupant (derived, never stored — see weaponHands).
   const thWeapon = twoHandedEquipped(c);
   const rows = heldWorn.map(slotDef => {
+    // v8.91.0 (Adam's task 3): Lost Arm REMOVES the Off Hand row's availability
+    // visibly — until a cybernetic Prosthetic Arm replaces the arm (HH p.332
+    // Replacements; the drawback's own Special line). The equip guard in
+    // toggleItemEquipped already blocked it; now the slot SAYS so.
+    if (slotDef.id === 'off_hand' && typeof offHandAvailable === 'function' && !offHandAvailable(c)) {
+      return `<tr><td style="font-family:'Epics Serif','Cinzel',serif;color:rgba(200,151,30,.45);">${slotDef.label}</td><td><span style="color:#e08080;font-size:11px;" title="Lost Arm (drawback): one arm is gone — no off hand, no two-handed weapons, −2 on Climb, Swim, and grapple checks. Install a cybernetic Prosthetic Arm (🦾 Cybernetics, below) to restore it.">✕ unavailable — Lost Arm (install a cybernetic arm to restore)</span></td></tr>`;
+    }
     const equippedItems = c.items.filter(i => i.slot === slotDef.id && i.equipped);
     const virtualClaim = (slotDef.id === 'off_hand' && thWeapon) ? 1 : 0;
     const free = (slotDef.capacity || 1) - equippedItems.length - virtualClaim;
@@ -11895,6 +12109,9 @@ function renderGear() {
     return `<tr><td style="font-family:'Epics Serif','Cinzel',serif;color:rgba(200,151,30,.85);">${slotDef.label}</td><td>${itemsHtml}${equipSel}</td></tr>`;
   });
   document.getElementById('gear-equipped-rows').innerHTML = rows.join('');
+
+  // v8.91.0: 🦾 Cybernetics shelf (implant body slots, HH pp.332-339).
+  if (typeof renderCybernetics === 'function') renderCybernetics(c);
 
   // v8.6.0: the body-slot dashboard is LIVE — equipped magic items render in
   // their slots (chips + an equip picker for unequipped same-slot items),
@@ -12385,18 +12602,26 @@ function computeNaturalAC(c) {
   // v8.6.0: mutation-granted natural armor (Exoskeleton +3, Scaly Armor +2)
   // joins the same aggregation — flows into T/ACtical + the ×5-HP rule.
   const mutNat = buildMutationBonuses(c).naturalAC || [];
+  // v8.91.0: Subcutaneous Body Armor (cybernetic) — a NATURAL armor bonus
+  // per HH p.336 (+2/+5/+8 by density); typed stacking handles overlaps.
+  const cybNat = (typeof getCyber === 'function')
+    ? getCyber(c).map(r => cyberDef(r.n)).filter(d => d && d.nac).map(d => ({ type: BONUS_TYPES.NATURAL, source: 'cybernetic:' + d.n, value: d.nac, label: d.n + ' (cybernetic)' }))
+    : [];
   // v8.6.0 firm-wire: equipped Amulets of Natural Armor (enhancement type —
   // correctly superseded-by/superseding other enhancement NAC sources).
   const magNat = buildMagicItemBonuses(c).naturalAC || [];
   // v8.42.0: transient wired buffs (Thicken Skin) — join the display total,
   // excluded from permTotal exactly like item NAC (temporary = no ×5 HP).
   const buffNat = (typeof activeBuffBonuses === 'function') ? (activeBuffBonuses(c).naturalAC || []) : [];
-  const agg = aggregateBonuses(sources.concat(talentNat, mutNat, magNat, buffNat));
+  const agg = aggregateBonuses(sources.concat(talentNat, mutNat, magNat, buffNat, cybNat));
   // permTotal excludes equipped-item NAC — the ×5-HP rule applies only to
   // PERMANENT natural armor (Adam's ruling: item NAC hit points would be
-  // temporary; hardness counts items, HP does not).
+  // temporary; hardness counts items, HP does not). v8.91.0: cybernetic
+  // subq armor joins the AC total but NOT permTotal — the implant carries
+  // its OWN object hardness/HP (HH table); ×5-HP on top would double-dip.
+  // OPEN RULING for Adam if he disagrees.
   const permAgg = aggregateBonuses(sources.concat(talentNat, mutNat));
-  return {total: agg.total, permTotal: permAgg.total, breakdown: agg.breakdown, sources: sources.concat(talentNat, mutNat, magNat, buffNat)};
+  return {total: agg.total, permTotal: permAgg.total, breakdown: agg.breakdown, sources: sources.concat(talentNat, mutNat, magNat, buffNat, cybNat)};
 }
 
 // Render the provenance HTML for a sourced value. Used in tooltips that
@@ -12598,7 +12823,7 @@ function computeStatBlock(char, activeConditions) {
     // Initiative — base = DEX modifier; Improved Initiative adds +4 untyped.
     // v8.9.1: class-feature init bonuses (Uncanny Instincts, Improved
     // Reaction, Deft Draw conditional) join via cfSaveBon.init.
-    init: [buildAttributeBonus('DEX', dexM), ...(featBon.init||[]), ...(talentBon.init||[]), ...((cfSaveBon && cfSaveBon.init)||[])],
+    init: [buildAttributeBonus('DEX', dexM), ...(featBon.init||[]), ...(talentBon.init||[]), ...((cfSaveBon && cfSaveBon.init)||[]), ...((typeof buildCyberneticsBonuses === 'function' ? buildCyberneticsBonuses(char).init : null)||[]) /* v8.91.0: Initiative Implant +2 equipment */],
   };
   // Aggregate each
   const out = {};
@@ -39483,6 +39708,47 @@ function isClassSkill(skillName, arg2, occupation){
   return sources.length > 0;
 }
 
+// v8.91.0 (Adam's Adventurer playtest — "Demolitions not recognizing as a
+// class skill"): the occupation skill_list spellings drift from the skill
+// catalog in THIRTY-TWO places ("Demolition", "Earth and Life Sciences",
+// "Behavioural", "Electronic", "Nobility", "Keyboards", two Language
+// spellings…) — every one of them a silently dead class-skill pick. All
+// occupation picks now match through this canonicalizer. "Alchemy" maps to
+// Chemical: the HH Craft skill's own category list carries no alchemy — an
+// SRD vestige like "Heal" (book letter on TODO).
+const SKILL_NAME_ALIASES = {
+  'demolition': 'Demolitions',
+  'knowledge: any': 'Knowledge (Any)',
+  'read/write language': 'Read/Write/Speak Language',
+  'speak language': 'Read/Write/Speak Language',
+};
+const SKILL_SUB_ALIASES = {
+  'earth and life sciences': 'Earth & Life Sciences',
+  'earth / life sciences': 'Earth & Life Sciences',
+  'behavioural sciences': 'Behavioral Sciences',
+  'behavioural science': 'Behavioral Sciences',
+  'electronic': 'Electronics',
+  'visual art': 'Visual Arts',
+  'nobility': 'Nobility & Royalty',
+  'current affairs': 'Current Events',
+  'architecture': 'Architecture & Engineering',
+  'theology and philosophy': 'Theology & Philosophy',
+  'keyboards': 'Keyboard Instruments',
+  'percussion': 'Percussion Instruments',
+  'stringed': 'String Instruments',
+  'wind': 'Wind Instruments',
+  'stand-up': 'Comedy',
+  'alchemy': 'Chemical',
+};
+function canonSkillPick(pick) {
+  const whole = SKILL_NAME_ALIASES[String(pick).trim().toLowerCase()];
+  if (whole) return whole;
+  const m = String(pick).match(/^([\w\/\- ]+)\s*\(([^)]+)\)\s*$/);
+  if (!m) return String(pick).trim();
+  const subs = m[2].split(',').map(s => { const x = s.trim(); return SKILL_SUB_ALIASES[x.toLowerCase()] || x; });
+  return m[1].trim() + ' (' + [...new Set(subs)].join(', ') + ')';
+}
+
 // Return an array of human-readable strings explaining WHY a skill is a
 // class skill for the given character. Empty array means the skill is
 // cross-class. Multiple entries are possible (e.g. when two classes both
@@ -39604,20 +39870,24 @@ function getClassSkillSources(skillName, arg2, occupation){
       const occName = occs[slot === 'primary' ? 0 : 1] || '?';
       for (const pick of picks.skills) {
         if (!pick) continue;
-        if (pick === skillName) {
+        // v8.91.0: match through the canonicalizer — the stored pick keeps
+        // the book's spelling, the comparison speaks catalog.
+        const pickC = (typeof canonSkillPick === 'function') ? canonSkillPick(pick) : pick;
+        if (pickC === skillName) {
           sources.push(`occupation-pick:${occName} (${pick})`);
           continue;
         }
         // Compound match: "Knowledge (Streetwise, Tactics)" covers
         // "Knowledge (Streetwise)", "Knowledge (Tactics)", etc.
-        const m = pick.match(/^([\w\/\- ]+)\s*\(([^)]+)\)\s*$/);
+        const m = pickC.match(/^([\w\/\- ]+)\s*\(([^)]+)\)\s*$/);
         if (m) {
           const family = m[1].trim();
           const subs = m[2].split(',').map(s => s.trim());
           const skillM = skillName.match(/^([\w\/\- ]+)\s*\(([^)]+)\)\s*$/);
           if (skillM && skillM[1].trim().toLowerCase() === family.toLowerCase()) {
             const skillSub = skillM[2].trim().toLowerCase();
-            if (subs.some(s => s.toLowerCase() === skillSub)) {
+            // "(Any)" compounds (Academic's Knowledge: Any) cover the family.
+            if (subs.some(s => s.toLowerCase() === skillSub || s.toLowerCase() === 'any')) {
               sources.push(`occupation-pick:${occName} (compound ${family})`);
             }
           }
@@ -43578,6 +43848,10 @@ function buildMutationBonuses(c) {
   for (const m of c.mutations) {
     const fx = MUTATION_EFFECTS[m.name];
     if (!fx) continue;
+    // v8.91.0 (task 3): a cybernetic Prosthetic Arm replaces the lost arm —
+    // the −2 Climb/Swim (and grapple) penalties lift with the replacement
+    // (HH p.332: replacements duplicate the biological counterpart).
+    if (m.name === 'Lost Arm' && typeof hasCyberArm === 'function' && hasCyberArm(c)) continue;
     for (const sk in (fx.skills || {})) push('skill:' + sk, fx.skills[sk], m.name);
     for (const sk in (fx.condSkills || {})) push('skill:' + sk, fx.condSkills[sk][0], m.name, fx.condSkills[sk][1]);
     for (const sv in (fx.saves || {})) push(sv, fx.saves[sv], m.name);
