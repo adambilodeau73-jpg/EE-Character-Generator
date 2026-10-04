@@ -1,0 +1,16 @@
+{
+  "name": "battery",
+  "version": "1.0.0",
+  "description": "Headless oracle battery for the E&E Character Generator",
+  "main": "index.js",
+  "scripts": {
+    "test": "node battery.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "puppeteer": "^25.12.0"
+  }
+}

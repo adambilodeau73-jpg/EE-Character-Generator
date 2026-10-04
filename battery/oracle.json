@@ -1,0 +1,40 @@
+{
+  "_meta": {
+    "title": "E&E Character Generator — Oracle of Book-Truth Assertions",
+    "opened": "2026-10-04",
+    "doctrine": "Each entry is one rules fact the generator must honor, harvested from the printed books and Adam's rulings ledger (v8.5.4_Notes.md cut log). status 'checked' = the battery implements an executable test; 'declared' = recorded truth awaiting an implemented check (honest debt, not silence). Sources cite HH/GMG/FF pages and §cut-log sections.",
+    "usage": "node battery.mjs runs every checked entry against the real generator, headless."
+  },
+  "entries": [
+    { "id": "BOOT-CLEAN", "source": "ghost doctrine (§190)", "rule": "A fresh boot of the generator produces zero console errors.", "status": "checked" },
+    { "id": "MUT-TEMPLATE-FEAT", "source": "HH p.411/§220", "rule": "Taking the Supernatural Mutation feat confers the Mutant racial template (isMutantTemplated).", "status": "checked" },
+    { "id": "MUT-TEMPLATE-10MP", "source": "HH p.411/§220", "rule": "Reaching 10+ total MP confers the Mutant template; 9 or fewer does not (different, not Mutants).", "status": "checked" },
+    { "id": "MUT-CLASS-TRACKS-RLM", "source": "HH p.423/§220", "rule": "Classification tracks the Mutant RLM: floor(totalEarned/10) — Minor 0 / Moderate 1 / Major 2 / Mega 3+.", "status": "checked" },
+    { "id": "TIER-CEILING-ONLY", "source": "§219", "rule": "A tier's spell_levels band gates only the CEILING: 0-level powers purchasable at every tier.", "status": "declared" },
+    { "id": "BUFF-STAMP-SEMICOLON", "source": "FF/HH mp_note idiom/§226", "rule": "Catalog Buff tags use '; Buff'; the stamp recognizes them; 'includes X as Buff' partials never stamp.", "status": "checked" },
+    { "id": "PERP-BUFF-STANDS", "source": "Adam's rulings 2026-10-03/§226", "rule": "A Buff-tagged super-power stands perpetually: its wired crunch applies with no invocation.", "status": "checked" },
+    { "id": "PERP-BUFF-NPF", "source": "§226", "rule": "A Null Power Field suppresses perpetual Buffs (Su); Ex tree values stand back up where applicable.", "status": "checked" },
+    { "id": "PERP-SUPERSEDE", "source": "§226", "rule": "An invoked (augmented) casting supersedes the standing base; rest clears the casting and the perpetual resumes.", "status": "checked" },
+    { "id": "PERP-TOGGLE-FREE", "source": "Adam ruling 1, 2026-10-03", "rule": "Voluntary suppression toggle exists; reactivation costs no PP.", "status": "checked" },
+    { "id": "DR-DASHBOARD", "source": "§227", "rule": "computeDR surfaces power-sourced DR (perpetual Stoneskin = 10/adamantine; Iron Body = 15/adamantine).", "status": "checked" },
+    { "id": "DR-TIE-BREAK", "source": "§227 add. (v8.86.1)", "rule": "At equal DR value, '/—' outranks any typed bypass for the dashboard headline.", "status": "checked" },
+    { "id": "DR-CLASS-POOL", "source": "FF p.523 printed amendment", "rule": "Universal x/− from class-level progression stacks into one pool; item/mutation/power x/− are separate best-in-situation instances.", "status": "declared" },
+    { "id": "EI-TWO-STEP", "source": "HH p.62 redraft/§228", "rule": "Energy Immunity grants one FREE Energy Resistance Tree talent (no slot), THEN immunity to every held resistance — floor of two immunities.", "status": "checked" },
+    { "id": "EI-GRANT-EXEMPT", "source": "§228", "rule": "The granted Resistance talent is exempt from the Talent slot budget.", "status": "checked" },
+    { "id": "EI-CASCADE", "source": "§228", "rule": "Removing Energy Immunity removes its granted talent; hand-picked Resistances survive.", "status": "checked" },
+    { "id": "TITANIC-ECHO", "source": "HH p.263 letter/§229", "rule": "Titanic Strength = a second instance of Mangler's hardness function ONLY: Advanced tier doubles to ignore 40 / break DC −16.", "status": "checked" },
+    { "id": "TITANIC-NO-RIDER-DOUBLE", "source": "Adam ruling 2, 2026-10-03", "rule": "The ×4-carry/+1-size riders are per-talent (HH p.263) and are NOT doubled by the echo.", "status": "checked" },
+    { "id": "MANGLER-REPLACES", "source": "HH Mangler 'instead of'", "rule": "Mangler supersedes the base Ignore Hardness values (5/−2, 10/−5, 20/−8 by tier); under NPF the Ex tree (2/−1 per tier) stands back up.", "status": "checked" },
+    { "id": "CARRY-TONS", "source": "Adam ruling 2026-10-03/§229", "rule": "Carrying numbers at or beyond 10,000 lb display in short tons rounding down (10,000→'5 tons', 256,000→'128 tons'); below stays in lb.", "status": "checked" },
+    { "id": "STRONG-RIDERS-MULT", "source": "HH p.263 sidebar", "rule": "Each passive Strong super-talent grants ×4 carry (multiplicative) and +1 effective size; Supreme Effort's rider applies only while performing one.", "status": "checked" },
+    { "id": "UNNATURAL-FORMULAS", "source": "HH p.29/§191", "rule": "Unnatural Prowess/Resilience per ML: +floor(ml/2) BA, +floor(ml/3) Def, +2·ml SP (Tech-0), +ml·(5+Con) HP, +floor(ml/2) saves.", "status": "declared" },
+    { "id": "SUITE-DISCOUNT", "source": "HH p.670/§207", "rule": "Owning 2+ powers of a suite discounts further suite buys by a flat −1 MP (floor 1, never stacking; tier cap tests BASE cost).", "status": "declared" },
+    { "id": "MAX-RANKS", "source": "E&E house rule (NOT d20M's +3)", "rule": "Maximum skill ranks = character level + 4.", "status": "declared" },
+    { "id": "SELLERS-MARKET", "source": "HH p.424/§218", "rule": "Printed MP prices are canon with NO formula fallback; rung-priced families stamp the rung bought.", "status": "declared" },
+    { "id": "IMPROVED-GRAPPLE", "source": "§200", "rule": "Improved Grapple adds +4 to computeGrapple with provenance.", "status": "declared" },
+    { "id": "RECKLESS-ATTACK-ONLY", "source": "HH p.239/§186-187", "rule": "Reckless Offense: +2 on attack ROLLS (Grapple included), −4 AC; never Base Attack, no iterative minting.", "status": "declared" },
+    { "id": "EVASION-UNIFIED", "source": "§188", "rule": "Evasion/Uncanny Dodge unify through evasionTier/uncannyDodgeTier across class features and Fast Hero talents; second source upgrades to Improved.", "status": "declared" },
+    { "id": "SHEET-NO-NAN", "source": "fuzz doctrine", "rule": "No rendered Sheet ever displays NaN or 'undefined' for any legal character.", "status": "checked" },
+    { "id": "BESPOKE-VALIDATES", "source": "v8.51.0", "rule": "qdBespokeBuild validates every ladder entry at its own level; illegal ladders refuse rather than build.", "status": "checked" }
+  ]
+}

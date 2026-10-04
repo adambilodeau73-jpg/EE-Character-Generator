@@ -1,0 +1,4 @@
+node_modules/
+battery/*.json.log
+battery/fuzz*.json
+battery/report*.json
