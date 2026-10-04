@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.89.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.89.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -14382,7 +14382,10 @@ function qdBespokeBuild(spec) {
       if (!e) return {ok: false, reason: `unknown class "${st.name}"`};
       if (disabled.has(st.name)) return {ok: false, reason: `${st.name} is unavailable under this scenario's Six Scales`};
       const cap = qdCap(st.name);
-      if (st.levels < 1 || st.levels > cap) return {ok: false, reason: `${st.name} takes 1–${cap} levels (asked for ${st.levels})`};
+      // v8.89.1 (the headless battery's first conviction, 2026-10-04): a step
+      // with UNDEFINED levels slipped the gate (undefined < 1 is false) and
+      // built NaN-grade characters. Non-finite now refuses like any illegal ladder.
+      if (!Number.isFinite(st.levels) || st.levels < 1 || st.levels > cap) return {ok: false, reason: `${st.name} takes 1–${cap} levels (asked for ${st.levels})`};
       steps.push({tier: e.tier, name: st.name, level: st.levels, first: steps.length === 0});
     }
     const N = steps.reduce((s, e) => s + e.level, 0);
