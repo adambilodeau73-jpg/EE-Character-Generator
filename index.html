@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.95.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.96.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1009,7 +1009,9 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
         <div id="sh-xp"></div>
         <!-- v8.77.0 (Adam's Sheet restructure): Scenario leads, race follows,
              and the classes conflate into per-class collapsibles below. -->
-        <div class="sec-head sm" style="margin-top:1rem;">Scenario &amp; Racial Features</div>
+        <!-- v8.96.0 (Adam's dig): the Starting Occupation earns its seat —
+             and the section its rebrand. -->
+        <div class="sec-head sm" style="margin-top:1rem;">Scenario, Racial Features, &amp; Starting Occupation</div>
         <div id="sh-features" style="font-size:13px;line-height:1.9;color:rgba(200,200,160,.85);"></div>
         <div class="ornament">✦ ✦ ✦</div>
         <div class="sec-head sm">Languages & Allegiances</div>
@@ -7764,9 +7766,47 @@ function powerHoverText(s) {
   if (s.resistance) bits.push('SR/PR: ' + s.resistance);
   return bits.join(' · ') + (s.d ? '\n\n' + s.d : '');
 }
+// v8.96.0 (a player's suggestion via Adam): the Wealth Score TRACKS the
+// funds — the standing score is the highest threshold the current funds
+// still meet (HH p.45 table). Fall below your threshold and the score
+// drops; climb past the next and it rises. The starting roll (HH p.44)
+// seeds it; from then on the ledger speaks.
+function wealthScoreForFunds(funds) {
+  if (funds == null) return null;
+  if (funds <= 0) return 0;
+  let score = 0;
+  for (let dc = 1; dc < WEALTH_DC_DOLLARS.length; dc++) { if (WEALTH_DC_DOLLARS[dc] <= funds) score = dc; else break; }
+  return score;
+}
+function syncWealthScore(c) {
+  if (!c || c.wealthScore == null || c.funds == null) return false;
+  const tracked = wealthScoreForFunds(c.funds);
+  if (tracked === c.wealthScore) return false;
+  const dir = tracked > c.wealthScore ? '▲ rose' : '▼ fell';
+  logAct(`💰 Wealth Score ${dir}: ${c.wealthScore} → ${tracked} (funds ${fundsLabel(c.funds, scenarioTechScale(c))} ${tracked > c.wealthScore ? 'passed the next threshold' : 'fell below the old threshold'} — HH p.45).`);
+  c.wealthScore = tracked;
+  save();
+  return true;
+}
+// v8.96.0: the HH p.45 Wealth Score / Purchase DC chart — collapsible
+// reference under the Wealth display; open-state survives re-renders.
+let _wealthChartOpen = false;
+function wealthChartHTML(c) {
+  const rows = [];
+  for (let dc = 1; dc < WEALTH_DC_DOLLARS.length; dc++) {
+    const d = WEALTH_DC_DOLLARS[dc];
+    const cur = c.wealthScore === dc;
+    rows.push(`<div style="display:flex;justify-content:space-between;gap:8px;padding:0 6px;${cur ? 'background:rgba(200,151,30,.18);border-radius:2px;font-weight:bold;color:var(--gold);' : ''}"><span>DC ${dc}${cur ? ' ◂' : ''}</span><span>${fmtCoin(d / 100)} gp · $${d.toLocaleString()}</span></div>`);
+  }
+  return `<details ${_wealthChartOpen ? 'open' : ''} ontoggle="_wealthChartOpen=this.open" style="margin-top:8px;font-size:11px;">
+    <summary style="cursor:pointer;color:rgba(200,151,30,.8);">📊 Wealth Score / Purchase DC chart <span class="cite cite-HH" title="Hero's Handbook p.45 — the Score/DC currency table (1 gp = $100 = 100 credits)">HH 45</span> <span style="opacity:.5;font-size:9.5px;">— your current score is highlighted</span></summary>
+    <div style="columns:3;column-gap:18px;max-height:260px;overflow-y:auto;margin-top:6px;padding:6px;border:1px solid rgba(200,151,30,.2);border-radius:3px;line-height:1.7;">${rows.join('')}</div>
+  </details>`;
+}
 function renderWealthPanel(c) {
   const el = document.getElementById('gear-wealth-panel'); if (!el) return;
   const ts = scenarioTechScale(c);
+  syncWealthScore(c);  // v8.96.0: the score follows the funds, both directions
   // v8.72.0: the always-visible header summary — Score + Funds at a glance.
   const sum = document.getElementById('gear-wealth-summary');
   if (sum) {
@@ -7787,14 +7827,14 @@ function renderWealthPanel(c) {
   const pcOpts = ['<option value="">Scenario market (TS' + ts + ')</option>']
     .concat([0,1,2,3,4,5,6,7,8,9].map(t => `<option value="${t}" ${_priceCheckTs === t ? 'selected' : ''}>TS ${t}</option>`)).join('');
   el.innerHTML = `<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12.5px;">
-    <span title="${escapeHTML('Starting Wealth Score (HH p.44): ' + (c.wealthBreakdown || '') + '. GM-editable via ± Adjust.')}" style="cursor:help;">Wealth Score <b style="color:var(--gold);">${c.wealthScore}</b></span>
+    <span title="${escapeHTML('Wealth Score TRACKS the funds (v8.96.0, HH p.45): the highest threshold your current funds meet. Fall below it and the score drops; pass the next and it rises. Starting roll (HH p.44): ' + (c.wealthBreakdown || '—') + '. Funds are GM-editable via ± Adjust; the score follows.')}" style="cursor:help;">Wealth Score <b style="color:var(--gold);">${c.wealthScore}</b></span>
     <span>Funds: <b style="color:${c.funds < 0 ? '#d47070' : 'var(--gold)'};">${escapeHTML(fundsLabel(c.funds, ts))}</b>${c.funds < 0 ? ' <span style="font-size:10px;color:#d47070;">(in debt — GM)</span>' : ''}</span>
     <button class="btn btn-sm" style="font-size:11px;" onclick="adjustFunds()">± Adjust</button>
     <label style="font-size:11px;opacity:.85;" title="Display-only lens: see what gear would cost in another era's market. Purchases always charge the scenario's market.">🔍 Price check:
       <select onchange="setPriceCheckTs(this.value)" style="font-size:10px;">${pcOpts}</select></label>
     ${_priceCheckTs != null ? `<span style="font-size:10px;color:#d4b870;">🔍 viewing TS ${_priceCheckTs} market prices — display only; purchases charge the scenario (TS ${ts})</span>` : ''}
     <span style="font-size:10px;opacity:.5;cursor:help;" title="${escapeHTML(PRICE_FLUX_NOTE)}">💰 Purchased deducts · 🎁 Acquired is free · list prices; the GM applies market swings via ± Adjust</span>
-  </div>`;
+  </div>${wealthChartHTML(c)}`;
 }
 // v8.7.0 (Adam's "Rogue Trader clause", 2026-09-02): cross-scalar sales.
 // Sell an owned item into a market of ANY Tech Scale (advanced goods on a
@@ -39899,6 +39939,34 @@ function renderSheet(){
         </div>`;
     }
     featuresHtml += muHtml;
+  }
+  // v8.96.0 (Adam's dig for a character's occupation choices): the Starting
+  // Occupation block — collapsible per occupation, the house .hy-det idiom:
+  // description, the DESIGNATED class skills (the picks), the bonus feat,
+  // wealth bonus, and the full offered list for reference.
+  {
+    const occs = (c.occupations && c.occupations.length ? c.occupations : (c.occ ? [c.occ] : [])).filter(Boolean);
+    let occHtml = `<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(200,151,30,.2);"><b style="color:var(--gold);font-family:'Epics Serif','Cinzel',serif;">Starting Occupation</b>`;
+    if (!occs.length) {
+      occHtml += ` <span style="opacity:.55;font-size:12px;">— none chosen (set on the Create tab; free class skills, maybe a feat — HH p.34)</span></div>`;
+    } else {
+      occHtml += '</div>';
+      occs.forEach((o, oi) => {
+        const od = (typeof getOccupationData === 'function') ? getOccupationData(o) : null;
+        const picks = (c.occupationPicks || {})[oi === 0 ? 'primary' : 'secondary'] || {};
+        const pickedSkills = (picks.skills || []).filter(Boolean);
+        const pickedFeat = picks.feat || null;
+        const rows = [];
+        if (od && od.d) rows.push(`<div style="font-size:11.5px;color:rgba(200,200,160,.75);line-height:1.5;">${escapeHTML(od.d)}</div>`);
+        rows.push(`<div style="font-size:12px;"><b style="color:rgba(200,151,30,.85);">Class skills designated:</b> ${pickedSkills.length ? escapeHTML(pickedSkills.join(', ')) : `<span style="color:#d4b870;">unchosen — pick ${od ? od.skill_count : '?'} from the list below (amber-dot ledger)</span>`}</div>`);
+        if (od && od.bonus_feat_options && od.bonus_feat_options.length) rows.push(`<div style="font-size:12px;"><b style="color:rgba(200,151,30,.85);">Bonus feat:</b> ${pickedFeat ? escapeHTML(pickedFeat) : `<span style="color:#d4b870;">unchosen</span> <span style="opacity:.6;">(options: ${escapeHTML(od.bonus_feat_options.join(', '))})</span>`}</div>`);
+        if (od && od.wealth != null) rows.push(`<div style="font-size:12px;"><b style="color:rgba(200,151,30,.85);">Wealth bonus:</b> +${od.wealth} to the starting Wealth Score (HH p.44)</div>`);
+        if (od && od.prereq_age) rows.push(`<div style="font-size:11px;opacity:.6;">Minimum age: ${od.prereq_age}</div>`);
+        if (od && od.skill_list) rows.push(`<div style="font-size:11px;opacity:.6;line-height:1.5;">Offered list (choose ${od.skill_count}): ${escapeHTML(od.skill_list.join(' · '))}</div>`);
+        occHtml += `<details class="hy-det" style="margin-top:4px;"><summary style="cursor:pointer;font-size:12.5px;color:var(--gold);">💼 ${escapeHTML(o)}${oi === 1 ? ' <span style="font-size:9px;opacity:.6;">(second occupation)</span>' : ''}</summary><div style="padding:4px 0 4px 14px;border-left:2px solid rgba(200,151,30,.35);margin-top:3px;display:flex;flex-direction:column;gap:4px;">${rows.join('')}</div></details>`;
+      });
+    }
+    featuresHtml += occHtml;
   }
   document.getElementById('sh-features').innerHTML=featuresHtml;
   document.getElementById('sh-langs').innerHTML=`<b style="color:var(--gold);">Languages:</b> ${c.langs||'Common'}<br><b style="color:var(--gold);">Allegiances:</b> ${c.allegiance||'—'}`;
