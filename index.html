@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.99.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.0.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -2009,6 +2009,12 @@ const RACES = {
   // RLM manually. Full per-ability itemization awaits the racial-ability
   // census (prose → structured) — flagged, not forgotten.
   'Hybrid':{adj:{},ecl:0,notes:'Half-blood of two HUMANOID parent races (GM approval — HH pp.29-30; Adam’s ruling 2026-10-02: only Humanoids interbreed — Monstrous Humanoids, Giants, Outsiders, Fey and Aberrations cannot). Gains ALL racial abilities of BOTH parents; Racial Level Modifier = parent A + parent B + 1 (a Half-Elf: 0+0+1 = +1). Size and movement follow ONE chosen parent. GM-tailored builds may drop specific abilities and enter the GM-adjusted RLM manually.'},
+  // v9.0.0 (Adam’s design session, 2026-10-05 — THE EASTER EGG; formal
+  // rules arrive in the UCS): HALF-AGAIN — not a race but a Hybrid Race-B
+  // option, the mirror of the Halfling door: a half-again-sized specimen of
+  // Parent A. Contributes +0 to the RLM; the net +1 arrives through the
+  // Hybrid rule itself (A + 0 + 1). "He's a Duergar, and Half-Again!"
+  'Half-Again':{adj:{STR:2,CON:2,DEX:-2},ecl:0,halfAgain:true,notes:'A half-again-sized specimen of the other parent — not an ancestry, a stature (Hybrid Parent B only; the +1 RLM arrives through the Hybrid rule: Parent A + 0 + 1). +2 Str, +2 Con, −2 Dex. POWERFUL BUILD: counts as one size category larger whenever advantageous — opposed size checks (Grapple, bull rush, trip), wielding larger weapons without penalty, and CARRYING CAPACITY ×2 (a workhorse). Actual size, speed, and all other racial abilities follow Parent A: a Half-Again Halfling stands Medium among their own and passes for a stocky human.'},
   Other:{adj:{},ecl:0,notes:'Custom race — see GM for racial details.'},
 };
 const HERO_CLASSES = {
@@ -9166,10 +9172,21 @@ const DIE_STEP_UP = { '1d2': '1d3', '1d3': '1d4', '1d4': '1d6', '1d6': '1d8', '1
 function hybridInfo(c) {
   if (!c || c.race !== 'Hybrid' || !c.hybrid || !c.hybrid.a || !c.hybrid.b) return null;
   const h = c.hybrid;
+  // v9.0.0 (the Half-Again egg): Half-Again × Half-Again is no hybrid at
+  // all — refuse; and Half-Again has no size or speed of its own, so the
+  // size parent is ALWAYS the real race, whichever slot the egg landed in.
+  if (h.a === 'Half-Again' && h.b === 'Half-Again') return null;
   const A = RACES[h.a] || {}, B = RACES[h.b] || {};
   const auto = (A.ecl || 0) + (B.ecl || 0) + 1;
   const rlm = (h.rlmOverride === 0 || h.rlmOverride) ? h.rlmOverride : auto;
-  return { a: h.a, b: h.b, A, B, sizeFrom: h.sizeFrom === 'b' ? h.b : h.a, rlm, autoRlm: auto, dropped: h.dropped || '' };
+  let sizeFrom = h.sizeFrom === 'b' ? h.b : h.a;
+  if (sizeFrom === 'Half-Again') sizeFrom = (h.a === 'Half-Again') ? h.b : h.a;
+  return { a: h.a, b: h.b, A, B, sizeFrom, rlm, autoRlm: auto, dropped: h.dropped || '' };
+}
+// v9.0.0: the egg’s predicate — a Half-Again parent in either slot.
+function hasHalfAgain(c) {
+  const hy = hybridInfo(c);
+  return !!(hy && (hy.a === 'Half-Again' || hy.b === 'Half-Again'));
 }
 function raceEclOf(c) { const hy = hybridInfo(c); return hy ? hy.rlm : ((RACES[(c && c.race)] || {}).ecl || 0); }
 function raceKeyForSize(c) { const hy = hybridInfo(c); return hy ? hy.sizeFrom : (c && c.race); }
@@ -9215,9 +9232,13 @@ function raceACSizeMod(c) {
 }
 // Effective size index for natural dice / grappling / Jump — race base plus
 // one category per Strong super-talent owned (Su: zero while nullified).
+// v9.0.0 (the Half-Again egg): Powerful Build adds one category here too —
+// racial and EXTRAORDINARY, so it stands through a Null Power Field. Actual
+// size (AC/attack mods, Hide, reach display) stays the size parent's.
 function effectiveSizeIndex(c) {
   const steps = c.nullified ? 0 : strongSuperTalentsOwned(c).length;
-  return Math.min(SIZE_LADDER.length - 1, raceSizeIndex(c) + steps);
+  const pb = (typeof hasHalfAgain === 'function' && hasHalfAgain(c)) ? 1 : 0;
+  return Math.min(SIZE_LADDER.length - 1, raceSizeIndex(c) + steps + pb);
 }
 // HH p.261 Table: Carrying Capacity — [light max, medium max, heavy max] lb
 // per Str score. Verbatim from the book, including the 26–29 oddities.
@@ -9245,6 +9266,11 @@ function computeCarryCapacity(c) {
   const parts = [`Str ${str} — light ${triplet[0]} / medium ${triplet[1]} / heavy ${triplet[2]} lb`];
   // Bigger and Smaller Creatures (HH p.263): Small bipeds carry ×¾.
   if (raceSizeIndex(c) === 3) { triplet = triplet.map(v => v * 0.75); parts.push('Small ×¾'); }
+  // v9.0.0 (the Half-Again egg, Adam's sweetener): Powerful Build counts
+  // one size larger for CARRYING CAPACITY — ×2, the Large bipeds' rate
+  // (HH p.263). Racial Ex: stands through a Null Power Field. "He's a
+  // workhorse."
+  if (typeof hasHalfAgain === 'function' && hasHalfAgain(c)) { triplet = triplet.map(v => v * 2); parts.push('×2 Half-Again (Powerful Build — carries as one size larger)'); }
   const owned = c.nullified ? [] : strongSuperTalentsOwned(c);
   if (owned.length) {
     const mult = Math.pow(4, owned.length);
@@ -15272,7 +15298,7 @@ function qdHybridToggle() {
     const a = document.getElementById('qd-hyb-a'), b = document.getElementById('qd-hyb-b');
     if (a && !a.options.length) {
       const opts = '<option value="">— choose —</option>' + _hybridEligibleRaces().map(n => `<option>${escapeHTML(n)}</option>`).join('');
-      a.innerHTML = opts; b.innerHTML = opts;
+      a.innerHTML = opts; b.innerHTML = opts + '<option title="A half-again-sized specimen of Parent A (+2 Str/+2 Con/−2 Dex, Powerful Build, carry ×2); contributes +0 RLM — the Hybrid +1 does the rest. Formal rules: UCS.">Half-Again</option>';  // v9.0.0: the egg sits in Parent B only
     }
   }
 }
@@ -15285,6 +15311,7 @@ function qdHybridSpec() {
   const a = document.getElementById('qd-hyb-a')?.value || '';
   const b = document.getElementById('qd-hyb-b')?.value || '';
   if (!a || !b) return { invalid: true };
+  if (a === 'Half-Again' && b === 'Half-Again') return { invalid: true };  // v9.0.0: no hybrid at all
   return { a, b, sizeFrom: document.getElementById('qd-hyb-size')?.value || 'a', rlmOverride: null, dropped: '' };
 }
 function qdRun() {
@@ -35493,9 +35520,13 @@ function updateHybridForm() {
       info.innerHTML = `RLM: <b>+${eff}</b> ${eff === auto ? `(auto: ${(RACES[a]||{}).ecl||0} + ${(RACES[b]||{}).ecl||0} + 1)` : `<span style="color:#d4b870;">(GM override — auto would be +${auto})</span>`}`;
     } else info.innerHTML = '<span style="color:#d4b870;">⚑ pick BOTH parents (HUMANOID races only, GM approval)</span>';
   // v8.68.1: legacy/GM-exception guard — a stored non-Humanoid parent flags.
+  // v9.0.0: 'Half-Again' is exempt — not an ancestry, a stature (the egg).
   if (info && a && b) {
-    const bad = [a, b].filter(x => !HYBRID_HUMANOID_RACES.includes(x));
+    const bad = [a, b].filter(x => !HYBRID_HUMANOID_RACES.includes(x) && x !== 'Half-Again');
     if (bad.length) info.innerHTML += ` <span style="color:#d47070;font-size:10px;" title="Only Humanoid races can interbreed (Adam's ruling 2026-10-02). A non-Humanoid parent on a legacy record stands only as an explicit GM exception.">⚠ ${bad.join(' & ')}: not Humanoid — GM exception territory</span>`;
+    if (a === 'Half-Again' && b === 'Half-Again') info.innerHTML += ` <span style="color:#d47070;font-size:10px;">⚠ Half-Again × Half-Again is no hybrid at all — pick a real race for one parent.</span>`;
+    else if (a === 'Half-Again') info.innerHTML += ` <span style="color:#d4b870;font-size:10px;">💡 Half-Again serves as Parent B — size, speed, and racial abilities follow the real parent either way.</span>`;
+    else if (b === 'Half-Again') info.innerHTML += ` <span style="color:rgba(120,200,140,.85);font-size:10px;" title="A half-again-sized specimen of Parent A: +2 Str/+2 Con/−2 Dex, Powerful Build (one size larger where advantageous — Grapple, larger weapons, carry ×2). Formal rules in the UCS.">🥚 found it — ${escapeHTML(a || 'the parent')}, and Half-Again!</span>`;
   }
   }
   applyRaceAdjustments('Hybrid');
@@ -35512,7 +35543,7 @@ function updateRaceInfo(){
       const selA = document.getElementById('c-hyb-a'), selB = document.getElementById('c-hyb-b');
       if (selA && !selA.options.length) {
         const opts = '<option value="">— choose —</option>' + _hybridEligibleRaces().map(n => `<option>${escapeHTML(n)}</option>`).join('');
-        selA.innerHTML = opts; selB.innerHTML = opts;
+        selA.innerHTML = opts; selB.innerHTML = opts + '<option title="A half-again-sized specimen of Parent A (+2 Str/+2 Con/−2 Dex, Powerful Build, carry ×2); contributes +0 RLM — the Hybrid +1 does the rest. Formal rules: UCS.">Half-Again</option>';  // v9.0.0: the egg sits in Parent B only
       }
       updateHybridForm();
     }
