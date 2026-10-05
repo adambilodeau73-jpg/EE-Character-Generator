@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.0.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.0.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -990,6 +990,16 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
         <div class="ornament">✦ ✦ ✦</div>
         <div class="sec-head sm">Saving Throws</div>
         <div class="stat-strip" id="sh-saves"></div>
+        <div class="ornament">✦ ✦ ✦</div>
+        <!-- v9.0.1 (Adam's Sheet tweak): ⚔ ARMAMENTS & ARMOR — the at-the-
+             table synopsis. READ-ONLY by doctrine (v8.78.0: accessibility
+             without duplication — Gear stays the workflow); the one
+             interaction is the jump to Gear. Alt-modes, maneuvers, and
+             focus spikes stay on the Gear tab where they belong. -->
+        <div class="sec-head sm">Armaments &amp; Armor
+          <button class="class-drill-btn" onclick="showPage('gear')" title="Equip, swap hands, mastercraft, gadgets — the workflow lives on the Gear tab.">⚒ manage on Gear</button>
+        </div>
+        <div id="sh-armaments" style="font-size:12.5px;line-height:1.6;"></div>
         <div class="ornament">✦ ✦ ✦</div>
         <div class="sec-head sm">Class Level Breakdown
           <button class="class-drill-btn" onclick="toggleDrill('sh-drill')">▾ Class Tables</button>
@@ -39677,6 +39687,57 @@ function renderSheet(){
     }
     return `<div class="stat-cell drillable" onclick="showStatBreakdown('${s.k}')"><span class="sc-lbl">${s.l}</span><span class="sc-val">${(total>=0?'+':'')+total}</span><span style="display:block;font-size:10px;color:rgba(200,151,30,.5);margin-top:2px;">base ${s.base||0} + ${s.attr} ${s.mod>=0?'+':''}${s.mod}${other?` ${other>0?'+':'−'} ${Math.abs(other)} other`:''}</span>${evTag}</div>`;
   }).join('');
+
+  // v9.0.1 (Adam's Sheet tweak): ⚔ ARMAMENTS & ARMOR — the at-the-table
+  // synopsis under Saving Throws. Reuses the Gear tab's own engines
+  // (computeEquippedWeaponSummaries, fmtAtk, armorStatStrip,
+  // armorItemIntegrity) so the numbers can never drift; renders the
+  // SYNOPSIS only — attack w/ Full-Attack brackets + mods hover, damage w/
+  // breakdown hover, type, the crit/range strip, armor reference lines.
+  // Alt-modes, maneuvers, riders, and every button stay on Gear.
+  {
+    const armEl = document.getElementById('sh-armaments');
+    if (armEl) {
+      const bits = [];
+      // (fmtAtk is scoped inside the Gear renderer — local twin here.)
+      const fA = (n) => `${n >= 0 ? '+' : ''}${n}`;
+      try {
+        const sums = (typeof computeEquippedWeaponSummaries === 'function') ? computeEquippedWeaponSummaries(c) : [];
+        if (sums.length) {
+          bits.push('<table class="sk-tbl" style="margin-bottom:.4rem;"><thead><tr><th>Weapon</th><th title="Bracketed sequence = the Full Attack action (one extra swing per 5 Base Attack, cumulative −5).">Attack (Full Atk)</th><th>Damage</th><th>Type</th></tr></thead><tbody>');
+          for (const s of sums) {
+            const atkTip = (s.mods || []).map(m => `${m.label}: ${m.value >= 0 ? '+' : ''}${m.value}`).join('\n');
+            const atkText = (s.fullAttack && s.fullAttack.length > 1)
+              ? `${fA(s.fullAttack[0])} (${s.fullAttack.slice(1).map(fA).join('/')})`
+              : fA(s.attackBonus);
+            const dmgTip = (s.dmgBreakdown || []).map(p => `${p.label}: ${p.value >= 0 ? '+' : ''}${p.value}`).join('\n');
+            const hand = s.hand ? ` <span style="font-size:8.5px;opacity:.6;">(${s.hand === 'main' ? 'main' : 'off'})</span>` : (s.gripBothHands ? ' <span style="font-size:8.5px;opacity:.6;" title="Wielded in both hands: Str ×1.5 damage, Power Attack ×2.">(🤲 both)</span>' : '');
+            bits.push(`<tr><td>${escapeHTML(s.name)}${s.unarmed ? ' 🥊' : ''}${s.integratedIn ? ' 🔩' : ''}${hand}${s.proficient ? '' : ' <span style="color:#d4865a;font-size:9.5px;" title="−4 not proficient (already included)">⚠</span>'}${s.statStrip ? `<div style="font-size:9px;color:rgba(200,151,30,.5);">${escapeHTML(s.statStrip)}</div>` : ''}</td>`
+              + `<td style="cursor:help;white-space:nowrap;" title="${escapeHTML(atkTip)}">${atkText}</td>`
+              + `<td style="cursor:help;" title="${escapeHTML(dmgTip ? 'Damage breakdown:\n' + dmgTip : '')}">${escapeHTML(s.damage)} ${escapeHTML(s.damageLabel || '')}</td>`
+              + `<td style="font-size:10px;opacity:.8;">${escapeHTML(s.typeLabel || (s.damageTypes || []).join('/') || '—')}</td></tr>`);
+          }
+          bits.push('</tbody></table>');
+        } else {
+          bits.push('<div style="opacity:.5;font-size:11.5px;margin-bottom:.4rem;">No weapons equipped — unarmed only (see Gear).</div>');
+        }
+        const armorItems = (c.items || []).filter(i => i.catalogue === 'armor' && i.equipped);
+        if (armorItems.length) {
+          for (const it of armorItems) {
+            const def = getCatalogueEntry('armor', it.ref);
+            if (!def) continue;
+            const strip = (typeof armorStatStrip === 'function') ? armorStatStrip(def, it) : '';
+            const nm = (typeof enchantDisplayName === 'function') ? enchantDisplayName(it) : it.ref;
+            const isShield = def.type === 'shield';
+            bits.push(`<div style="font-size:11.5px;"><b style="color:var(--gold);">${isShield ? '🛡' : '🪖'} ${escapeHTML(nm)}</b> <span style="font-size:10px;opacity:.8;">${escapeHTML(strip)}</span></div>`);
+          }
+        } else {
+          bits.push('<div style="opacity:.5;font-size:11px;">No armor equipped.</div>');
+        }
+      } catch (e) { bits.push('<div style="opacity:.5;font-size:11px;">—</div>'); }
+      armEl.innerHTML = bits.join('');
+    }
+  }
   // v8.3.16: Caster & Manifester Levels strip removed. The Powers & Spells
   // panel below shows CL/ML per pool with full context (save DC, max power
   // level, per-contributor breakdown, current/max PP). Maintaining a separate
