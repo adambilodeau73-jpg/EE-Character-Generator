@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.98.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.99.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -7460,6 +7460,13 @@ function buildCyberneticsBonuses(c) {
     if (def.skill) push('skill:' + def.skill[0], def.skill[1], def.n);
     if (def.n === 'Skill Implant' && r.param) push('skill:' + r.param, 2, def.n + ' (' + r.param + ')');
     if (def.n === 'Data Archive') for (const sk of (typeof SKILLS !== 'undefined' ? SKILLS : [])) { if (sk.n.startsWith('Knowledge (')) push('skill:' + sk.n, 4, 'Data Archive'); }
+    // v8.99.0: Mindscreen Implant (HH p.338) — +2 equipment on saves vs
+    // mind-affecting attacks; a CONDITIONAL entry per save lane (shows in
+    // the drilldowns like the mutations' conditional saves, never folds
+    // into the headline total).
+    if (def.n === 'Mindscreen Implant') for (const sv of ['fort', 'ref', 'will']) {
+      (out[sv] = out[sv] || []).push({ type: BONUS_TYPES.EQUIPMENT || 'equipment', source: 'cybernetic:Mindscreen', value: 2, label: 'Mindscreen Implant (cybernetic)', condition: 'vs mind-affecting attacks' });
+    }
   }
   // v8.92.0 (Adam: "wire the negative level modifier for completeness"):
   // −1 per negative level on ALL skill checks (HH p.333) — one untyped
@@ -7473,6 +7480,40 @@ function buildCyberneticsBonuses(c) {
   return out;
 }
 
+// v8.99.0 (Adam's Rhad confirmation): FEAT IMPLANTS GRANT REAL FEATS. The
+// implant stored its gift in c.cybernetics while every feat consumer reads
+// c.feats — Improved/Advanced Dodge from Rhad's two Feat Implants were
+// invisible to the whole engine. The v8.87.0 Energy Immunity pattern:
+// materialize a real feat record with grantedBy (budget-exempt — getFeatBudget
+// already skips grantedBy feats), self-heal idempotently on render, CASCADE
+// away when the implant is removed (HH p.337: "If the feat implant is
+// destroyed, the granted feat is lost as well"). Psi Implant's Wild Talent
+// grant (HH p.339) rides the same rail. Plexuses grant nothing themselves —
+// they consolidate the attachment COUNT (already in cyberCount).
+function syncCyberFeats(c) {
+  if (!c) return false;
+  let changed = false;
+  const wanted = [];
+  for (const r of getCyber(c)) {
+    if (r.n === 'Feat Implant' && r.param) wanted.push(r.param);
+    if (r.n === 'Psi Implant') wanted.push('Wild Talent');
+  }
+  for (const nm of [...new Set(wanted)]) {
+    if (!(c.feats || []).some(f => (f.name || f.n) === nm)) {
+      c.feats = (c.feats || []).concat([{ name: nm, grantedBy: 'Feat Implant (cybernetic)' }]);
+      changed = true;
+    }
+  }
+  for (const f of (c.feats || []).slice()) {
+    if (/cybernetic/i.test(f.grantedBy || '') && !wanted.includes(f.name || f.n)) {
+      c.feats = c.feats.filter(x => x !== f);
+      changed = true;
+    }
+  }
+  if (changed) { save(); if (typeof logAct === 'function') logAct('🦾 Cybernetic feat grants synced — implant-granted feats materialized (budget-exempt; removed implants cascade their feats away).'); }
+  return changed;
+}
+
 function toggleGearCyber() {
   const w = document.getElementById('gear-cyber-wrap'), ch = document.getElementById('gear-cyber-chev');
   const open = w.style.display === 'none';
@@ -7483,6 +7524,7 @@ function toggleGearCyber() {
 function renderCybernetics(c) {
   const sumEl = document.getElementById('gear-cyber-summary'), body = document.getElementById('gear-cyber-body');
   if (!sumEl || !body) return;
+  if (typeof syncCyberFeats === 'function') syncCyberFeats(c);  // v8.99.0 self-heal
   const ts = scenarioTechScale(c);
   const owned = getCyber(c);
   const max = cyberMax(c), count = cyberCount(c), excess = cyberExcess(c);
@@ -7531,6 +7573,7 @@ function addCyberFromSel() {
   if (def.needsProsthetic && !hasCyberArm(c) && !getCyber(c).some(r => (cyberDef(r.n) || {}).replaceLeg)) { toast(`${def.n} attaches to a prosthetic limb — install a Prosthetic Arm or Leg first.`); return; }
   const finish = (param) => {
     c.cybernetics = getCyber(c).concat([{ n: def.n, ...(param ? { param } : {}), at: new Date().toLocaleDateString() }]);
+    if (typeof syncCyberFeats === 'function') syncCyberFeats(c);  // v8.99.0: feat grants materialize immediately
     const exc = cyberExcess(c);
     save(); renderGear(); renderSheet(); renderSkills();
     logAct(`🦾 Installed ${def.n}${param ? ' (' + param + ')' : ''} — PDC ${cyberPDC(c, def)}${def.rx !== '—' ? ', ' + def.rx : ''}.${exc ? ` ⚠ ${exc} attachment${exc > 1 ? 's' : ''} over the maximum — ${exc} negative level${exc > 1 ? 's' : ''} until removed or Con rises.` : ''}`);
@@ -7552,6 +7595,7 @@ function removeCyber(idx) {
   const c = chars.find(x => x.id === curId); if (!c) return;
   const r = getCyber(c)[idx]; if (!r) return;
   c.cybernetics = getCyber(c).filter((_, i) => i !== idx);
+  if (typeof syncCyberFeats === 'function') syncCyberFeats(c);  // v8.99.0: granted feats cascade away (HH p.337)
   save(); renderGear(); renderSheet(); renderSkills();
   logAct(`🦾 Removed ${r.n}. Without Cybernetic Surgery, removal deals 1d4 permanent Con drain (HH p.333) — adjudicate at the table.`);
   toast(`${r.n} removed — 1d4 permanent Con drain unless removed with Cybernetic Surgery.`);
@@ -10095,6 +10139,12 @@ function computeEquippedWeaponSummaries(c) {
     if (_cybNLw) {
       attackBonus -= _cybNLw;
       mods.push({ label: `Negative level${_cybNLw > 1 ? 's' : ''} ×${_cybNLw} (cybernetic overload — HH p.333)`, value: -_cybNLw });
+    }
+    // v8.99.0: Targeting Optics (cybernetic, HH p.338) — +1 on all RANGED
+    // attack rolls via the projected reticle.
+    if (isRangedWeapon(def) && typeof getCyber === 'function' && getCyber(c).some(r => r.n === 'Targeting Optics')) {
+      attackBonus += 1;
+      mods.push({ label: 'Targeting Optics (cybernetic — HH p.338)', value: 1 });
     }
     // v8.5.2: alternate-attack-mode feats (Burst Fire, Double Tap) — gated on
     // owning the feat AND the equipped weapon's parsed rof[] supporting it
@@ -12953,12 +13003,15 @@ function computeStatBlock(char, activeConditions) {
   // stay table-adjudicated (choice-dependent).
   const _cybNL = (typeof cyberExcess === 'function') ? cyberExcess(char) : 0;
   const _cybNLEntry = _cybNL ? [{ type: 'untyped', source: 'cybernetic:negative-levels', value: -_cybNL, label: `Negative level${_cybNL > 1 ? 's' : ''} ×${_cybNL} (cybernetic overload — HH p.333)` }] : [];
+  // v8.99.0: the implants' own lane entries (Mindscreen's conditional saves,
+  // Initiative Implant) — computed once.
+  const cybBon = (typeof buildCyberneticsBonuses === 'function') ? buildCyberneticsBonuses(char) : {};
   const lists = {
     bab:  [...classBon.bab,  ...(featBon.bab||[]), ...((cfSaveBon && cfSaveBon.bab)||[]), ...msLanes.bab],
     def:  [...classBon.def,  ...(racialBon.def||[]),  ...(featBon.def||[]), ...((cfSaveBon && cfSaveBon.def)||[]), ...msLanes.def, ..._bdEntry],
-    fort: [...classBon.fort, buildAttributeBonus('CON', conM), ...(racialBon.fort||[]), ...(featBon.fort||[]), ...(mutBon.fort||[]), ...(mgBon.fort||[]), ...(cfSaveBon.fort||[]), ...(aeBon.fort||[]), ...msLanes.fort, ..._cybNLEntry],
-    ref:  [...classBon.ref,  buildAttributeBonus('DEX', dexM), ...(racialBon.ref||[]),  ...(featBon.ref||[]),  ...(mutBon.ref||[]),  ...(mgBon.ref||[]),  ...(cfSaveBon.ref||[]),  ...(aeBon.ref||[]), ...msLanes.ref, ..._cybNLEntry],
-    will: [...classBon.will, buildAttributeBonus('WIS', wisM), ...(racialBon.will||[]), ...(featBon.will||[]), ...(mutBon.will||[]), ...(mgBon.will||[]), ...(cfSaveBon.will||[]), ...(aeBon.will||[]), ...msLanes.will, ..._cybNLEntry],
+    fort: [...classBon.fort, buildAttributeBonus('CON', conM), ...(racialBon.fort||[]), ...(featBon.fort||[]), ...(mutBon.fort||[]), ...(mgBon.fort||[]), ...(cfSaveBon.fort||[]), ...(aeBon.fort||[]), ...msLanes.fort, ..._cybNLEntry, ...(cybBon.fort||[])],
+    ref:  [...classBon.ref,  buildAttributeBonus('DEX', dexM), ...(racialBon.ref||[]),  ...(featBon.ref||[]),  ...(mutBon.ref||[]),  ...(mgBon.ref||[]),  ...(cfSaveBon.ref||[]),  ...(aeBon.ref||[]), ...msLanes.ref, ..._cybNLEntry, ...(cybBon.ref||[])],
+    will: [...classBon.will, buildAttributeBonus('WIS', wisM), ...(racialBon.will||[]), ...(featBon.will||[]), ...(mutBon.will||[]), ...(mgBon.will||[]), ...(cfSaveBon.will||[]), ...(aeBon.will||[]), ...msLanes.will, ..._cybNLEntry, ...(cybBon.will||[])],
     rep:  [...classBon.rep,  ...(racialBon.rep||[]),  ...(featBon.rep||[]), ...((typeof buildClassFeatureRepBonuses === 'function') ? buildClassFeatureRepBonuses(char) : [])],
     // Armor Class: 10 base + size + DEX + def-bonus + natural + (future: armor, shield, deflection)
     ac:   [
@@ -13029,7 +13082,7 @@ function computeStatBlock(char, activeConditions) {
     // Initiative — base = DEX modifier; Improved Initiative adds +4 untyped.
     // v8.9.1: class-feature init bonuses (Uncanny Instincts, Improved
     // Reaction, Deft Draw conditional) join via cfSaveBon.init.
-    init: [buildAttributeBonus('DEX', dexM), ...(featBon.init||[]), ...(talentBon.init||[]), ...((cfSaveBon && cfSaveBon.init)||[]), ...((typeof buildCyberneticsBonuses === 'function' ? buildCyberneticsBonuses(char).init : null)||[]) /* v8.91.0: Initiative Implant +2 equipment */],
+    init: [buildAttributeBonus('DEX', dexM), ...(featBon.init||[]), ...(talentBon.init||[]), ...((cfSaveBon && cfSaveBon.init)||[]), ...(cybBon.init||[]) /* v8.91.0: Initiative Implant +2 equipment; v8.99.0: shared cybBon */],
   };
   // Aggregate each
   const out = {};
@@ -39097,6 +39150,10 @@ function renderSheet(){
   if(!curId){prompt.style.display='block';cont.style.display='none';return;}
   const c=chars.find(x=>x.id===curId);if(!c){prompt.style.display='block';cont.style.display='none';return;}
   prompt.style.display='none';cont.style.display='block';
+  // v8.99.0 self-heal (Adam's Rhad confirmation): implant-granted feats
+  // materialize on Sheet render too — a character opened straight to the
+  // Sheet gets their Feat Implant feats without visiting Gear first.
+  if (typeof syncCyberFeats === 'function') syncCyberFeats(c);
   // v8.12.4 self-heal (Adam's Rhad ECL-13 report): the stored c.ecl/xpNext
   // can go stale when an ML threshold is crossed by a path that skips the
   // full edit-save (or drop when MP sources are removed). refreshEclXp is
@@ -40272,6 +40329,12 @@ function getClassSkillSources(skillName, arg2, occupation){
         }
       }
     }
+  }
+  // v8.99.0 (the cybernetics wire-through): Data Archive (HH p.337) — "The
+  // recipient treats ALL skills as class skills."
+  if (arg2 && typeof arg2 === 'object' && typeof getCyber === 'function'
+      && getCyber(arg2).some(r => r.n === 'Data Archive')) {
+    sources.push('cybernetic:Data Archive (all skills are class skills)');
   }
   return sources;
 }
