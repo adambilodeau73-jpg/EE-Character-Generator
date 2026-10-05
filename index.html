@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.97.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.98.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -37559,19 +37559,30 @@ function computeParryBonus(c, opts){
   // mirror, Adam's ruling: "right down to the attendant Defense Bonus
   // modifier").
   const _bd = (typeof combatDecl === 'function') ? (combatDecl(c).bd || 0) : 0;
+  // v8.98.0 (Adam's ruling, 2026-10-05): Parry is BASE-ATTACK-KEYED, so the
+  // declared stances' BA spend reaches it — Power Attack's trade now costs
+  // the Parry its points (previously ignored: PA slipped through unpunished).
+  // Combat Expertise's BA spend reaches it too, offset by the CE AMENDMENT
+  // (book letter on TODO): "for every point of Base Attack traded through
+  // Combat Expertise, the character gains +1 to Parry and +1 Defense Bonus"
+  // — preserving CE's defensive spirit (net +N Parry) instead of the static
+  // net-zero the unamended wording would produce.
+  const _dP = (typeof combatDecl === 'function') ? combatDecl(c) : { pa: 0, ce: 0, ro: false, bd: 0 };
+  const _paP = _dP.pa || 0;
+  const _ceP = _dP.ce || 0;
+  const _roP = _dP.ro ? 4 : 0;
   const parts = [
     {label:'BAB', value:bab},
     {label:'Str', value:strM},
     {label:'Def', value:def},
     {label:'Shield', value:shield},
   ];
+  if (_paP) parts.push({label:'Power Attack (declared — BA spent)', value:-_paP});
+  if (_ceP) {
+    parts.push({label:'Combat Expertise (declared — BA spent)', value:-_ceP});
+    parts.push({label:`CE amendment: +1 Parry & +1 Def Bonus per BA point (+${_ceP} each)`, value: 2 * _ceP});
+  }
   if (_bd) parts.push({label:'Best Defense (declared)', value:-_bd});
-  // v8.76.0 (Adam's Hellfire report): the declared CE/RO tags on the Parry
-  // card now carry real math — +CE dodge, −4 RO — matching Best Defense's
-  // wire instead of decorating an unmoving number.
-  const _ceP = (typeof combatDecl === 'function') ? (combatDecl(c).ce || 0) : 0;
-  const _roP = (typeof combatDecl === 'function') ? (combatDecl(c).ro ? 4 : 0) : 0;
-  if (_ceP) parts.push({label:'Combat Expertise (declared)', value:_ceP});
   if (_roP) parts.push({label:'Reckless Offense (declared)', value:-_roP});
   // v8.97.0 (Adam's flag request): the declaration-speed ladder, HH p.373 —
   // Defensive Martial Arts readies a parry as a SWIFT action, Improved DMA
@@ -37584,7 +37595,10 @@ function computeParryBonus(c, opts){
   else if (_ownP('Improved Defensive Martial Arts')) ready = { speed: 'free action', by: 'Improved Defensive Martial Arts' };
   else if (_ownP('Defensive Martial Arts')) ready = { speed: 'swift action', by: 'Defensive Martial Arts' };
   const shieldParry = _ownP('Shield Parry');
-  return { total: bab + strM + def + shield - _bd + _ceP - _roP, parts, ready, shieldParry };
+  // Amended total: BA (minus PA and CE spends) + Str + Def + Shield, the CE
+  // amendment restoring +2 per CE point (+1 Parry, +1 Def Bonus) → PA costs
+  // its full spend, CE nets +N defensive, exactly the ruling's intent.
+  return { total: bab - _paP - _ceP + strM + def + shield + 2 * _ceP - _bd - _roP, parts, ready, shieldParry };
 }
 
 // Compute Dodge attempt modifier per handbook HH p.373.
