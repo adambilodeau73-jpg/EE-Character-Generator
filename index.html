@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.93.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.93.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -7580,6 +7580,38 @@ function priceSpan(dc, techScale, itemTs, extraNote) {
   return `<span style="font-size:10px;opacity:.6;cursor:help;" title="${escapeHTML((extraNote ? extraNote + '\n\n' : '') + mathNote + PRICE_FLUX_NOTE)}">${escapeHTML(lbl)}</span>`;
 }
 
+// v8.93.1 (Adam's clarification): an UPGRADE (mastercraft tier or gadget)
+// charges the character the DIFFERENCE between the item's new effective
+// price and its old one — gated by the usual provenance prompt (💰 paid /
+// 🎁 gift-or-GM-grant). No silent retroactive deduction; cancelling backs
+// the upgrade out. Downgrades refund nothing (selling is the Sell flow's
+// business; the GM prices trade-ins). Silent no-op while wealth untracked.
+async function chargeUpgradeDifference(c, it, oldDC, newDC, what) {
+  if (!c || c.wealthScore == null) return true;               // wealth untracked
+  if (!oldDC || !newDC || newDC <= oldDC) return true;        // no increase, no charge
+  const ts = scenarioTechScale(c);
+  const def = getCatalogueEntry(it.catalogue, it.ref);
+  const itemTs = def ? ((def.tl != null ? def.tl : def.tech_scale) || 0) : null;
+  const adjOld = itemTs == null ? oldDC : marketAdjustedDC(oldDC, itemTs, ts);
+  const adjNew = itemTs == null ? newDC : marketAdjustedDC(newDC, itemTs, ts);
+  const diff = Math.max(0, dollarsForDC(adjNew) - dollarsForDC(adjOld));
+  if (!diff) return true;
+  const pick = await new Promise(res => openChoiceModal(
+    `${what} on ${it.ref} — Purchase DC ${oldDC} → ${newDC}: the upgrade is worth ${fundsLabel(diff, ts)}. How is the difference met?`,
+    [`💰 Paid — deduct ${fundsLabel(diff, ts)} from funds`, '🎁 Gift / GM grant — no cost (GM approved)'], res));
+  if (!pick) return false;                                    // cancelled → back out
+  if (pick.startsWith('💰')) {
+    if (diff > c.funds) {
+      if (!(await confirmModal(`The upgrade costs ${fundsLabel(diff, ts)} but only ${fundsLabel(c.funds, ts)} is on hand. Pay anyway (funds go negative — GM adjudicates)?`, { title: '⚑ Insufficient funds' }))) return false;
+    }
+    c.funds -= diff;
+    logAct(`💰 ${what} on ${it.ref}: paid the Purchase DC difference (${oldDC} → ${newDC}) — ${fundsLabel(diff, ts)}.`);
+  } else {
+    logAct(`🎁 ${what} on ${it.ref}: Purchase DC ${oldDC} → ${newDC} — difference met as a gift / GM grant.`);
+  }
+  return true;
+}
+
 // v8.93.0 (Adam's task 2): an item's EFFECTIVE Purchase DC — base catalog DC
 // + the mastercraft tier's purchase_dc_mod (HH p.275: +1/+2/+3) + each
 // installed gadget's purchase_dc_mod (tiered gadgets use the chosen tier).
@@ -11847,11 +11879,16 @@ function toggleItemEquipped(itemId) {
   save(); renderGear(); renderSheet(); renderSkills();
 }
 
-function setItemMastercraft(itemId, bonus, target) {
+async function setItemMastercraft(itemId, bonus, target) {
   const c = chars.find(x => x.id === curId); if (!c) return;
   const it = (c.items || []).find(i => i.id === itemId); if (!it) return;
   const cap = maxMastercraftBonus(scenarioTechScale(c));
   bonus = Math.max(0, Math.min(bonus, cap));
+  // v8.93.1 (Adam's clarification): raising the grade charges the Purchase
+  // DC DIFFERENCE through the paid-or-gift prompt; cancel backs out.
+  const defU = getCatalogueEntry(it.catalogue, it.ref);
+  const prevMc = it.mastercraft ? { ...it.mastercraft } : null;
+  const oldDC = (defU && typeof itemEffectivePDC === 'function') ? itemEffectivePDC(it, defU).dc : 0;
   if (bonus <= 0) {
     it.mastercraft = null;
   } else {
@@ -11859,6 +11896,12 @@ function setItemMastercraft(itemId, bonus, target) {
     const rule = kind && MASTERCRAFT_RULES.targets_by_kind[kind];
     const resolvedTarget = (rule && rule.choose_one) ? (target || (it.mastercraft && it.mastercraft.target) || rule.choose_one[0]) : (rule ? 'defense' : null);
     it.mastercraft = { bonus, target: resolvedTarget };
+  }
+  if (defU && typeof chargeUpgradeDifference === 'function') {
+    const newDC = itemEffectivePDC(it, defU).dc;
+    if (!(await chargeUpgradeDifference(c, it, oldDC, newDC, `Mastercraft +${bonus}`))) {
+      it.mastercraft = prevMc; renderGear(); return; // backed out — nothing saved
+    }
   }
   const cap2 = gadgetSlotCount(it, scenarioTechScale(c));
   if (it.gadgets && it.gadgets.length > cap2) it.gadgets = it.gadgets.slice(0, cap2);
@@ -11906,16 +11949,32 @@ async function addGadgetToItem(itemId, gadgetName) {
     const mount = await new Promise(res => openChoiceModal(`${altName} — mounting? (Chosen at purchase, per the book.)`,
       ['Fixed — permanently integrated', 'Detachable — can be physically separated'], res));
     if (!mount) return;
+    // v8.93.1: the Alternate Weapon gadget's own DC mod charges like any
+    // other upgrade (the integrated weapon itself is still bought
+    // separately at modified cost — GM adjudicates, per the book).
+    const defAW = getCatalogueEntry(it.catalogue, it.ref);
+    const oldDCaw = (defAW && typeof itemEffectivePDC === 'function') ? itemEffectivePDC(it, defAW).dc : 0;
     it.gadgets.push({ ref: gadgetName, altWeapon: altName, detachable: mount.startsWith('Detachable') });
+    if (defAW && typeof chargeUpgradeDifference === 'function') {
+      const newDCaw = itemEffectivePDC(it, defAW).dc;
+      if (!(await chargeUpgradeDifference(c, it, oldDCaw, newDCaw, 'Alternate Weapon mount'))) { it.gadgets.pop(); renderGear(); return; }
+    }
     save(); renderGear(); renderSheet(); renderSkills();
-    toast(`${altName} integrated into ${it.ref} (${mount.startsWith('Detachable') ? 'detachable' : 'fixed'}).`);
+    toast(`${altName} integrated into ${it.ref} (${mount.startsWith('Detachable') ? 'detachable' : 'fixed'}). The ${altName} itself is purchased separately at modified cost — GM adjudicates.`);
     return;
   }
-  it.gadgets.push({ ref: gadgetName });
-  save(); renderGear(); renderSheet(); renderSkills();
-  // v8.93.0 (Adam's task 2): the gadget's Purchase DC modifier now speaks —
-  // the inventory price reflects it, and the toast states the new worth.
+  // v8.93.1 (Adam's clarification): the gadget's Purchase DC modifier
+  // CHARGES the difference — paid-or-gift prompt; cancel backs out.
   const defG = getCatalogueEntry(it.catalogue, it.ref);
+  const oldDCg = (defG && typeof itemEffectivePDC === 'function') ? itemEffectivePDC(it, defG).dc : 0;
+  it.gadgets.push({ ref: gadgetName });
+  if (defG && typeof chargeUpgradeDifference === 'function') {
+    const newDCg = itemEffectivePDC(it, defG).dc;
+    if (!(await chargeUpgradeDifference(c, it, oldDCg, newDCg, gadgetName))) {
+      it.gadgets.pop(); renderGear(); return; // backed out — nothing saved
+    }
+  }
+  save(); renderGear(); renderSheet(); renderSkills();
   if (defG && typeof itemEffectivePDC === 'function') {
     const eG = itemEffectivePDC(it, defG);
     if (eG.parts.length) toast(`${gadgetName} attached — ${it.ref}: effective Purchase DC ${eG.dc} (${eG.parts.join('; ')}).`);
