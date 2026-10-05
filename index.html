@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.94.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.95.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -426,6 +426,26 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
         <select id="qd-occ" onchange="qdOccHint()" style="width:100%;"></select>
         <div id="qd-occ-hint" style="font-size:10.5px;color:rgba(200,151,30,.65);margin-top:3px;line-height:1.45;"></div>
       </label>
+      <!-- v8.95.0 (Adam's dice-roller addendum): Automatic Attribute
+           Generation toggle, pre-selected. Unticked = the Manual Attribute
+           panel: each attribute defaults to 10 with +/− steppers, set
+           arbitrarily (a dice-rolled set, a GM array). Manual values are
+           taken as FINAL scores (level bumps assumed included); racial
+           adjustment applies on top; prerequisite gates still check. -->
+      <div style="grid-column:1 / -1;border:1px solid rgba(200,151,30,.3);border-radius:3px;padding:6px 9px;font-size:11.5px;">
+        <label style="cursor:pointer;"><input type="checkbox" id="qd-auto-attrs" checked onchange="qdAttrModeToggle()"> <b>Automatic Attribute Generation?</b> <span style="opacity:.55;font-size:10px;">(untick to enter a dice-rolled set manually)</span></label>
+        <div id="qd-manual-attrs" style="display:none;margin-top:7px;">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <span>STR <button class="btn btn-sm" style="font-size:10px;padding:0 6px;" onclick="qdMaAdj(0,-1)">−</button> <b id="qd-ma-0" style="display:inline-block;min-width:18px;text-align:center;">10</b> <button class="btn btn-sm" style="font-size:10px;padding:0 6px;" onclick="qdMaAdj(0,1)">+</button></span>
+            <span>DEX <button class="btn btn-sm" style="font-size:10px;padding:0 6px;" onclick="qdMaAdj(1,-1)">−</button> <b id="qd-ma-1" style="display:inline-block;min-width:18px;text-align:center;">10</b> <button class="btn btn-sm" style="font-size:10px;padding:0 6px;" onclick="qdMaAdj(1,1)">+</button></span>
+            <span>CON <button class="btn btn-sm" style="font-size:10px;padding:0 6px;" onclick="qdMaAdj(2,-1)">−</button> <b id="qd-ma-2" style="display:inline-block;min-width:18px;text-align:center;">10</b> <button class="btn btn-sm" style="font-size:10px;padding:0 6px;" onclick="qdMaAdj(2,1)">+</button></span>
+            <span>INT <button class="btn btn-sm" style="font-size:10px;padding:0 6px;" onclick="qdMaAdj(3,-1)">−</button> <b id="qd-ma-3" style="display:inline-block;min-width:18px;text-align:center;">10</b> <button class="btn btn-sm" style="font-size:10px;padding:0 6px;" onclick="qdMaAdj(3,1)">+</button></span>
+            <span>WIS <button class="btn btn-sm" style="font-size:10px;padding:0 6px;" onclick="qdMaAdj(4,-1)">−</button> <b id="qd-ma-4" style="display:inline-block;min-width:18px;text-align:center;">10</b> <button class="btn btn-sm" style="font-size:10px;padding:0 6px;" onclick="qdMaAdj(4,1)">+</button></span>
+            <span>CHA <button class="btn btn-sm" style="font-size:10px;padding:0 6px;" onclick="qdMaAdj(5,-1)">−</button> <b id="qd-ma-5" style="display:inline-block;min-width:18px;text-align:center;">10</b> <button class="btn btn-sm" style="font-size:10px;padding:0 6px;" onclick="qdMaAdj(5,1)">+</button></span>
+          </div>
+          <div style="font-size:10px;color:rgba(200,151,30,.55);margin-top:4px;line-height:1.4;">Entered values are the FINAL scores (include your level bumps); racial adjustments apply on top. Attribute prerequisites still check — a shortfall refuses with the gap named.</div>
+        </div>
+      </div>
     </div>
     <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;">
       <button class="btn btn-sm" onclick="closeQuickdraw()">Cancel</button>
@@ -14476,6 +14496,32 @@ function qdAllocWithAdj(needs, keyAttr, bumpsAvail, adjArr) {
   if (!alloc) return null;
   return { attrs: alloc.attrs.map((v, i) => v + ((adjArr || [])[i] || 0)), bumps: alloc.bumps };
 }
+
+// v8.95.0 (Adam's dice-roller addendum): the MANUAL lane — the player's
+// entered set is taken as FINAL scores (level bumps assumed included),
+// racial adjustment applied on top; attribute prerequisites still check
+// honestly and a shortfall refuses with the gap named.
+function qdManualAlloc(manual, needs, adjArr) {
+  const idx = { STR: 0, DEX: 1, CON: 2, INT: 3, WIS: 4, CHA: 5 };
+  const attrs = manual.map((v, i) => (Number(v) || 10) + ((adjArr || [])[i] || 0));
+  for (const [k, v] of Object.entries(needs || {})) {
+    if ((attrs[idx[k]] ?? 10) < v) return { err: `manual attributes: ${k} ${attrs[idx[k]]} (after racial adjustment) is below the required ${v} — raise it or re-tick Automatic Attribute Generation` };
+  }
+  return { attrs, bumps: [] };
+}
+function qdAttrModeToggle() {
+  const on = !document.getElementById('qd-auto-attrs').checked;
+  document.getElementById('qd-manual-attrs').style.display = on ? '' : 'none';
+}
+function qdMaAdj(i, d) {
+  const el = document.getElementById('qd-ma-' + i);
+  el.textContent = Math.max(1, Math.min(30, (parseInt(el.textContent, 10) || 10) + d));
+}
+function qdManualAttrs() {
+  const auto = document.getElementById('qd-auto-attrs');
+  if (!auto || auto.checked) return null;
+  return [0, 1, 2, 3, 4, 5].map(i => parseInt(document.getElementById('qd-ma-' + i).textContent, 10) || 10);
+}
 function qdAllocateAttrs(needs, keyAttr, bumpsAvail) {
   const idx = {STR:0, DEX:1, CON:2, INT:3, WIS:4, CHA:5};
   const attrs = [10, 10, 10, 10, 10, 10];
@@ -14654,8 +14700,15 @@ function qdBuildAttempt(spec, res, startName, goalE, isEntryFree) {
     // `let`, not `const`: the bridge race (below) may re-run the allocation
     // with a bridge's attrMin folded in — the budget chases the best ladder.
     const _adjArr = qdRacialAdjArr(spec);  // v8.69.0: racial adj, Create-form parity
-    let alloc = qdAllocWithAdj(attrNeeds, qdKeyAttrsFor([startE.name, goalE.name], goalE.def), Math.floor(N / 4), _adjArr);  // v8.94.0: multi-key
-    if (!alloc) return {ok: false, reason: 'attribute prerequisites exceed the 20-point buy even with every level bump'};
+    let alloc;
+    if (spec.manualAttrs) {  // v8.95.0: the dice-roller lane
+      const m = qdManualAlloc(spec.manualAttrs, attrNeeds, _adjArr);
+      if (m.err) return {ok: false, reason: m.err};
+      alloc = m;
+    } else {
+      alloc = qdAllocWithAdj(attrNeeds, qdKeyAttrsFor([startE.name, goalE.name], goalE.def), Math.floor(N / 4), _adjArr);  // v8.94.0: multi-key
+      if (!alloc) return {ok: false, reason: 'attribute prerequisites exceed the 20-point buy even with every level bump'};
+    }
 
     // ---- assembly scaffold shared by gate-sim and final ----
     const spellPool = res.pools.size ? [...res.pools][0] : 'arcane';
@@ -14737,7 +14790,9 @@ function qdBuildAttempt(spec, res, startName, goalE, isEntryFree) {
             if ((alloc.attrs[ATTR_IDX[code]] || 0) < bE.def.attrMin) {
               const needsB = {...attrNeeds};
               needsB[code] = Math.max(needsB[code] || 0, bE.def.attrMin);
-              const allocB = qdAllocWithAdj(needsB, qdKeyAttrsFor([startE.name, goalE.name], goalE.def), Math.floor(N / 4), _adjArr);  // v8.69.0 adj-compensated; v8.94.0 multi-key
+              const allocB = spec.manualAttrs
+                ? (() => { const m = qdManualAlloc(spec.manualAttrs, needsB, _adjArr); return m.err ? null : m; })()  // v8.95.0: manual lane
+                : qdAllocWithAdj(needsB, qdKeyAttrsFor([startE.name, goalE.name], goalE.def), Math.floor(N / 4), _adjArr);  // v8.69.0 adj-compensated; v8.94.0 multi-key
               if (!allocB) continue;  // genuinely unreachable — skip this bridge
               alloc = allocB;  // mkChar closes over `alloc` — sims below see it
               candNote = `point buy re-balanced to cover the ${s.name} bridge's ${code} ${bE.def.attrMin} entry gate`;
@@ -14890,8 +14945,15 @@ function qdBespokeBuild(spec) {
       res.pools.forEach(p => merged.pools.add(p)); merged.spellReqs.push(...res.spellReqs);
     }
     const lastDef = qdEntry(steps[steps.length - 1].name).def;
-    const alloc = qdAllocWithAdj(merged.attrNeeds, qdKeyAttrsFor(steps.map(st => st.name), lastDef), Math.floor(N / 4), qdRacialAdjArr(spec));  // v8.69.0 racial adj; v8.94.0 multi-key — the primary classes' key attributes in balance
-    if (!alloc) return {ok: false, reason: 'attribute prerequisites exceed the 20-point buy even with every level bump'};
+    let alloc;
+    if (spec.manualAttrs) {  // v8.95.0: the dice-roller lane
+      const m = qdManualAlloc(spec.manualAttrs, merged.attrNeeds, qdRacialAdjArr(spec));
+      if (m.err) return {ok: false, reason: m.err};
+      alloc = m;
+    } else {
+      alloc = qdAllocWithAdj(merged.attrNeeds, qdKeyAttrsFor(steps.map(st => st.name), lastDef), Math.floor(N / 4), qdRacialAdjArr(spec));  // v8.69.0 racial adj; v8.94.0 multi-key — the primary classes' key attributes in balance
+      if (!alloc) return {ok: false, reason: 'attribute prerequisites exceed the 20-point buy even with every level bump'};
+    }
     const spellPool = merged.pools.size ? [...merged.pools][0] : 'arcane';
     const powers = qdSpellPicks(merged.spellReqs.filter(r => r.kind !== 'access'), spellPool);
     const mk = (classes, id, nm) => ({
@@ -15001,6 +15063,7 @@ function qdBespokeRun() {
     hybrid: _bspHyb,
     name: ((document.getElementById('qd-stem') || {}).value || '').trim() || 'Bespoke Hero',
     occupation: (document.getElementById('qd-occ') || {}).value || '',
+    manualAttrs: (typeof qdManualAttrs === 'function') ? qdManualAttrs() : null,  // v8.95.0: dice-roller lane
   };
   const r = qdBespokeBuild(spec);
   if (!r.ok) { toast('⚡ Bespoke refused: ' + r.reason); return; }
@@ -15153,12 +15216,12 @@ function qdRun() {
       // the goal (a Smart Ordinary can't make Soldier's BAB +3 by level 5),
       // fall through to the next one so the squad still fills.
       for (let k = 0; k < starts.length; k++) {
-        r = qdBuild({goal, level, startClass: starts[(i + k) % starts.length].name, sixLevels: sl, presetName, race, name, hybrid: hyb});
+        r = qdBuild({goal, level, startClass: starts[(i + k) % starts.length].name, sixLevels: sl, presetName, race, name, hybrid: hyb, manualAttrs: qdManualAttrs()});
         if (r.ok) break;
       }
     } else {
       const startClass = (startVal === 'AUTO' || startVal === 'MIX') ? null : startVal;
-      r = qdBuild({goal, level, startClass, sixLevels: sl, presetName, race, name, hybrid: hyb});
+      r = qdBuild({goal, level, startClass, sixLevels: sl, presetName, race, name, hybrid: hyb, manualAttrs: qdManualAttrs()});
     }
     if (r && r.ok) {
       // v8.53.0: build-time occupation — sets the occupation only; the perk
