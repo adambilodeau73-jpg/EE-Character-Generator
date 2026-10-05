@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.96.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.96.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -51695,8 +51695,11 @@ function printSheet(){
   // powers with prep lists, mutations & MP, equipped gear).
   const psStats = computeStatBlock(c);
   const psSkillMisc = computeSkillMiscBonuses(c);
-  const psInitBon = aggregateBonuses(((buildFeatBonuses(c).init)||[]).concat((buildTalentBonuses(c).init)||[])).total;
-  const psInit = dM + psInitBon;
+  // v8.96.1 print-parity fix (found during the §240 wiring): the printed
+  // Initiative re-derived from feats+talents only — missing the class-
+  // feature lane (Uncanny Instincts) and the cybernetic Initiative Implant.
+  // The statblock's own init lane is the single truth.
+  const psInit = (psStats.init && psStats.init.total != null) ? psStats.init.total : dM;
   const psSaveRow = (key, label, attrLbl, attrMod) => {
     const total = psStats[key].total;
     const other = total - (c[key]||0) - attrMod;
@@ -51862,6 +51865,24 @@ function printSheet(){
     gearBlock = gearBlock
       ? gearBlock.replace('</div></div>', carryBlock + '</div></div>')
       : `<div class="ps-sec"><div class="ps-sec-head">Equipped Gear</div><div class="ps-sec-body">${carryBlock}</div></div>`;
+  }
+  // v8.96.1 (print parity for §240 + the v8.91.0 implants): Wealth standing
+  // and the cybernetics ledger on paper.
+  {
+    const extraLines = [];
+    if (c.wealthScore != null && c.funds != null) {
+      extraLines.push(`<div style="font-size:7.5pt;margin-top:3px;"><b>Wealth:</b> Score ${c.wealthScore} · ${escapeHTML(fundsLabel(c.funds, scenarioTechScale(c)))}${c.funds < 0 ? ' (in debt)' : ''} <span style="color:#888;">(score tracks funds — HH p.45)</span></div>`);
+    }
+    if (typeof getCyber === 'function' && getCyber(c).length) {
+      const cyb = getCyber(c).map(r => r.n + (r.param ? ` (${r.param})` : '')).join(', ');
+      const exc = (typeof cyberExcess === 'function') ? cyberExcess(c) : 0;
+      extraLines.push(`<div style="font-size:7.5pt;margin-top:2px;"><b>🦾 Cybernetics:</b> ${escapeHTML(cyb)} — ${cyberCount(c)} of ${cyberMax(c)} attachments${exc ? ` · ⚠ ${exc} negative level${exc > 1 ? 's' : ''}` : ''}${getCyber(c).some(r => r.n === 'Anti-Shock Implant') ? '' : ' · ⚡ +50% electricity damage'}</div>`);
+    }
+    if (extraLines.length) {
+      gearBlock = gearBlock
+        ? gearBlock.replace('</div></div>', extraLines.join('') + '</div></div>')
+        : `<div class="ps-sec"><div class="ps-sec-head">Equipped Gear</div><div class="ps-sec-body">${extraLines.join('')}</div></div>`;
+    }
   }
   // ===================== v8.19.0 PRINT-PARITY PASS =====================
   // The print sheet's last parity audit was v8.6.x; the v8.7–v8.18 systems
@@ -52203,7 +52224,7 @@ function printSheet(){
            then the conflated Class Features & Abilities with the
            level-by-level record. -->
       <div class="ps-sec">
-        <div class="ps-sec-head">Scenario &amp; Racial Features</div>
+        <div class="ps-sec-head">Scenario, Racial Features, &amp; Starting Occupation</div>
         <div class="ps-sec-body ps-classes">
           ${c.sixLevels?`<div style="margin-bottom:5px;"><div style="font-family:'Cinzel',Georgia,serif;font-size:7pt;text-transform:uppercase;letter-spacing:.06em;color:#6b5320;margin-bottom:2px;">Scenario: ${normalizePresetName(c.scenarioPreset||'Custom')}</div><div style="font-size:8pt;color:#555;">${['arcane','divine','heroic','mutation','psionic','tech'].map(a=>`${SIX_LEVELS[a].short} ${c.sixLevels[a]||0}`).join(' · ')}</div></div>`:''}
           ${(() => { const mpP = (typeof getMPState==='function') ? getMPState(c) : null;
@@ -52218,6 +52239,21 @@ function printSheet(){
             const ml = mpP.mutantLevel, conM = am(((c.attrs)||[10,10,10,10,10,10])[2]);
             const spp = mpP.isSuperMutant && (typeof getSuperPPState==='function') ? getSuperPPState(c) : null;
             return `<div style="font-size:7.5pt;color:#555;">🧬 <b>${mpP.tier.tier} ${mpP.isSuperMutant ? 'Super-Mutant' : 'Mutant'}</b> (RLM +${ml} · ${mpP.totalEarned} MP): Unnatural Prowess +${Math.floor(ml/2)} BA / +${Math.floor(ml/3)} Def / +${2*ml} SP (Tech-0) · Resilience +${ml*(5+conM)} HP / +${Math.floor(ml/2)} saves${mpP.isSuperMutant ? ` · ESL ${mpP.eml} · ${spp?spp.max:'—'} super-PP/day` : ''}</div>`; })()}
+          ${(() => { // v8.96.1 (print parity for §240): the Starting Occupation on paper.
+            const pOccs = (c.occupations && c.occupations.length ? c.occupations : (c.occ ? [c.occ] : [])).filter(Boolean);
+            if (!pOccs.length) return '';
+            return pOccs.map((o, oi) => {
+              const od = (typeof getOccupationData === 'function') ? getOccupationData(o) : null;
+              const picks = (c.occupationPicks || {})[oi === 0 ? 'primary' : 'secondary'] || {};
+              const sk = (picks.skills || []).filter(Boolean);
+              const bits = [];
+              bits.push(sk.length ? `class skills: ${sk.join(', ')}` : `class skills unchosen (pick ${od ? od.skill_count : '?'})`);
+              if (picks.feat) bits.push(`bonus feat: ${picks.feat}`);
+              else if (od && od.bonus_feat_options && od.bonus_feat_options.length) bits.push('bonus feat unchosen');
+              if (od && od.wealth != null) bits.push(`Wealth +${od.wealth}`);
+              return `<div style="font-size:7.5pt;color:#555;margin-top:2px;">💼 <b>${escapeHTML(o)}</b>${oi === 1 ? ' (2nd)' : ''} — ${escapeHTML(bits.join(' · '))}</div>`;
+            }).join('');
+          })()}
         </div>
       </div>
 
