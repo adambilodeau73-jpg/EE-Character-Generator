@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.93.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.93.2</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -3754,7 +3754,17 @@ function computeCasterStats(char) {
       // (local char level — the Heritage block's `totalLvl` const is declared
       // later in this function; referencing it here is a TDZ error)
       const capCharLvl = char.totalLvl || classArr.reduce((s, x) => s + (x.level || 0), 0);
-      for (const poolName of targets) {
+      // v8.93.2 (Adam's Endrin Fairchilde test case): `targets` was declared
+      // inside the standard-advancer ELSE branch above — block-scoped, dead
+      // here — so the capstone threw ReferenceError the moment ANY theurge
+      // reached class level 10: Perfected Technique crashed the entire
+      // caster computation at the exact level it was meant to crown. The
+      // pools this capstone floors are the ones this class actually
+      // advanced (poolAdvance), falling back to the meta's declared list.
+      const capTargets = Object.keys(poolAdvance).length
+        ? Object.keys(poolAdvance)
+        : (Array.isArray(meta.advances) ? meta.advances : [meta.advances]).filter(Boolean);
+      for (const poolName of capTargets) {
         if (poolName in out) out[poolName].cl = Math.max(out[poolName].cl, capCharLvl);
       }
     }
