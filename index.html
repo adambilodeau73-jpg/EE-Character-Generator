@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.93.2</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.94.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -14455,6 +14455,15 @@ function qdRacialAdjArr(spec) {
   const adj = (RACES[(spec && spec.race) || ''] || {}).adj || {};
   return AN.map(n => adj[n] || 0);
 }
+// v8.94.0 (Adam's Endrin advisory, deemed preferable): the allocator keyed
+// on ONE attribute — the last class's first attr token — so a theurge
+// ladder walked out with Int 20 / Wis 14, capping divine CASTS at
+// 4th-level spells despite EDL 17. The optimization hinges on the key
+// attributes of the PRIMARY classes involved: keyAttr now accepts a LIST
+// (every distinct casting attribute among the ladder's feeder caster
+// classes, plus ALL of the final class's attr tokens — 'INT/WIS' means
+// both), and the spare points, 14-caps, and level bumps are raised in
+// BALANCE across them (lowest first). Single-string callers unchanged.
 function qdAllocWithAdj(needs, keyAttr, bumpsAvail, adjArr) {
   const idx = { STR: 0, DEX: 1, CON: 2, INT: 3, WIS: 4, CHA: 5 };
   const comp = {};
@@ -14478,17 +14487,43 @@ function qdAllocateAttrs(needs, keyAttr, bumpsAvail) {
     while (short > 0 && bumps.length < bumpsAvail) { bumps.push(k); attrs[idx[k]]++; short--; }
     if (attrs[idx[k]] < needs[k]) return null;  // unreachable even with bumps
   }
-  // Remaining points: key attribute to 16, then round-robin (CON first).
-  const kIdx = idx[keyAttr] !== undefined ? idx[keyAttr] : 0;
-  while (pts > 0 && attrs[kIdx] < 16) { attrs[kIdx]++; pts--; }
-  const order = [2, kIdx, 1, 4, 3, 5, 0];
+  // v8.94.0: key attributes as an ordered, deduped index list.
+  const keys = (Array.isArray(keyAttr) ? keyAttr : [keyAttr])
+    .map(k => idx[k]).filter(i => i !== undefined);
+  const kIdxs = [...new Set(keys.length ? keys : [0])];
+  const lowestKey = () => kIdxs.reduce((a, b) => (attrs[b] < attrs[a] ? b : a), kIdxs[0]);
+  // Remaining points: raise the key attributes to 16 in balance, lowest first.
+  while (pts > 0 && kIdxs.some(i => attrs[i] < 16)) {
+    const lo = kIdxs.filter(i => attrs[i] < 16).reduce((a, b) => (attrs[b] < attrs[a] ? b : a));
+    attrs[lo]++; pts--;
+  }
+  const order = [...new Set([2, ...kIdxs, 1, 4, 3, 5, 0])];
   let guard = 60;
   while (pts > 0 && guard--) {
     for (const i of order) { if (pts > 0 && attrs[i] < 14) { attrs[i]++; pts--; } }
   }
-  // Remaining bumps → key attribute (use-it-or-lose-it; logged by caller).
-  while (bumps.length < bumpsAvail) { bumps.push(ATTR_NAMES[kIdx]); attrs[kIdx]++; }
+  // Remaining bumps → key attributes in balance (use-it-or-lose-it).
+  while (bumps.length < bumpsAvail) { const lo = lowestKey(); bumps.push(ATTR_NAMES[lo]); attrs[lo]++; }
   return {attrs, bumps};
+}
+// v8.94.0: the key-attribute LIST for a ladder — the casting attribute of
+// every feeder caster class (the classes a prestige advancer extends), then
+// ALL attr tokens of the goal/final class ('INT/WIS' → both), deduped in
+// ladder order.
+function qdKeyAttrsFor(classNames, lastDef) {
+  const out = [];
+  for (const nm of (classNames || [])) {
+    if (typeof CASTER_PROGRESSION !== 'undefined' && CASTER_PROGRESSION[nm]) {
+      const e = qdEntry(nm);
+      if (e) { const k = qdKeyAttr(e.def); if (!out.includes(k)) out.push(k); }
+    }
+  }
+  for (const tok of String((lastDef && lastDef.attr) || '').split('/').map(s => s.trim()).filter(Boolean)) {
+    const k = tok.toUpperCase();
+    if (['STR','DEX','CON','INT','WIS','CHA'].includes(k) && !out.includes(k)) out.push(k);
+  }
+  if (!out.length) out.push(qdKeyAttr(lastDef || {}));
+  return out;
 }
 
 // Gate-mandated spell picks (knowsPower / powerRepertoire): minimal
@@ -14600,7 +14635,7 @@ function qdBuildAttempt(spec, res, startName, goalE, isEntryFree) {
     // `let`, not `const`: the bridge race (below) may re-run the allocation
     // with a bridge's attrMin folded in — the budget chases the best ladder.
     const _adjArr = qdRacialAdjArr(spec);  // v8.69.0: racial adj, Create-form parity
-    let alloc = qdAllocWithAdj(attrNeeds, qdKeyAttr(goalE.def), Math.floor(N / 4), _adjArr);
+    let alloc = qdAllocWithAdj(attrNeeds, qdKeyAttrsFor([startE.name, goalE.name], goalE.def), Math.floor(N / 4), _adjArr);  // v8.94.0: multi-key
     if (!alloc) return {ok: false, reason: 'attribute prerequisites exceed the 20-point buy even with every level bump'};
 
     // ---- assembly scaffold shared by gate-sim and final ----
@@ -14683,7 +14718,7 @@ function qdBuildAttempt(spec, res, startName, goalE, isEntryFree) {
             if ((alloc.attrs[ATTR_IDX[code]] || 0) < bE.def.attrMin) {
               const needsB = {...attrNeeds};
               needsB[code] = Math.max(needsB[code] || 0, bE.def.attrMin);
-              const allocB = qdAllocWithAdj(needsB, qdKeyAttr(goalE.def), Math.floor(N / 4), _adjArr);  // v8.69.0: adj-compensated like the primary allocation
+              const allocB = qdAllocWithAdj(needsB, qdKeyAttrsFor([startE.name, goalE.name], goalE.def), Math.floor(N / 4), _adjArr);  // v8.69.0 adj-compensated; v8.94.0 multi-key
               if (!allocB) continue;  // genuinely unreachable — skip this bridge
               alloc = allocB;  // mkChar closes over `alloc` — sims below see it
               candNote = `point buy re-balanced to cover the ${s.name} bridge's ${code} ${bE.def.attrMin} entry gate`;
@@ -14836,7 +14871,7 @@ function qdBespokeBuild(spec) {
       res.pools.forEach(p => merged.pools.add(p)); merged.spellReqs.push(...res.spellReqs);
     }
     const lastDef = qdEntry(steps[steps.length - 1].name).def;
-    const alloc = qdAllocWithAdj(merged.attrNeeds, qdKeyAttr(lastDef), Math.floor(N / 4), qdRacialAdjArr(spec));  // v8.69.0: racial adj, Create-form parity
+    const alloc = qdAllocWithAdj(merged.attrNeeds, qdKeyAttrsFor(steps.map(st => st.name), lastDef), Math.floor(N / 4), qdRacialAdjArr(spec));  // v8.69.0 racial adj; v8.94.0 multi-key — the primary classes' key attributes in balance
     if (!alloc) return {ok: false, reason: 'attribute prerequisites exceed the 20-point buy even with every level bump'};
     const spellPool = merged.pools.size ? [...merged.pools][0] : 'arcane';
     const powers = qdSpellPicks(merged.spellReqs.filter(r => r.kind !== 'access'), spellPool);
