@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.96.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.97.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -17590,7 +17590,11 @@ const FEATS_DB = [
   {n:'Dead Aim',family:'Fighter',prereqs:[[{type:'attr',name:'WIS',min:13}],[{type:'feat',name:'Far Shot'}]],d:'With a moment to draw a bead, you can shoot more accurately than most.'},
   {n:'Defensive Martial Arts',family:'Fighter',bonuses:[{type:'competence',target:'def',value:1}],d:'You have training in defensive martial arts techniques.'},
   {n:'Deflect Arrows',family:'Fighter',prereqs:[[{type:'attr',name:'DEX',min:13}],[{type:'feat',name:'Defensive Martial Arts'}]],d:'You can knock aside incoming arrows and thrown weapons.'},
-  {n:'Dodge',family:'Fighter',prereqs:[[{type:'attr',name:'DEX',min:13}]],bonuses:[{type:'dodge',target:'ac',value:1,condition:'designated target'}],d:'You have training in avoiding blows.'},
+  {n:'Dodge',family:'Fighter',prereqs:[[{type:'attr',name:'DEX',min:13}]],bonuses:[{type:'dodge',target:'ac',value:1}],d:'You receive a +1 dodge bonus to Armor Class. Also, you can ready a dodge as a swift action.'},
+  // v8.97.0 (Adam's Rhad report): the condition:'designated target' above was
+  // an SRD VESTIGE — the HH's Dodge (p.240) is UNCONDITIONAL (+1 dodge AC,
+  // dodge readies as a swift action). It parked the feat in the conditional
+  // bucket, so Rhad's Dodge never reached the Dodge modifier or his AC.
   {n:'Double Tap',family:'Fighter',prereqs:[[{type:'sixLevel',axis:'tech',min:3}],[{type:'attr',name:'DEX',min:13}],[{type:'feat',name:'Point-Blank Shot'}]],
     // v8.5.2: see Burst Fire's combatMod comment — same surfacing mechanism.
     combatMod:{kind:'doubleTap', requiresRoF:'S', atkPenalty:-2, dmgMult:1.5, roundsCost:2},
@@ -37569,7 +37573,18 @@ function computeParryBonus(c, opts){
   const _roP = (typeof combatDecl === 'function') ? (combatDecl(c).ro ? 4 : 0) : 0;
   if (_ceP) parts.push({label:'Combat Expertise (declared)', value:_ceP});
   if (_roP) parts.push({label:'Reckless Offense (declared)', value:-_roP});
-  return { total: bab + strM + def + shield - _bd + _ceP - _roP, parts };
+  // v8.97.0 (Adam's flag request): the declaration-speed ladder, HH p.373 —
+  // Defensive Martial Arts readies a parry as a SWIFT action, Improved DMA
+  // as a FREE action, Advanced DMA declares as an IMMEDIATE free action.
+  // Shield Parry rides separately: 1/round immediate shield parry vs ANY
+  // attack that rolls to hit, ranged included (its own feat text).
+  const _ownP = (n) => (c.feats || []).some(f => (f.name || f.n) === n);
+  let ready = null;
+  if (_ownP('Advanced Defensive Martial Arts')) ready = { speed: 'immediate free action', by: 'Advanced Defensive Martial Arts' };
+  else if (_ownP('Improved Defensive Martial Arts')) ready = { speed: 'free action', by: 'Improved Defensive Martial Arts' };
+  else if (_ownP('Defensive Martial Arts')) ready = { speed: 'swift action', by: 'Defensive Martial Arts' };
+  const shieldParry = _ownP('Shield Parry');
+  return { total: bab + strM + def + shield - _bd + _ceP - _roP, parts, ready, shieldParry };
 }
 
 // Compute Dodge attempt modifier per handbook HH p.373.
@@ -37578,7 +37593,15 @@ function computeParryBonus(c, opts){
 function computeDodgeBonus(c){
   const dexM = am(c.attrs[1]);
   const def = c.def || 0;
-  const refTotal = (c.ref || 0) + dexM; // ref base + Dex mod = Reflex save total
+  // v8.97.0 (Adam's Rhad report): the Reflex component re-derived as
+  // base + Dex ONLY — dropping every other Reflex bonus (Unnatural
+  // Resilience's racial +1, Lightning Reflexes, item resistance, buffs,
+  // negative levels…). HH p.372: "Dodge attempt = 1d20 + Reflex save
+  // modifier + Defense bonus + dodge AC bonus(es)" — the SAVE CELL's own
+  // total is the single truth.
+  const refTotal = (typeof computeStatBlock === 'function' && computeStatBlock(c).ref)
+    ? computeStatBlock(c).ref.total
+    : (c.ref || 0) + dexM;
   // Dodge bonuses from feats: aggregate via the existing bonus pipeline.
   // For now, sum any 'dodge' bonus on the character. Conditional dodge bonuses
   // (Dodge feat's "designated target", Mobility's "moving through threatened squares")
@@ -37612,10 +37635,19 @@ function computeDodgeBonus(c){
   const _roD = (typeof combatDecl === 'function') ? (combatDecl(c).ro ? 4 : 0) : 0;
   if (_ceD) parts.push({label:'Combat Expertise (declared)', value:_ceD});
   if (_roD) parts.push({label:'Reckless Offense (declared)', value:-_roD});
+  // v8.97.0 (Adam's flag request): the declaration-speed ladder, HH p.372 —
+  // Dodge readies as a SWIFT action, Improved Dodge as a FREE action,
+  // Advanced Dodge declares as an IMMEDIATE free action (even off-turn).
+  const _own = (n) => (c.feats || []).some(f => (f.name || f.n) === n);
+  let ready = null;
+  if (_own('Advanced Dodge')) ready = { speed: 'immediate free action', by: 'Advanced Dodge' };
+  else if (_own('Improved Dodge')) ready = { speed: 'free action', by: 'Improved Dodge' };
+  else if (_own('Dodge')) ready = { speed: 'swift action', by: 'Dodge' };
   return {
     total: refTotal + def + unconditional - _bd + _ceD - _roD,
     parts,
     conditional,
+    ready,
   };
 }
 
@@ -39334,8 +39366,13 @@ function renderSheet(){
     _repCell,
     // Row 3 — the defensive ladder.
     _defCell,
-    {l:'Parry', v:(parry.total>=0?'+':'')+parry.total, k:'parry', extraHtml:_ceTag + _roTag},
-    {l:'Dodge', v:(dodge.total>=0?'+':'')+dodge.total, k:'dodge', extraHtml:_ceTag + _roTag + _udTag},
+    // v8.97.0 (Adam's flag request): ⚡ declaration-speed tags — when a feat
+    // readies the parry/dodge as a swift action or faster, the cell says so.
+    {l:'Parry', v:(parry.total>=0?'+':'')+parry.total, k:'parry', extraHtml:_ceTag + _roTag
+      + (parry.ready ? `<span style="font-size:9px;color:#78afcd;margin-left:3px;cursor:help;" title="${escapeHTML(`Parry readies as a ${parry.ready.speed} — ${parry.ready.by} (HH p.373). Base: an ordinary readied action.`)}">⚡ ${parry.ready.speed.split(' ')[0]}</span>` : '')
+      + (parry.shieldParry ? `<span style="font-size:9px;color:#78afcd;margin-left:3px;cursor:help;" title="Shield Parry: once per round, parry ANY incoming attack that rolls to hit — ranged included — as an immediate action with your shield (feat text).">🛡⚡</span>` : '')},
+    {l:'Dodge', v:(dodge.total>=0?'+':'')+dodge.total, k:'dodge', extraHtml:_ceTag + _roTag + _udTag
+      + (dodge.ready ? `<span style="font-size:9px;color:#78afcd;margin-left:3px;cursor:help;" title="${escapeHTML(`Dodge readies as a ${dodge.ready.speed} — ${dodge.ready.by} (HH p.372). Base: an ordinary readied action.`)}">⚡ ${dodge.ready.speed.split(' ')[0]}</span>` : '')},
   ];
   if (natHardness > 0) statCells.push({l:'Nat. Hardness', v:natHardness, k:'natHardness', tooltip:natTooltip});
   // v8.8.2 (Adam's Basic-class pass): Spell Resistance — a caster must beat
