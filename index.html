@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.94.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v8.94.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -5380,15 +5380,19 @@ function checkClassPrereqsFromArray(className, existingClasses, charSkills, char
       } else if (opt.type === 'powerRepertoire') {
         // Repertoire-shape check: {count?, minLvl?, schools? (school_raw
         // prefixes), distinctSchools?, pool?} against known spells/powers.
+        // v8.94.1 (the Tower probe's conviction): dual-listed entries print
+        // "Metacreativity / Conjuration (Creation)" — the first-token parse
+        // counted the PSIONIC DISCIPLINE as a fifth arcane school. The
+        // school is read pool-aware now (schoolForPool).
         const lvlOf = (s) => (s.levels && s.levels.length) ? Math.min(...s.levels.map(l => l.lvl)) : 0;
         let recs = charPowers()
           .filter(p => !opt.pool || p.pool === opt.pool)
           .map(p => SPELLS_DB.find(x => x.name === p.name)).filter(Boolean);
         if (opt.minLvl) recs = recs.filter(s => lvlOf(s) >= opt.minLvl);
-        if (opt.schools) recs = recs.filter(s => opt.schools.some(sc => (s.school_raw || '').startsWith(sc)));
+        if (opt.schools) recs = recs.filter(s => opt.schools.some(sc => (s.school_raw || '').startsWith(sc) || schoolForPool(s.school_raw, opt.pool) === sc));
         optDesc = opt.desc || 'repertoire requirement';
         if (opt.distinctSchools) {
-          optMet = new Set(recs.map(s => (s.school_raw || '').split(/[\s(\[]/)[0])).size >= opt.distinctSchools;
+          optMet = new Set(recs.map(s => schoolForPool(s.school_raw, opt.pool))).size >= opt.distinctSchools;
         } else {
           optMet = new Set(recs.map(s => s.name)).size >= (opt.count || 1);
         }
@@ -14535,6 +14539,18 @@ const QD_POOL_TOKENS = {
   divine:  ['Clr', 'Drd', 'Pal', 'Rgr'],
   psionic: ['Psion', 'Wilder', 'Warmind'],
 };
+// v8.94.1: the POOL-AWARE school of a spell. Dual-listed entries print
+// "Metacreativity / Conjuration (Creation)" — a psionic DISCIPLINE beside
+// the magic SCHOOL. For an arcane/divine repertoire the school is the magic
+// token; for psionic, the discipline. First token only as a last resort.
+const MAGIC_SCHOOLS = ['Abjuration', 'Conjuration', 'Divination', 'Enchantment', 'Evocation', 'Illusion', 'Necromancy', 'Transmutation', 'Universal'];
+const PSI_DISCIPLINES = ['Clairsentience', 'Metacreativity', 'Psychokinesis', 'Psychometabolism', 'Psychoportation', 'Telepathy'];
+function schoolForPool(schoolRaw, pool) {
+  const toks = String(schoolRaw || '').split('/').map(t => t.trim().split(/[\s(\[]/)[0]).filter(Boolean);
+  const want = (pool === 'psionic') ? PSI_DISCIPLINES : MAGIC_SCHOOLS;
+  for (const t of toks) if (want.includes(t)) return t;
+  return toks[0] || '';
+}
 function qdSpellPicks(spellReqs, pool) {
   const picks = [];
   const toks = (p) => QD_POOL_TOKENS[p] || QD_POOL_TOKENS.arcane;
@@ -14555,8 +14571,11 @@ function qdSpellPicks(spellReqs, pool) {
       if (o.minLvl) cands = cands.filter(s => checkerLvl(s) >= o.minLvl);
       cands.sort((a, b) => lvlOf(a, p) - lvlOf(b, p) || a.name.localeCompare(b.name));
       if (o.distinctSchools) {
+        // v8.94.1: pool-aware school (dual-listed "Metacreativity /
+        // Conjuration" entries counted their psionic discipline as a
+        // distinct arcane school — the Tower probe's fifth school was fake).
         const bySchool = new Map();
-        for (const s of cands) { const k = (s.school_raw || '').split(/[\s(\[]/)[0]; if (!bySchool.has(k)) bySchool.set(k, s); if (bySchool.size >= o.distinctSchools) break; }
+        for (const s of cands) { const k = schoolForPool(s.school_raw, p); if (!bySchool.has(k)) bySchool.set(k, s); if (bySchool.size >= o.distinctSchools) break; }
         for (const s of bySchool.values()) picks.push({name: s.name, pool: p, lvl: lvlOf(s, p)});
       } else {
         for (const s of cands.slice(0, o.count || 1)) picks.push({name: s.name, pool: p, lvl: lvlOf(s, p)});
