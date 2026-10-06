@@ -376,6 +376,33 @@ await t('EQUIP-SKILL-KEYS', () => {
   return { pass: bad.length === 0, note: bad[0] || `${EQUIPMENT_ITEMS.length} items: every grant lands on a real row` };
 });
 
+await t('GEAR-WORN-ACTIVE', async () => {
+  // v9.2.0 (Adam's playtest: Backpack + Force field): wear → slot; activate
+  // → gear Boon; gear is technology (stands in an NPF); removing ends it;
+  // carry bonus never for the super-strong; Boost → Bane survives rest.
+  const c = __bt([{ name: 'Fighter', levels: 4 }]); chars.push(c); curId = c.id;
+  const add = (ref) => { const d = EQUIPMENT_ITEMS.find(e => e.name === ref); const it = { id: 'bt' + Math.random().toString(36).slice(2, 7), catalogue: 'equipment', ref, slot: d.slot || 'carried', equipped: false, gadgets: [], ...(d.use ? { qty: 1 } : {}) }; c.items = (c.items || []).concat([it]); return it; };
+  c.items = []; const bad = [];
+  const bp = add('Backpack'), ff = add('Force field, personal (DR 5/–)'), jp = add('Jetpack');
+  const h0 = computeCarryCapacity(c).heavy;
+  await toggleGearActive(ff.id); if ((c.activeEffects || []).length) bad.push('activated while not worn');
+  toggleItemEquipped(bp.id); toggleItemEquipped(ff.id); toggleItemEquipped(jp.id);
+  if (!bp.equipped || bp.slot !== 'back') bad.push('backpack not worn on Back');
+  if (jp.equipped) bad.push('Back slot took a second item');
+  if (computeCarryCapacity(c).heavy <= h0) bad.push('backpack carry bonus missing');
+  await toggleGearActive(ff.id);
+  if (!computeDR(c).some(d => d.value === 5 && d.bypass === '—')) bad.push('force field DR missing');
+  c.nullified = true; if (!computeDR(c).some(d => d.value === 5)) bad.push('gear DR suppressed by NPF'); c.nullified = false;
+  toggleItemEquipped(ff.id); if ((c.activeEffects || []).some(a => a.gearItemId === ff.id)) bad.push('removing the belt left the Boon on');
+  addTalentToChar(c, 'Mangler'); const sup = computeCarryCapacity(c).parts.join(' '); if (!/no effect/.test(sup)) bad.push('super-strong still got the backpack bonus'); removeTalentFromChar(c, 'Mangler');
+  const bo = add('Chemical, boost'); useGearItem(bo.id);
+  const r = Math.random; Math.random = () => 0.01; dismissBuffAt(c.activeEffects.findIndex(a => a.name === 'Chemical, boost')); Math.random = r;
+  clearActiveBuffs(c, 'battery rest');
+  if (!(c.activeEffects || []).some(a => a.name === 'Boost — Bane')) bad.push('Bane missing or cleared by rest');
+  chars = chars.filter(x => x.id !== c.id); curId = chars[0]?.id ?? null;
+  return { pass: bad.length === 0, note: bad[0] || 'wear/slot-cap/carry/activate/DR/NPF/remove/super-strength/Bane all hold' };
+});
+
 // workbench cleanup + render sanity
 await t('SHEET-NO-NAN', () => {
   const c = chars.find(x => x.name === 'Battery Workbench');
