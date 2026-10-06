@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.2.2</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.2.3</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -5937,20 +5937,20 @@ function buildTalentBonuses(char) {
   // v9.2.2 (Adam's rulings 2026-10-06; HH Charismatic Hero talents): the
   // bonus = Charismatic Hero level (minimum +1), competence (so the three
   // never stack with each other — best applies).
-  //   Charm → STANDING on the five Cha skills that influence others.
+  //   Charm → CONDITIONAL ⚜ on the five Cha skills that influence others (v9.2.3).
   //   Fast-Talk → CONDITIONAL ⚜ on Bluff/Diplomacy/Gamble (lying/cheating).
   //   Silver Tongue → the Fast-Talk modifier on ALL Bluff, Diplomacy,
   //   Gamble, Gather Information and Intimidate checks (standing).
   {
     const chaLvl = Math.max(1, classArr.filter(e => e.name === 'Charismatic Hero').reduce((s, e) => s + (e.level || 0), 0));
     const add = (sk, src, cond) => (out['skill:' + sk] = out['skill:' + sk] || []).push({ type: 'competence', source: 'talent:' + src, value: chaLvl, condition: cond || null, label: `${src} (Charismatic ${chaLvl})` });
-    if (ownedNames.has('Charm')) for (const sk of ['Bluff', 'Diplomacy', 'Disguise', 'Handle Animal', 'Intimidate']) add(sk, 'Charm', null);
+    // v9.2.3 (Adam 2026-10-06, back to the book): Charm is a ⚜ FLAG — "only
+    // on characters with attitudes of indifferent or better", never vs
+    // unfriendly or hostile. Charm = people who like you; Fast-Talk = anyone
+    // you're deceiving. The two flags cover different situations.
+    if (ownedNames.has('Charm')) for (const sk of ['Bluff', 'Diplomacy', 'Disguise', 'Handle Animal', 'Intimidate']) add(sk, 'Charm', 'to influence a target who is indifferent or better (never unfriendly or hostile)');
     if (ownedNames.has('Silver Tongue')) for (const sk of ['Bluff', 'Diplomacy', 'Gamble', 'Gather Information', 'Intimidate']) add(sk, 'Silver Tongue', null);
-    else if (ownedNames.has('Fast-Talk')) for (const sk of ['Bluff', 'Diplomacy', 'Gamble']) {
-      // same competence value as Charm's standing bonus → it would add nothing there
-      if (ownedNames.has('Charm') && sk !== 'Gamble') continue;
-      add(sk, 'Fast-Talk', 'while lying, cheating, or bending the truth');
-    }
+    else if (ownedNames.has('Fast-Talk')) for (const sk of ['Bluff', 'Diplomacy', 'Gamble']) add(sk, 'Fast-Talk', 'while lying, cheating, or bending the truth (any target)');
   }
   return out;
 }
