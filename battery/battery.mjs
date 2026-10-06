@@ -213,6 +213,144 @@ await t('CARRY-TONS', () => {
   return { pass: vals.join('|') === '9,000 lb|5 tons|5 tons|128 tons', note: vals.join(' | ') };
 });
 
+// ============ SUITE 1b — THE DEBT PAID (2026-10-06) ============
+// The nine 'declared' oracle entries, each now an executable check. Every
+// test builds its own throwaway character through the validated path
+// (qdBespokeBuild) and never touches the workbench.
+await page.evaluate(() => {
+  window.__bt = (steps, extra = {}) => {
+    const r = qdBespokeBuild(Object.assign({ steps, sixLevels: { arcane: 5, divine: 5, heroic: 5, mutation: 5, psionic: 5, tech: 5 }, presetName: 'Custom', race: 'Human', hybrid: null, name: 'Battery Debt', occupation: '' }, extra));
+    if (!r.ok) throw new Error('debt-suite build refused: ' + r.reason);
+    return r.char;
+  };
+  window.__btSuper = (mp) => { const c = __bt([{ name: 'Fighter', levels: 4 }]); c.feats.push({ name: 'Supernatural Mutation' }); c.mpGrants = [{ amount: mp }]; c.powers = []; return c; };
+});
+await t('MAX-RANKS', () => {
+  // E&E house cap: class skill = level+4; cross-class = half, rounded down.
+  const c = __bt([{ name: 'Rogue', levels: 3 }]);
+  chars.push(c); curId = c.id;
+  c.skills = { Hide: 9, Spellcraft: 9, Climb: 7 };
+  showPage('skills'); renderSkills();
+  const inp = n => document.getElementById('skr-' + n.replace(/[^a-z0-9]/gi, '_'));
+  const hide = inp('Hide'), spell = inp('Spellcraft'), climb = inp('Climb');
+  const txt = document.getElementById('page-skills')?.innerText || '';
+  const overMarks = (txt.match(/⚠/g) || []).length;
+  const pass = isClassSkill('Hide', c) && !isClassSkill('Spellcraft', c)
+    && hide?.max === '7' && climb?.max === '7' && spell?.max === '3' && overMarks >= 2;
+  chars = chars.filter(x => x.id !== c.id); curId = chars[0]?.id ?? null;
+  return { pass, note: `L3: class max ${hide?.max}, cross max ${spell?.max}, over-cap flags ${overMarks}` };
+});
+await t('IMPROVED-GRAPPLE', () => {
+  const c = __bt([{ name: 'Fighter', levels: 4 }]);
+  const g0 = computeGrapple(c).total;
+  c.feats.push({ name: 'Improved Grapple' });
+  const g1 = computeGrapple(c);
+  return { pass: g1.total - g0 === 4 && g1.parts.includes('Improved Grapple +4'), note: `${g0} → ${g1.total}` };
+});
+await t('RECKLESS-ATTACK-ONLY', () => {
+  const c = __bt([{ name: 'Fighter', levels: 6 }]);
+  c.items = [{ id: 'bt-sw', catalogue: 'weapon', ref: 'Longsword', slot: 'main_hand', equipped: true, gadgets: [] }];
+  const melee = () => computeEquippedWeaponSummaries(c).find(w => w.name === 'Longsword');
+  const snap = () => ({ bab: c.bab, ac: computeACDisplay(c).total, g: computeGrapple(c).total, atk: melee().attackBonus, n: melee().fullAttack.length });
+  const off = snap();
+  c.combatDecl = { ro: true }; const on = snap();
+  c.items = [{ id: 'bt-bow', catalogue: 'weapon', ref: 'Longbow', slot: 'main_hand', equipped: true, gadgets: [] }];
+  const bow = () => computeEquippedWeaponSummaries(c).find(w => w.name === 'Longbow').attackBonus;
+  const bowOn = bow(); c.combatDecl = {}; const bowOff = bow();
+  const pass = on.bab === off.bab && on.ac === off.ac - 4 && on.atk === off.atk + 2 && on.g === off.g + 2 && on.n === off.n && bowOn === bowOff;
+  return { pass, note: `melee +${on.atk - off.atk}, grapple +${on.g - off.g}, AC ${on.ac - off.ac}, BAB Δ${on.bab - off.bab}, iteratives ${off.n}→${on.n}, bow Δ${bowOn - bowOff}` };
+});
+await t('EVASION-UNIFIED', () => {
+  const tier = (c, f) => (f(c) || { tier: 0 }).tier;
+  const r = {
+    monk2: tier(__bt([{ name: 'Monk', levels: 2 }]), evasionTier),
+    monk9: tier(__bt([{ name: 'Monk', levels: 9 }]), evasionTier),
+    rogueExplorer: tier(__bt([{ name: 'Rogue', levels: 5 }, { name: 'Explorer', levels: 4 }]), evasionTier),
+    explorerAlone: tier(__bt([{ name: 'Fast Hero', levels: 5 }, { name: 'Explorer', levels: 4 }]), evasionTier),
+    ud1: tier(__bt([{ name: 'Berserker', levels: 2 }]), uncannyDodgeTier),
+    ud2src: tier(__bt([{ name: 'Berserker', levels: 2 }, { name: 'Rogue', levels: 4 }]), uncannyDodgeTier),
+  };
+  const tal = __bt([{ name: 'Fighter', levels: 2 }]); addTalentToChar(tal, 'Evasion'); r.talent = tier(tal, evasionTier);
+  const pass = r.monk2 === 1 && r.monk9 === 2 && r.rogueExplorer === 2 && r.explorerAlone === 1 && r.ud1 === 1 && r.ud2src === 2 && r.talent === 1;
+  return { pass, note: Object.entries(r).map(([k, v]) => `${k}:${v}`).join(' ') };
+});
+await t('UNNATURAL-FORMULAS', () => {
+  const c = __bt([{ name: 'Fighter', levels: 4 }]);
+  const b = { bab: c.bab, def: c.def, hp: c.maxHP, sp: computeSkillPointBudget(c), sv: computeStatBlock(c) };
+  const bad = [];
+  for (const mp of [10, 20, 30, 60]) {
+    c.mpGrants = [{ amount: mp }]; reconcileMutantSubtype(c);
+    const ml = getMPState(c).mutantLevel, conM = am(c.attrs[2]), sb = computeStatBlock(c);
+    const got = [c.bab - b.bab, c.def - b.def, c.maxHP - b.hp, computeSkillPointBudget(c) - b.sp, sb.fort.total - b.sv.fort.total, sb.ref.total - b.sv.ref.total, sb.will.total - b.sv.will.total];
+    const exp = [Math.floor(ml / 2), Math.floor(ml / 3), ml * (5 + conM), 2 * ml, Math.floor(ml / 2), Math.floor(ml / 2), Math.floor(ml / 2)];
+    if (got.join() !== exp.join()) bad.push(`ML${ml}: got ${got} want ${exp}`);
+  }
+  c.mpGrants = []; reconcileMutantSubtype(c);
+  if (c.bab !== b.bab || c.def !== b.def || c.maxHP !== b.hp) bad.push('ledger did not unwind at ML0');
+  return { pass: bad.length === 0, note: bad[0] || 'ML 1/2/3/6 exact; unwinds to zero' };
+});
+await t('DR-CLASS-POOL', () => {
+  const c = __bt([{ name: 'Tough Hero', levels: 6 }, { name: 'Berserker', levels: 7 }]);
+  c.talents = (c.talents || []).filter(x => !/Damage Reduction/.test(x.name));
+  c.talents.push({ name: 'Damage Reduction 1/-' }, { name: 'Damage Reduction 2/-' });
+  c.items = [{ id: 'bt-dp', catalogue: 'armor', ref: 'Dwarven Plate', customName: 'Dwarven Plate', equipped: true }];
+  const dr = computeDR(c);
+  const pool = dr.filter(e => /class-level pool/.test(e.note || ''));
+  const plate = dr.filter(e => e.source === 'Dwarven Plate');
+  return { pass: pool.length === 1 && pool[0].value === 3 && plate.length === 1 && plate[0].value === 3, note: dr.map(e => `${e.value}/${e.bypass} ${e.source.slice(0, 32)}`).join(' | ') };
+});
+await t('SUITE-DISCOUNT', () => {
+  const c = __btSuper(200);
+  const sets = _powerThemeSets(); let suite = null, m = null;
+  for (const th in sets) { const x = [...sets[th]].map(n => SPELLS_DB.find(s => s.name === n)).filter(s => s && s.mp != null && s.mp >= 2 && !SUPER_RUNGS[s.name]); if (x.length >= 4) { suite = th; m = x; break; } }
+  const tg = m[3], pay = () => superBuyEligibility(c, tg).mp;
+  const own0 = pay();
+  c.powers = [{ name: m[0].name, pool: 'super', mp: m[0].mp }]; const own1 = pay();
+  c.powers.push({ name: m[1].name, pool: 'super', mp: m[1].mp }); const own2 = pay();
+  c.powers.push({ name: m[2].name, pool: 'super', mp: m[2].mp }); const own3 = pay();
+  c.powers = [{ name: m[0].name, pool: 'arcane' }, { name: m[1].name, pool: 'arcane' }]; const cast = pay();
+  // floor 1 MP: a 1-MP suite member stays 1 MP under the discount.
+  let floorOk = true;
+  const one = Object.entries(sets).map(([th, s]) => [th, [...s].map(n => SPELLS_DB.find(x => x.name === n)).filter(x => x && x.mp != null && !SUPER_RUNGS[x.name])]).find(([, x]) => x.some(y => y.mp === 1) && x.length >= 3);
+  if (one) { const t1 = one[1].find(y => y.mp === 1); c.powers = one[1].filter(y => y !== t1).slice(0, 2).map(o => ({ name: o.name, pool: 'super', mp: o.mp })); floorOk = superBuyEligibility(c, t1).mp === 1; }
+  const b = tg.mp;
+  return { pass: own0 === b && own1 === b && own2 === b - 1 && own3 === b - 1 && cast === b && floorOk, note: `${suite}/${tg.name} base ${b}: owned 0/1/2/3 → ${own0}/${own1}/${own2}/${own3}; casting-pool ${cast}; floor ${floorOk}` };
+});
+await t('SELLERS-MARKET', () => {
+  // Printed prices only: an unpriced entry is unbuyable, a variant buys at its
+  // parent's printed price, a rung family's headline price is its cheapest rung.
+  const bad = [];
+  for (const s of SPELLS_DB) {
+    const spec = superBuySpec(s), v = (typeof VARIANT_NAMES !== 'undefined') && VARIANT_NAMES[s.name];
+    const parent = v ? SPELLS_DB.find(x => x.name === v.parent) : null;
+    const want = s.mp != null ? s.mp : (parent && parent.mp != null ? parent.mp : null);
+    if ((spec.mp ?? null) !== want) bad.push(`${s.name}: quoted ${spec.mp} vs printed ${want}`);
+  }
+  for (const [n, rungs] of Object.entries(SUPER_RUNGS)) {
+    const s = SPELLS_DB.find(x => x.name === n);
+    if (!s) { bad.push(`rung family ${n} has no catalogue entry`); continue; }
+    if (s.mp !== Math.min(...rungs.map(r => r[1]))) bad.push(`${n}: headline ${s.mp} ≠ cheapest rung`);
+  }
+  const c = __btSuper(200);
+  const unpriced = SPELLS_DB.find(s => superBuySpec(s).mp == null);
+  if (unpriced && superBuyEligibility(c, unpriced).ok) bad.push(`${unpriced.name} is unpriced but buyable`);
+  return { pass: bad.length === 0, note: bad[0] || `${SPELLS_DB.length} entries priced verbatim; ${Object.keys(SUPER_RUNGS).length} rung families consistent` };
+});
+await t('TIER-CEILING-ONLY', () => {
+  const c = __btSuper(5);
+  const lowest = s => (s.levels && s.levels.length) ? Math.min(...s.levels.map(l => l.lvl)) : null;
+  const zero = SPELLS_DB.filter(s => s.mp != null && lowest(s) === 0);
+  const bad = [];
+  for (const mp of [5, 10, 20, 40]) {
+    c.mpGrants = [{ amount: mp }];
+    const st = getMPState(c), hi = st.tier.spell_levels[1];
+    for (const z of zero) { const e = superBuyEligibility(c, z); if (!e.ok && /tier reaches/.test(e.why || '')) bad.push(`${st.tier.tier}: 0-level ${z.name} band-blocked`); }
+    const over = SPELLS_DB.find(s => s.mp != null && lowest(s) > hi);
+    if (over) { const e = superBuyEligibility(c, over); if (e.ok || !/tier reaches/.test(e.why || '')) bad.push(`${st.tier.tier}: level-${lowest(over)} ${over.name} not ceiling-blocked`); }
+  }
+  return { pass: bad.length === 0, note: bad[0] || `${zero.length} zero-level powers open at Minor/Moderate/Major/Mega; ceiling holds` };
+});
+
 // workbench cleanup + render sanity
 await t('SHEET-NO-NAN', () => {
   const c = chars.find(x => x.name === 'Battery Workbench');
@@ -263,6 +401,28 @@ console.log(`   built ${fuzz.built} · refused ${fuzz.refused} (legal validation
 for (const f of fuzz.failures.slice(0, 10)) console.log('   ✗', JSON.stringify(f));
 mark('FUZZ-INVARIANTS', fuzz.failures.length === 0 && fuzz.built > 0, `${fuzz.built} built, ${fuzz.failures.length} failures`);
 mark('FUZZ-CONSOLE-CLEAN', consoleErrors.length === 0, consoleErrors[0] || '');
+
+// ============ SUITE 3 — THE GRANT AUDIT (opened 2026-10-06) ============
+// The Rhad class of bug (§243: implants stored their feat where no consumer
+// looked) — hunted wholesale. Every feat, talent, cybernetic and mutation is
+// granted alone to a fresh fixture; any entry whose text claims a number but
+// moves NO engine output must be listed in grant_audit_allow.json with a
+// reason (table / fixture / open). An unlisted silent entry fails the battery.
+console.log('-- Suite 3: grant audit');
+const auditBody = readFileSync(resolve(__dir, 'grant_audit.page.js'), 'utf8');
+const allow = JSON.parse(readFileSync(resolve(__dir, 'grant_audit_allow.json'), 'utf8')).entries;
+try {
+  const rows = await page.evaluate(`(async()=>{${auditBody}})()`);
+  const silent = rows.filter(r => r.claim && !r.visible);
+  const unlisted = silent.filter(r => !allow[r.key]);
+  const nowWired = Object.keys(allow).filter(k => rows.some(r => r.key === k && r.visible));
+  const open = Object.entries(allow).filter(([, v]) => v.why === 'open').map(([k]) => k);
+  console.log(`   ${rows.length} grants audited · ${rows.filter(r => r.visible).length} engine-visible · ${silent.length} silent claimers (${silent.length - unlisted.length} on the allowlist)`);
+  for (const r of unlisted) console.log(`   ✗ NEW SILENT GRANT: ${r.key} — "${r.d}"`);
+  for (const k of open) if (!nowWired.includes(k)) console.log(`   ◌ open: ${k}`);
+  for (const k of nowWired) console.log(`   ★ now engine-visible — retire from the allowlist: ${k}`);
+  mark('GRANT-AUDIT', unlisted.length === 0 && rows.length > 400, unlisted.length ? `${unlisted.length} unlisted silent grant(s)` : `${rows.length} audited; ${open.length} known-open`);
+} catch (e) { mark('GRANT-AUDIT', false, String(e).slice(0, 160)); }
 
 // ============ REPORT ============
 const checked = oracle.entries.filter(e => e.status === 'checked').map(e => e.id);

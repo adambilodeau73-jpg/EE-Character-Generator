@@ -1,0 +1,188 @@
+{
+  "_meta": {
+    "doctrine": "Every catalogue entry whose text claims a number but moves no engine output must be listed here with a reason. table = resolved at the table by design; fixture = wired, but the audit's Fighter/Expert fixture can't exercise it (verified by hand); open = a KNOWN GAP awaiting Adam's ruling — also carried in oracle.json as declared debt. A NEW silent entry not listed here fails the battery.",
+    "opened": "2026-10-06"
+  },
+  "entries": {
+    "feat:Burst Fire": {
+      "why": "table",
+      "note": "firearm action option (autofire burst) — declared per attack"
+    },
+    "feat:Double Tap": {
+      "why": "table",
+      "note": "firearm action option — declared per attack"
+    },
+    "feat:Spellslinger": {
+      "why": "fixture",
+      "note": "bonus PP need a caster pool; the audit fixture is a non-caster (wired v8.5.4, line 'Spellslinger / Power Reservoir')"
+    },
+    "feat:Power Reservoir": {
+      "why": "fixture",
+      "note": "bonus PP need a manifester pool; non-caster fixture (wired v8.5.4)"
+    },
+    "talent:Extreme Effort": {
+      "why": "table",
+      "note": "move-action effort, declared at the table"
+    },
+    "talent:Improved Extreme Effort": {
+      "why": "table",
+      "note": "move-action effort, declared at the table"
+    },
+    "talent:Advanced Extreme Effort": {
+      "why": "table",
+      "note": "move-action effort, declared at the table"
+    },
+    "talent:Uncanny Dodge 1": {
+      "why": "fixture",
+      "note": "consumed by uncannyDodgeTier (flat-footed Dex retention); covered by EVASION-UNIFIED"
+    },
+    "talent:Defensive Roll": {
+      "why": "table",
+      "note": "reactive, once per day"
+    },
+    "talent:Energy Immunity": {
+      "why": "fixture",
+      "note": "inert until its pick is made; covered by EI-TWO-STEP / EI-CASCADE"
+    },
+    "talent:Linguist": {
+      "why": "table",
+      "note": "language-encounter Int checks"
+    },
+    "talent:Prodigy": {
+      "why": "fixture",
+      "note": "needs Savant or Linguist; verified by hand 2026-10-06 (+4 Savant skill, +4 Computer Use/Decipher Code)"
+    },
+    "talent:Exploit Weakness": {
+      "why": "table",
+      "note": "designated opponent, in combat"
+    },
+    "talent:Plan": {
+      "why": "table",
+      "note": "pre-encounter check"
+    },
+    "talent:Trick": {
+      "why": "table",
+      "note": "targeted, opposed"
+    },
+    "talent:Supra-Genius": {
+      "why": "table",
+      "note": "re-roll on a failed Knowledge check"
+    },
+    "talent:Improved Aid Another": {
+      "why": "table",
+      "note": "Aid Another, at the table"
+    },
+    "talent:Natural Empath": {
+      "why": "table",
+      "note": "Empathy (Ex) — narrative/at the table"
+    },
+    "talent:Uncanny Insight": {
+      "why": "table",
+      "note": "re-roll on a failed skill check"
+    },
+    "talent:Indomitable Will": {
+      "why": "table",
+      "note": "immunity + Mettle — shown on the Sheet as a feature; no standing number"
+    },
+    "talent:Charm": {
+      "why": "open",
+      "note": "OPEN — competence bonus = Charismatic level on Cha-based influence checks; no skill row shows it, not even as a conditional note"
+    },
+    "talent:Favor": {
+      "why": "table",
+      "note": "Favor check, at the table"
+    },
+    "talent:Captivate": {
+      "why": "table",
+      "note": "targeted, opposed"
+    },
+    "talent:Animal Magnetism": {
+      "why": "table",
+      "note": "Charm any creature — targeted"
+    },
+    "talent:Fast-Talk": {
+      "why": "open",
+      "note": "OPEN — Charismatic level as competence bonus on Bluff/Diplomacy/Gamble to con or deceive; no skill row shows it"
+    },
+    "talent:Dazzle": {
+      "why": "table",
+      "note": "targeted, opposed"
+    },
+    "talent:Taunt": {
+      "why": "table",
+      "note": "targeted, opposed"
+    },
+    "talent:Coordinate": {
+      "why": "table",
+      "note": "buffs allies"
+    },
+    "talent:Inspiration": {
+      "why": "table",
+      "note": "buffs allies"
+    },
+    "talent:Greater Inspiration": {
+      "why": "table",
+      "note": "buffs allies"
+    },
+    "talent:Inspiring Aura": {
+      "why": "table",
+      "note": "buffs allies"
+    },
+    "cyber:Subcutaneous Cell Phone": {
+      "why": "table",
+      "note": "utility"
+    },
+    "cyber:Telescopic Optics": {
+      "why": "table",
+      "note": "Spot range-increment rule"
+    },
+    "cyber:Laser Optics": {
+      "why": "table",
+      "note": "table-side by design (§243): 2d6 eye-beam attack"
+    },
+    "cyber:Prosthetic Enhancer": {
+      "why": "table",
+      "note": "table-side by design (§243)"
+    },
+    "cyber:Rage Implant": {
+      "why": "table",
+      "note": "table-side by design (§243): 1/day surge"
+    },
+    "cyber:Invisiware": {
+      "why": "table",
+      "note": "table-side by design (§243): activated invisibility"
+    },
+    "mutation:Adrenaline Jolt": {
+      "why": "table",
+      "note": "1/day free action"
+    },
+    "mutation:Festering Sores": {
+      "why": "fixture",
+      "note": "needs worn armor; wired (max Dex −2 / ACP −4) — the fixture wears none"
+    },
+    "mutation:Heat/Cold Susceptibility": {
+      "why": "table",
+      "note": "environmental exposure"
+    },
+    "mutation:Radioactive": {
+      "why": "table",
+      "note": "radiation exposure — environmental"
+    },
+    "mutation:Rapid Aging": {
+      "why": "table",
+      "note": "effective-age bookkeeping"
+    },
+    "mutation:Tentacle": {
+      "why": "open",
+      "note": "OPEN — '+4 mutation bonus on grapple checks' is unconditional but lives only in a note; computeGrapple never adds it"
+    },
+    "mutation:Ultra Immune System": {
+      "why": "open",
+      "note": "OPEN — grants the Ultra Immune System feat, but no feat record is materialized (the Rhad pattern), and the feat itself carries no Fort entry"
+    },
+    "cyber:Psi Implant": {
+      "why": "open",
+      "note": "OPEN — materializes Wild Talent (prereq gate works) but Wild Talent's 2 PP are wired nowhere (Monk 3's Wild Talent is flagged 'unimplemented' too); also the record is stamped grantedBy 'Feat Implant (cybernetic)' instead of 'Psi Implant'"
+    }
+  }
+}
