@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.2.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.2.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -39728,6 +39728,37 @@ function renderSheet(){
     const slLine=['arcane','divine','heroic','mutation','psionic','tech'].map(a=>`${SIX_LEVELS[a].short} ${c.sixLevels[a]||0}`).join(' · ');
     featuresHtml = `<b style="color:var(--gold);">Scenario:</b> ${normalizePresetName(c.scenarioPreset||'Custom')} <span style="font-size:12px;color:rgba(200,151,30,.65);">— ${slLine}</span><br><br>` + featuresHtml;
   }
+  // v9.2.1 (Adam's order ruling): placed RIGHT AFTER the racial block so the
+  // section reads Scenario → Racial → Starting Occupation → Class Features,
+  // matching its title (it had trailed the classes, talents and mutations).
+  // v8.96.0 (Adam's dig for a character's occupation choices): the Starting
+  // Occupation block — collapsible per occupation, the house .hy-det idiom:
+  // description, the DESIGNATED class skills (the picks), the bonus feat,
+  // wealth bonus, and the full offered list for reference.
+  {
+    const occs = (c.occupations && c.occupations.length ? c.occupations : (c.occ ? [c.occ] : [])).filter(Boolean);
+    let occHtml = `<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(200,151,30,.2);"><b style="color:var(--gold);font-family:'Epics Serif','Cinzel',serif;">Starting Occupation</b>`;
+    if (!occs.length) {
+      occHtml += ` <span style="opacity:.55;font-size:12px;">— none chosen (set on the Create tab; free class skills, maybe a feat — HH p.34)</span></div>`;
+    } else {
+      occHtml += '</div>';
+      occs.forEach((o, oi) => {
+        const od = (typeof getOccupationData === 'function') ? getOccupationData(o) : null;
+        const picks = (c.occupationPicks || {})[oi === 0 ? 'primary' : 'secondary'] || {};
+        const pickedSkills = (picks.skills || []).filter(Boolean);
+        const pickedFeat = picks.feat || null;
+        const rows = [];
+        if (od && od.d) rows.push(`<div style="font-size:11.5px;color:rgba(200,200,160,.75);line-height:1.5;">${escapeHTML(od.d)}</div>`);
+        rows.push(`<div style="font-size:12px;"><b style="color:rgba(200,151,30,.85);">Class skills designated:</b> ${pickedSkills.length ? escapeHTML(pickedSkills.join(', ')) : `<span style="color:#d4b870;">unchosen — pick ${od ? od.skill_count : '?'} from the list below (amber-dot ledger)</span>`}</div>`);
+        if (od && od.bonus_feat_options && od.bonus_feat_options.length) rows.push(`<div style="font-size:12px;"><b style="color:rgba(200,151,30,.85);">Bonus feat:</b> ${pickedFeat ? escapeHTML(pickedFeat) : `<span style="color:#d4b870;">unchosen</span> <span style="opacity:.6;">(options: ${escapeHTML(od.bonus_feat_options.join(', '))})</span>`}</div>`);
+        if (od && od.wealth != null) rows.push(`<div style="font-size:12px;"><b style="color:rgba(200,151,30,.85);">Wealth bonus:</b> +${od.wealth} to the starting Wealth Score (HH p.44)</div>`);
+        if (od && od.prereq_age) rows.push(`<div style="font-size:11px;opacity:.6;">Minimum age: ${od.prereq_age}</div>`);
+        if (od && od.skill_list) rows.push(`<div style="font-size:11px;opacity:.6;line-height:1.5;">Offered list (choose ${od.skill_count}): ${escapeHTML(od.skill_list.join(' · '))}</div>`);
+        occHtml += `<details class="hy-det" style="margin-top:4px;"><summary style="cursor:pointer;font-size:12.5px;color:var(--gold);">💼 ${escapeHTML(o)}${oi === 1 ? ' <span style="font-size:9px;opacity:.6;">(second occupation)</span>' : ''}</summary><div style="padding:4px 0 4px 14px;border-left:2px solid rgba(200,151,30,.35);margin-top:3px;display:flex;flex-direction:column;gap:4px;">${rows.join('')}</div></details>`;
+      });
+    }
+    featuresHtml += occHtml;
+  }
   {
     const activeFeatures = getActiveClassFeatures(c);
     const byClass = {};
@@ -40031,34 +40062,6 @@ function renderSheet(){
         </div>`;
     }
     featuresHtml += muHtml;
-  }
-  // v8.96.0 (Adam's dig for a character's occupation choices): the Starting
-  // Occupation block — collapsible per occupation, the house .hy-det idiom:
-  // description, the DESIGNATED class skills (the picks), the bonus feat,
-  // wealth bonus, and the full offered list for reference.
-  {
-    const occs = (c.occupations && c.occupations.length ? c.occupations : (c.occ ? [c.occ] : [])).filter(Boolean);
-    let occHtml = `<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(200,151,30,.2);"><b style="color:var(--gold);font-family:'Epics Serif','Cinzel',serif;">Starting Occupation</b>`;
-    if (!occs.length) {
-      occHtml += ` <span style="opacity:.55;font-size:12px;">— none chosen (set on the Create tab; free class skills, maybe a feat — HH p.34)</span></div>`;
-    } else {
-      occHtml += '</div>';
-      occs.forEach((o, oi) => {
-        const od = (typeof getOccupationData === 'function') ? getOccupationData(o) : null;
-        const picks = (c.occupationPicks || {})[oi === 0 ? 'primary' : 'secondary'] || {};
-        const pickedSkills = (picks.skills || []).filter(Boolean);
-        const pickedFeat = picks.feat || null;
-        const rows = [];
-        if (od && od.d) rows.push(`<div style="font-size:11.5px;color:rgba(200,200,160,.75);line-height:1.5;">${escapeHTML(od.d)}</div>`);
-        rows.push(`<div style="font-size:12px;"><b style="color:rgba(200,151,30,.85);">Class skills designated:</b> ${pickedSkills.length ? escapeHTML(pickedSkills.join(', ')) : `<span style="color:#d4b870;">unchosen — pick ${od ? od.skill_count : '?'} from the list below (amber-dot ledger)</span>`}</div>`);
-        if (od && od.bonus_feat_options && od.bonus_feat_options.length) rows.push(`<div style="font-size:12px;"><b style="color:rgba(200,151,30,.85);">Bonus feat:</b> ${pickedFeat ? escapeHTML(pickedFeat) : `<span style="color:#d4b870;">unchosen</span> <span style="opacity:.6;">(options: ${escapeHTML(od.bonus_feat_options.join(', '))})</span>`}</div>`);
-        if (od && od.wealth != null) rows.push(`<div style="font-size:12px;"><b style="color:rgba(200,151,30,.85);">Wealth bonus:</b> +${od.wealth} to the starting Wealth Score (HH p.44)</div>`);
-        if (od && od.prereq_age) rows.push(`<div style="font-size:11px;opacity:.6;">Minimum age: ${od.prereq_age}</div>`);
-        if (od && od.skill_list) rows.push(`<div style="font-size:11px;opacity:.6;line-height:1.5;">Offered list (choose ${od.skill_count}): ${escapeHTML(od.skill_list.join(' · '))}</div>`);
-        occHtml += `<details class="hy-det" style="margin-top:4px;"><summary style="cursor:pointer;font-size:12.5px;color:var(--gold);">💼 ${escapeHTML(o)}${oi === 1 ? ' <span style="font-size:9px;opacity:.6;">(second occupation)</span>' : ''}</summary><div style="padding:4px 0 4px 14px;border-left:2px solid rgba(200,151,30,.35);margin-top:3px;display:flex;flex-direction:column;gap:4px;">${rows.join('')}</div></details>`;
-      });
-    }
-    featuresHtml += occHtml;
   }
   document.getElementById('sh-features').innerHTML=featuresHtml;
   document.getElementById('sh-langs').innerHTML=`<b style="color:var(--gold);">Languages:</b> ${c.langs||'Common'}<br><b style="color:var(--gold);">Allegiances:</b> ${c.allegiance||'—'}`;
