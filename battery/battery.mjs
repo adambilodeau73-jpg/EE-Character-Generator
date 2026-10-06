@@ -416,6 +416,28 @@ await t('CHARM-SKILL', () => { const c = __bt([{ name: 'Charismatic Hero', level
 await t('FAST-TALK-SKILL', () => { const c = __bt([{ name: 'Charismatic Hero', levels: 4 }]); c.talents = [{ name: 'Charm' }, { name: 'Fast-Talk' }]; let m = computeSkillMiscBonuses(c); const both = m['Bluff'].cond.some(e => /Charm/.test(e.label)) && m['Bluff'].cond.some(e => /Fast-Talk/.test(e.label)) && (m['Bluff'].total || 0) === 0; const cnd = ['Bluff', 'Diplomacy', 'Gamble'].every(k => m[k].cond.some(e => e.value === 4 && /Fast-Talk/.test(e.label))); c.talents.push({ name: 'Silver Tongue' }); m = computeSkillMiscBonuses(c); const st = ['Bluff', 'Diplomacy', 'Gamble', 'Gather Information', 'Intimidate'].every(k => m[k].total === 4); return { pass: both && cnd && st, note: `both flags on Bluff ${both}; Fast-Talk flags ${cnd}; Silver Tongue standing ${st}` }; });
 await t('WILD-TALENT-PP', () => { const c = __bt([{ name: 'Fighter', levels: 4 }]); const p0 = computeCasterStats(c).psionic.ppMax; c.cybernetics = [{ n: 'Psi Implant' }]; syncCyberFeats(c); const p1 = computeCasterStats(c).psionic.ppMax; const src = (c.feats.find(f => f.name === 'Wild Talent') || {}).grantedBy; const m = __bt([{ name: 'Monk', levels: 3 }]); const pm = computeCasterStats(m).psionic.ppMax; return { pass: p0 === 0 && p1 === 2 && src === 'Psi Implant (cybernetic)' && pm === 2, note: `Psi Implant ${p0}→${p1} (${src}); Monk 3 ${pm}` }; });
 
+await t('WEAPON-ACCESSORIES', async () => {
+  // v9.3.0: removable accessories mount on eligible weapons only; a gadget and
+  // its removable twin never stack; removing the weapon frees the accessory.
+  const rifle = WEAPONS_CATALOG.find(w => w.firearm && /rifle/i.test(w.name) && !/pistol/i.test(w.name));
+  const c = __bt([{ name: 'Fighter', levels: 4 }]); chars.push(c); curId = c.id; const bad = [];
+  c.items = [{ id: 'w1', catalogue: 'weapon', ref: rifle.name, slot: 'main_hand', equipped: true, gadgets: [] }, { id: 'b1', catalogue: 'weapon', ref: 'Longbow', slot: 'carried', equipped: false, gadgets: [] },
+    { id: 'a1', catalogue: 'equipment', ref: 'Scope, standard', slot: 'carried', gadgets: [] }, { id: 'a2', catalogue: 'equipment', ref: 'Suppressor, rifle', slot: 'carried', gadgets: [] }];
+  const mount = async (id, pickRe) => { const p = mountAccessory(id); await new Promise(r => setTimeout(r, 20)); const sel = document.getElementById('choice-modal-select'); const opts = [...sel.options].map(o => o.value); sel.value = opts.find(o => pickRe.test(o)); confirmChoiceModal(); await p; return opts; };
+  const sOpts = await mount('a1', new RegExp('^' + rifle.name)); const supOpts = await mount('a2', /./);
+  if (!sOpts.some(o => /Longbow/.test(o))) bad.push('scope not offered for the bow');
+  if (supOpts.some(o => /Longbow/.test(o))) bad.push('rifle suppressor offered for a bow');
+  const def = getCatalogueEntry('weapon', rifle.name), base = effectiveRangeIncrement({ gadgets: [] }, def);
+  if (effectiveRangeIncrement(c.items[0], def) !== Math.round(base * 1.5)) bad.push('mounted scope range wrong');
+  c.items[0].gadgets = [{ ref: 'Scope, Rangefinding Laser' }];
+  if (effectiveRangeIncrement(c.items[0], def) !== Math.round(base * 1.5)) bad.push('gadget + accessory scope stacked');
+  const row = computeEquippedWeaponSummaries(c).find(w => w.name === rifle.name);
+  if (!row.mods.some(m => /Suppressed \(longarm\)/.test(m.label))) bad.push('suppressor note missing from the row');
+  removeItemFromChar('w1'); if (c.items.find(i => i.id === 'a1').mountedOn) bad.push('accessory still mounted on a removed weapon');
+  chars = chars.filter(x => x.id !== c.id); curId = chars[0]?.id ?? null;
+  return { pass: bad.length === 0, note: bad[0] || `eligibility, range ×1.5 (no stacking), row note, detach-on-remove` };
+});
+
 // workbench cleanup + render sanity
 await t('SHEET-NO-NAN', () => {
   const c = chars.find(x => x.name === 'Battery Workbench');
