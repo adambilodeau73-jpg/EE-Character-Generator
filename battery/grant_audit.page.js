@@ -28,7 +28,10 @@ const fp = (c) => {
   safe('mp', () => JSON.stringify(getMPState(c).totalEarned));
   safe('pp', () => JSON.stringify(getCasterPoolsInfo(c)));
   safe('sk', () => SKILLS.map(s => quickSkillTotal(c, s.n, ATTR[s.a] ?? ATTR[s.attr] ?? 0)).join(','));
-  safe('skm', () => JSON.stringify(computeSkillMiscBonuses(c)));
+  // Skill-row lane: only entries filed under a REAL skill row count (a kit
+  // keyed 'Repair (electrical)' reaches no row — that is the bug class, not
+  // visibility). Conditional notes on real rows count; they show on the row.
+  safe('skr', () => { const m = computeSkillMiscBonuses(c), rows = new Set(SKILLS.map(s => s.n)); return JSON.stringify(Object.keys(m).filter(k => rows.has(k)).sort().map(k => [k, m[k]])); });
   safe('skb', () => computeSkillPointBudget(c));
   safe('eff', () => JSON.stringify(effAttrs(c)));
   safe('hp', () => c.maxHP);
@@ -55,4 +58,6 @@ for (const m of MUTATIONS_DB) probe('mutation:' + m.name, (m.benefit || '') + ' 
   if (/\[Attribute\] I\b|II|III|IV/.test(m.name)) c.mutations.unshift({ name: 'Extraordinary [Attribute]', kind: 'attribute', attr: 'STR' });
   if (typeof reconcileAttributeMutations === 'function') reconcileAttributeMutations(c);
 });
+// Equipment (opened 2026-10-06): a structured {kind:'bonus', amount} effect IS a claim.
+if (typeof EQUIPMENT_ITEMS !== 'undefined') for (const e of EQUIPMENT_ITEMS) probe('equipment:' + e.name, (e.effect && e.effect.text) || '', c => { c.items = (c.items || []).concat([{ id: 'ga-eq', catalogue: 'equipment', ref: e.name, equipped: true, gadgets: [] }]); }, !!(e.effect && e.effect.kind === 'bonus' && e.effect.amount));
 return rows;
