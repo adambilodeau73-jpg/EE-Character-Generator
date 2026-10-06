@@ -455,6 +455,32 @@ await t('OWNED-ANIMALS', () => {
   return { pass: bad.length === 0, note: bad[0] || 'buy → card; param → species; item ✕ ↔ card ✕' };
 });
 
+await t('TS13-VEHICLES', () => {
+  // v9.5.0: the TS1–3 conveyances are real Vehicles (scaled hulls), worked
+  // with the skill's own ability; old equipment copies migrate on load.
+  const bad = [];
+  const want = ['Rowboat','Keelboat','Longship','Sailing ship','Warship','Galley','Cart','Carriage','Wagon','Sled'];
+  const keys = ['skill','crew','passengers','cargo','maneuver_class','maneuver_mod','top_speed','chase_speed','touch_ac','total_ac','hardness','hp','size','purchase_dc','restriction','restriction_mod'];
+  for (const n of want) {
+    const d = VEHICLES_DB.find(v => v.name === n);
+    if (!d) { bad.push('missing ' + n); continue; }
+    keys.forEach(k => { if (d[k] === null || d[k] === undefined || Number.isNaN(d[k])) bad.push(n + '.' + k); });
+    if (!SKILLS.some(s => s.n === d.skill)) bad.push(n + ' skill ' + d.skill);
+    if (EQUIPMENT_ITEMS.some(e => e.name === n)) bad.push(n + ' still in equipment');
+  }
+  if (!EQUIPMENT_ITEMS.some(e => e.name === 'Oar')) bad.push('Oar lost');
+  const c = __bt([{ name: 'Fighter', levels: 2 }]);
+  c.attrs = [10, 10, 10, 10, 18, 6];
+  const w = vehicleOperatorCheck(c, VEHICLES_DB.find(v => v.name === 'Rowboat'));
+  const h = vehicleOperatorCheck(c, VEHICLES_DB.find(v => v.name === 'Wagon'));
+  if (w.ability !== 'WIS' || h.ability !== 'CHA') bad.push('abilities ' + w.ability + '/' + h.ability);
+  if (!(w.base > h.base)) bad.push('Wis 18 vs Cha 6 not reflected: ' + w.base + '/' + h.base);
+  c.items = [{ id: 'x', catalogue: 'equipment', ref: 'Wagon', slot: 'carried', gadgets: [], qty: 1 }];
+  migrateTs13Vehicles(c);
+  if (c.items[0].catalogue !== 'vehicle' || 'qty' in c.items[0]) bad.push('migration');
+  return { pass: bad.length === 0, note: bad[0] || '10 hulls, ability-true checks, legacy copies migrate' };
+});
+
 // workbench cleanup + render sanity
 await t('SHEET-NO-NAN', () => {
   const c = chars.find(x => x.name === 'Battery Workbench');
