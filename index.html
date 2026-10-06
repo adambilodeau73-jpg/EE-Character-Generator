@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.2.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.2.2</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -2350,7 +2350,7 @@ const CLASS_FEATURES = {
     {lvl:2, name:'Second Degree Belt',   page:87, desc:'Pick one of Blind-Fight, Combat Reflexes, Combat Throw, or Deflect Arrows — prerequisites WAIVED.', kind:'meta',
      effect:{type:'bonusFeats', formula:{milestones:[2]}, restriction:['Blind-Fight','Combat Reflexes','Combat Throw','Deflect Arrows'], prereqsWaived:true}},
     {lvl:3, name:'Still Mind',           page:87, desc:'+2 on saves vs mind-affecting spells and effects WHILE FOCUSED (see Concentration).', kind:'unimplemented'},
-    {lvl:3, name:'Wild Talent',          page:87, desc:'The Monk becomes a psionic character: 2 PP and access to the Power feat list; can psionically focus via a full-round Concentration check.', kind:'unimplemented'},
+    {lvl:3, name:'Wild Talent',          page:87, desc:'(wired v9.2.2: +2 PP in the psionic pool) The Monk becomes a psionic character: 2 PP and access to the Power feat list; can psionically focus via a full-round Concentration check.', kind:'passive'},
     {lvl:4, name:'Ki Strike (Magic)',    page:87, desc:'(Su) While focused, unarmed attacks count as MAGIC vs DR and ignore 5 points of hardness. — wired: focus-aware rider on the unarmed row (v8.64.0)', kind:'passive'},
     {lvl:4, name:'Slow Fall',            page:87, desc:'Within 10 ft of a wall: reduce falling damage by 20 ft worth at 4th (2d6), +10 ft per 2 levels (30′@6, 40′@8, 50′@10, 60′@12, 70′@14, 80′@16, 90′@18); ANY distance at 20th.', kind:'unimplemented'},
     {lvl:5, name:'Purity of Body',       page:87, desc:'Immune to disease (not supernatural/magical diseases) + the Speed of Thought virtual feat.', kind:'unimplemented'},
@@ -3899,6 +3899,18 @@ function computeCasterStats(char) {
     }
   }
 
+  // v9.2.2 (Adam 2026-10-06; HH p.256 + Monk 3, p.87): WILD TALENT — "a
+  // psionic character … a reserve of 2 power points" (no manifesting by
+  // itself). One grant whatever the route (the feat, a Psi Implant's
+  // materialized feat, or the Monk's 3rd-level feature).
+  {
+    const wtFeat = featNames.has('Wild Talent');
+    const wtMonk = classArr.filter(e => e.name === 'Monk').reduce((s, e) => s + (e.level || 0), 0) >= 3;
+    if ((wtFeat || wtMonk) && out.psionic) {
+      out.psionic.ppBase += 2;
+      out.psionic.contributors.push({ class: 'Wild Talent', level: 0, prep: false, attr: null, attrScore: null, attrMod: null, clContribution: 0, classPP: 2, classBonusPP: 0, classMaxPowerLvl: 0, _fromFeat: true });
+    }
+  }
   // v8.5.4 EAL pass: Spellslinger (arcane/divine) and Power Reservoir
   // (psionic; its 'super' take lands in getSuperPPState) — "bonus power
   // points equal to your character level", level-scaled, pool chosen at feat
@@ -5805,6 +5817,13 @@ function checkFeatPrereqs(featName, char, slotIsHeritage) {
 function buildFeatBonuses(char) {
   const out = {};
   if (!char || !char.feats) return out;
+  // v9.2.2 (Adam's ruling 2026-10-06; HH p.250): Ultra Immune System — +2 on
+  // Fortitude vs poisons, diseases and radiation sickness: a CONDITIONAL row
+  // under the Fortitude save. Mutation-granted, it is a mutation bonus.
+  {
+    const uis = char.feats.find(f => (f.name || f.n) === 'Ultra Immune System');
+    if (uis) (out.fort = out.fort || []).push({ type: /\(mutation\)$/.test(uis.grantedBy || '') ? 'mutation' : 'untyped', source: 'feat:Ultra Immune System', value: 2, condition: 'vs poison, disease & radiation sickness', label: 'Ultra Immune System' + (/\(mutation\)$/.test(uis.grantedBy || '') ? ' (mutation bonus)' : '') });
+  }
   for (const fe of char.feats) {
     const fname = fe.name || fe.n;
     const feat = getFeatData(fname);
@@ -5913,6 +5932,24 @@ function buildTalentBonuses(char) {
           label: t.n + (te.param ? ` (${te.param})` : '') + labelSuffix,
         });
       }
+    }
+  }
+  // v9.2.2 (Adam's rulings 2026-10-06; HH Charismatic Hero talents): the
+  // bonus = Charismatic Hero level (minimum +1), competence (so the three
+  // never stack with each other — best applies).
+  //   Charm → STANDING on the five Cha skills that influence others.
+  //   Fast-Talk → CONDITIONAL ⚜ on Bluff/Diplomacy/Gamble (lying/cheating).
+  //   Silver Tongue → the Fast-Talk modifier on ALL Bluff, Diplomacy,
+  //   Gamble, Gather Information and Intimidate checks (standing).
+  {
+    const chaLvl = Math.max(1, classArr.filter(e => e.name === 'Charismatic Hero').reduce((s, e) => s + (e.level || 0), 0));
+    const add = (sk, src, cond) => (out['skill:' + sk] = out['skill:' + sk] || []).push({ type: 'competence', source: 'talent:' + src, value: chaLvl, condition: cond || null, label: `${src} (Charismatic ${chaLvl})` });
+    if (ownedNames.has('Charm')) for (const sk of ['Bluff', 'Diplomacy', 'Disguise', 'Handle Animal', 'Intimidate']) add(sk, 'Charm', null);
+    if (ownedNames.has('Silver Tongue')) for (const sk of ['Bluff', 'Diplomacy', 'Gamble', 'Gather Information', 'Intimidate']) add(sk, 'Silver Tongue', null);
+    else if (ownedNames.has('Fast-Talk')) for (const sk of ['Bluff', 'Diplomacy', 'Gamble']) {
+      // same competence value as Charm's standing bonus → it would add nothing there
+      if (ownedNames.has('Charm') && sk !== 'Gamble') continue;
+      add(sk, 'Fast-Talk', 'while lying, cheating, or bending the truth');
     }
   }
   return out;
@@ -7530,9 +7567,21 @@ function syncCyberFeats(c) {
   }
   for (const nm of [...new Set(wanted)]) {
     if (!(c.feats || []).some(f => (f.name || f.n) === nm)) {
-      c.feats = (c.feats || []).concat([{ name: nm, grantedBy: 'Feat Implant (cybernetic)' }]);
+      // v9.2.2: the Psi Implant's Wild Talent names its own source.
+      const src = (nm === 'Wild Talent' && getCyber(c).some(r => r.n === 'Psi Implant') && !getCyber(c).some(r => r.n === 'Feat Implant' && r.param === 'Wild Talent')) ? 'Psi Implant (cybernetic)' : 'Feat Implant (cybernetic)';
+      c.feats = (c.feats || []).concat([{ name: nm, grantedBy: src }]);
       changed = true;
     }
+  }
+  // v9.2.2 (Adam's ruling 2026-10-06): MUTATION-granted feats ride the same
+  // materialize / self-heal / cascade rail. Ultra Immune System (HH mutation
+  // entry): "You gain Ultra Immune System as a bonus feat even if you don't
+  // meet the feat's prerequisite" — budget-exempt via grantedBy.
+  {
+    const MUT_FEATS = { 'Ultra Immune System': 'Ultra Immune System' };
+    const wantM = (c.mutations || []).map(m => MUT_FEATS[m.name]).filter(Boolean);
+    for (const nm of wantM) if (!(c.feats || []).some(f => (f.name || f.n) === nm)) { c.feats = (c.feats || []).concat([{ name: nm, grantedBy: `${nm} (mutation)` }]); changed = true; }
+    for (const f of (c.feats || []).slice()) if (/\(mutation\)$/.test(f.grantedBy || '') && !wantM.includes(f.name || f.n)) { c.feats = c.feats.filter(x => x !== f); changed = true; }
   }
   for (const f of (c.feats || []).slice()) {
     if (/cybernetic/i.test(f.grantedBy || '') && !wanted.includes(f.name || f.n)) {
@@ -7615,7 +7664,10 @@ function addCyberFromSel() {
     return;
   }
   if (def.param === 'feat') {
-    openChoiceModal('Feat Implant — name the granted feat (prerequisites must be met; not metamagic/psionic)', (typeof FEATS_DB !== 'undefined' ? FEATS_DB.map(f => f.n) : []), v => { if (v) finish(v); });
+    // v9.2.2 (Adam 2026-10-06; HH p.337 "cannot duplicate a metamagic or
+    // psionic feat"): Magic and Power feats are not offered — the Psi
+    // Implant is the one route to a Power feat (Wild Talent).
+    openChoiceModal('Feat Implant — name the granted feat (prerequisites must be met; no Magic or Power feats)', (typeof FEATS_DB !== 'undefined' ? FEATS_DB.filter(f => f.family !== 'Magic' && f.family !== 'Power').map(f => f.n) : []), v => { if (v) finish(v); });
     return;
   }
   finish(null);
@@ -8785,6 +8837,9 @@ function computeResistances(c) {
       for (const t of m.energyTypes) better(t, m.resistEach, m.name);
     }
   }
+  // v9.2.2 (Adam's ruling): Ultra Immune System turns ability DRAIN into
+  // ability DAMAGE — flagged here so the player sees it with the defenses.
+  if ((c.feats || []).some(f => (f.name || f.n) === 'Ultra Immune System')) immune['ability drain'] = immune['ability drain'] || 'Ultra Immune System — permanent ability drain is taken as temporary ability DAMAGE instead (HH p.250)';
   // v9.2.0: gear — the active Energy shield's chosen type; worn/active immunities.
   for (const a of ((c.activeEffects || []).filter(x => x.gear))) for (const e of a.effects) {
     if (e.k === 'resist' && e.energy) better(e.energy, e.v, `${a.name} (active)`);
@@ -9390,6 +9445,12 @@ function computeGrapple(c) {
   if ((c.feats || []).some(f => (f.name || f.n) === 'Improved Grapple')) {
     total += 4;
     parts.push('Improved Grapple +4');
+  }
+  // v9.2.2 (Adam's ruling 2026-10-06): the Tentacle mutation's +4 mutation
+  // bonus on grapple checks is unconditional — it belongs in the stat.
+  if ((c.mutations || []).some(m => m.name === 'Tentacle')) {
+    total += 4;
+    parts.push('Tentacle +4 (mutation)');
   }
   // v8.91.0 (task 3): Lost Arm's own −2 on grapple checks (HH drawback text)
   // was never baked — now it is, and a cybernetic Prosthetic Arm lifts it.
@@ -39577,7 +39638,17 @@ function renderSheet(){
       const ev = (typeof evasionTier === 'function') ? evasionTier(c) : null;
       if (ev) evTag = `<span style="display:block;font-size:9px;color:#9cc3da;font-style:italic;margin-top:2px;cursor:help;" title="${ev.tier >= 2 ? 'Improved Evasion: a successful Reflex save against a half-damage effect means NO damage — and a failed save means only half.' : 'Evasion: a successful Reflex save against a half-damage effect (fireball, explosions…) means NO damage instead of half. Light or no armor only.'} Sources: ${ev.srcs.join(', ')}.">${ev.tier >= 2 ? 'Improved Evasion' : 'Evasion'}</span>`;
     }
-    return `<div class="stat-cell drillable" onclick="showStatBreakdown('${s.k}')"><span class="sc-lbl">${s.l}</span><span class="sc-val">${(total>=0?'+':'')+total}</span><span style="display:block;font-size:10px;color:rgba(200,151,30,.5);margin-top:2px;">base ${s.base||0} + ${s.attr} ${s.mod>=0?'+':''}${s.mod}${other?` ${other>0?'+':'−'} ${Math.abs(other)} other`:''}</span>${evTag}</div>`;
+    // v9.2.2 (Adam's Ultra Immune System ruling): CONDITIONAL save bonuses
+    // get a visible ⚜ line on the card (they lived only in the drilldown) —
+    // racial (Dwarven hardiness), feats, implants, gear, all alike.
+    const _cond = [];
+    for (const e of [...(((sbSaves[s.k].breakdown || {}).inactive) || []), ...((sbSaves[s.k].bonuses || []).filter(b => b.condition && !(((sbSaves[s.k].breakdown || {}).inactive) || []).includes(b)))]) {
+      if (!e || !e.condition) continue;
+      const line = `${e.value >= 0 ? '+' : ''}${e.value} ${e.condition} (${e.label || e.source})`;
+      if (!_cond.includes(line)) _cond.push(line);
+    }
+    const condTag = _cond.length ? `<span style="display:block;font-size:9px;color:#c499d4;margin-top:2px;cursor:help;" title="${escapeHTML('Conditional — applies only in the stated situation; never part of the headline total:\n' + _cond.join('\n'))}">${_cond.slice(0, 3).map(l => `⚜ ${escapeHTML(l)}`).join('<br>')}${_cond.length > 3 ? `<br>⚜ +${_cond.length - 3} more (click for the drilldown)` : ''}</span>` : '';
+    return `<div class="stat-cell drillable" onclick="showStatBreakdown('${s.k}')"><span class="sc-lbl">${s.l}</span><span class="sc-val">${(total>=0?'+':'')+total}</span><span style="display:block;font-size:10px;color:rgba(200,151,30,.5);margin-top:2px;">base ${s.base||0} + ${s.attr} ${s.mod>=0?'+':''}${s.mod}${other?` ${other>0?'+':'−'} ${Math.abs(other)} other`:''}</span>${evTag}${condTag}</div>`;
   }).join('');
 
   // v9.0.1 (Adam's Sheet tweak): ⚔ ARMAMENTS & ARMOR — the at-the-table

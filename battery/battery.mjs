@@ -403,6 +403,19 @@ await t('GEAR-WORN-ACTIVE', async () => {
   return { pass: bad.length === 0, note: bad[0] || 'wear/slot-cap/carry/activate/DR/NPF/remove/super-strength/Bane all hold' };
 });
 
+await t('TENTACLE-GRAPPLE', () => { const c = __bt([{ name: 'Fighter', levels: 4 }]); const g0 = computeGrapple(c).total; c.mutations = [{ name: 'Tentacle' }]; const g = computeGrapple(c); return { pass: g.total - g0 === 4 && g.parts.some(p => /Tentacle/.test(p)), note: `${g0} → ${g.total}` }; });
+await t('ULTRA-IMMUNE-GRANT', () => {
+  const c = __bt([{ name: 'Fighter', levels: 4 }]); c.attrs[2] = 10; c.mutations = [{ name: 'Ultra Immune System' }]; syncCyberFeats(c);
+  const rec = c.feats.find(f => f.name === 'Ultra Immune System'); const f = computeStatBlock(c).fort;
+  const row = (f.breakdown.inactive || []).find(e => /Ultra Immune/.test(e.label || ''));
+  const drain = (computeResistances(c).immune || {})['ability drain'];
+  c.mutations = []; syncCyberFeats(c); const gone = !c.feats.some(x => x.name === 'Ultra Immune System');
+  return { pass: !!rec && /mutation/.test(rec.grantedBy) && row && row.value === 2 && row.type === 'mutation' && !!drain && gone, note: `granted ${rec && rec.grantedBy}; fort row ${row && row.value} ${row && row.type}; drain flag ${!!drain}; cascade ${gone}` };
+});
+await t('CHARM-SKILL', () => { const c = __bt([{ name: 'Charismatic Hero', levels: 5 }]); c.talents = [{ name: 'Charm' }]; const m = computeSkillMiscBonuses(c); const v = ['Bluff', 'Diplomacy', 'Disguise', 'Handle Animal', 'Intimidate'].map(k => (m[k] || {}).total || 0); return { pass: v.every(x => x === 5) && !((m['Gamble'] || {}).total), note: v.join('/') }; });
+await t('FAST-TALK-SKILL', () => { const c = __bt([{ name: 'Charismatic Hero', levels: 4 }]); c.talents = [{ name: 'Fast-Talk' }]; let m = computeSkillMiscBonuses(c); const cnd = ['Bluff', 'Diplomacy', 'Gamble'].every(k => (m[k].total || 0) === 0 && m[k].cond.some(e => e.value === 4)); c.talents.push({ name: 'Silver Tongue' }); m = computeSkillMiscBonuses(c); const st = ['Bluff', 'Diplomacy', 'Gamble', 'Gather Information', 'Intimidate'].every(k => m[k].total === 4); return { pass: cnd && st, note: `conditional ${cnd}; Silver Tongue standing ${st}` }; });
+await t('WILD-TALENT-PP', () => { const c = __bt([{ name: 'Fighter', levels: 4 }]); const p0 = computeCasterStats(c).psionic.ppMax; c.cybernetics = [{ n: 'Psi Implant' }]; syncCyberFeats(c); const p1 = computeCasterStats(c).psionic.ppMax; const src = (c.feats.find(f => f.name === 'Wild Talent') || {}).grantedBy; const m = __bt([{ name: 'Monk', levels: 3 }]); const pm = computeCasterStats(m).psionic.ppMax; return { pass: p0 === 0 && p1 === 2 && src === 'Psi Implant (cybernetic)' && pm === 2, note: `Psi Implant ${p0}→${p1} (${src}); Monk 3 ${pm}` }; });
+
 // workbench cleanup + render sanity
 await t('SHEET-NO-NAN', () => {
   const c = chars.find(x => x.name === 'Battery Workbench');

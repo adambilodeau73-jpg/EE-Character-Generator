@@ -84,10 +84,6 @@
       "why": "table",
       "note": "immunity + Mettle — shown on the Sheet as a feature; no standing number"
     },
-    "talent:Charm": {
-      "why": "open",
-      "note": "OPEN — competence bonus = Charismatic level on Cha-based influence checks; no skill row shows it, not even as a conditional note"
-    },
     "talent:Favor": {
       "why": "table",
       "note": "Favor check, at the table"
@@ -99,10 +95,6 @@
     "talent:Animal Magnetism": {
       "why": "table",
       "note": "Charm any creature — targeted"
-    },
-    "talent:Fast-Talk": {
-      "why": "open",
-      "note": "OPEN — Charismatic level as competence bonus on Bluff/Diplomacy/Gamble to con or deceive; no skill row shows it"
     },
     "talent:Dazzle": {
       "why": "table",
@@ -171,18 +163,6 @@
     "mutation:Rapid Aging": {
       "why": "table",
       "note": "effective-age bookkeeping"
-    },
-    "mutation:Tentacle": {
-      "why": "open",
-      "note": "OPEN — '+4 mutation bonus on grapple checks' is unconditional but lives only in a note; computeGrapple never adds it"
-    },
-    "mutation:Ultra Immune System": {
-      "why": "open",
-      "note": "OPEN — grants the Ultra Immune System feat, but no feat record is materialized (the Rhad pattern), and the feat itself carries no Fort entry"
-    },
-    "cyber:Psi Implant": {
-      "why": "open",
-      "note": "OPEN — materializes Wild Talent (prereq gate works) but Wild Talent's 2 PP are wired nowhere (Monk 3's Wild Talent is flagged 'unimplemented' too); also the record is stamped grantedBy 'Feat Implant (cybernetic)' instead of 'Psi Implant'"
     },
     "equipment:Artisan's tools": {
       "why": "fixture",

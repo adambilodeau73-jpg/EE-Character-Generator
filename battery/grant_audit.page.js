@@ -26,8 +26,8 @@ const fp = (c) => {
   safe('sr', () => JSON.stringify(computeSR(c)));
   safe('hi', () => JSON.stringify(computeHardnessIgnore(c)));
   safe('mp', () => JSON.stringify(getMPState(c).totalEarned));
-  safe('pp', () => JSON.stringify(getCasterPoolsInfo(c)));
-  safe('sk', () => SKILLS.map(s => quickSkillTotal(c, s.n, ATTR[s.a] ?? ATTR[s.attr] ?? 0)).join(','));
+  safe('pp', () => JSON.stringify(['arcane', 'divine', 'psionic'].map(k => (computeCasterStats(c)[k] || {}).ppMax)));
+  safe('sk', () => SKILLS.map(s => quickSkillTotal(c, s.n, ({ STR: 0, DEX: 1, CON: 2, INT: 3, WIS: 4, CHA: 5 })[s.k] ?? 0)).join(','));
   // Skill-row lane: only entries filed under a REAL skill row count (a kit
   // keyed 'Repair (electrical)' reaches no row — that is the bug class, not
   // visibility). Conditional notes on real rows count; they show on the row.
@@ -57,6 +57,7 @@ for (const m of MUTATIONS_DB) probe('mutation:' + m.name, (m.benefit || '') + ' 
   c.mutations = [/\[Attribute\]/.test(m.name) ? { name: m.name, kind: 'attribute', attr: 'STR' } : { name: m.name }];
   if (/\[Attribute\] I\b|II|III|IV/.test(m.name)) c.mutations.unshift({ name: 'Extraordinary [Attribute]', kind: 'attribute', attr: 'STR' });
   if (typeof reconcileAttributeMutations === 'function') reconcileAttributeMutations(c);
+  if (typeof syncCyberFeats === 'function') syncCyberFeats(c);   // v9.2.2: mutation-granted feats materialize here too
 });
 // Equipment (opened 2026-10-06): only STRUCTURED grants are claims (v9.1.0 data: effect.grants[]);
 // the authored mechanics text carries table-side numbers (DCs, ranges) by design.
