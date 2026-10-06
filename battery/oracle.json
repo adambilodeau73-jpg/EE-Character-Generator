@@ -33,7 +33,7 @@
     { "id": "SELLERS-MARKET", "source": "HH p.424/§218", "rule": "Printed MP prices are canon with NO formula fallback; rung-priced families stamp the rung bought.", "status": "checked" },
     { "id": "IMPROVED-GRAPPLE", "source": "§200", "rule": "Improved Grapple adds +4 to computeGrapple with provenance.", "status": "checked" },
     { "id": "RECKLESS-ATTACK-ONLY", "source": "HH p.239/§186-187", "rule": "Reckless Offense: +2 on attack ROLLS (Grapple included), −4 AC; never Base Attack, no iterative minting.", "status": "checked" },
-    { "id": "EVASION-UNIFIED", "source": "§188", "rule": "Evasion/Uncanny Dodge unify through evasionTier/uncannyDodgeTier across class features and Fast Hero talents; second source upgrades to Improved.", "status": "checked" },
+    { "id": "EVASION-UNIFIED", "source": "§188", "rule": "Evasion/Uncanny Dodge unify through evasionTier/uncannyDodgeTier across class features and Fast Hero talents; ANY second distinct source upgrades to Improved (Adam's ruling 2026-10-06: instances of Evasion stack).", "status": "checked" },
     { "id": "SHEET-NO-NAN", "source": "fuzz doctrine", "rule": "No rendered Sheet ever displays NaN or 'undefined' for any legal character.", "status": "checked" },
     { "id": "BESPOKE-VALIDATES", "source": "v8.51.0", "rule": "qdBespokeBuild validates every ladder entry at its own level; illegal ladders refuse rather than build.", "status": "checked" },
     { "id": "GRANT-AUDIT", "source": "§243 (the Rhad pattern), opened 2026-10-06", "rule": "Every feat, talent, cybernetic and mutation whose text claims a number moves at least one engine output when granted — or is listed in grant_audit_allow.json with a reason.", "status": "checked" },

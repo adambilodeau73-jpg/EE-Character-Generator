@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.0.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.0.2</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -9843,7 +9843,11 @@ function evasionTier(c) {
   if (_cfLvlOf(c, 'Explorer') >= 4) srcs.push('Explorer 4');
   if (!srcs.length) return null;
   const saIE = !!(c.classChoices && Object.keys(c.classChoices).some(k => k.startsWith('rog_sa_') && c.classChoices[k] === 'Improved Evasion'));
-  const escalator = (_cfLvlOf(c, 'Explorer') >= 4 || _cfLvlOf(c, 'Survivor') >= 1) && srcs.length >= 2;
+  // v9.0.2 (Adam's ruling, 2026-10-06): instances of Evasion STACK — ANY
+  // second distinct source grants Improved Evasion (Monk 2 + Rogue 2, the
+  // Fast Hero talent + Rogue 2, …), not only Explorer 4 / Survivor 1's
+  // "Improved if already owned" clause. Mirrors Uncanny Dodge's rule.
+  const escalator = srcs.length >= 2;
   const improved = hasT('Improved Evasion') || _cfLvlOf(c, 'Monk') >= 9 || _cfLvlOf(c, 'Rogue') >= 14 || saIE || escalator;
   return { tier: improved ? 2 : 1, srcs };
 }

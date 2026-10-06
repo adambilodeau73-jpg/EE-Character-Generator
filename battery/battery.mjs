@@ -266,12 +266,15 @@ await t('EVASION-UNIFIED', () => {
     monk2: tier(__bt([{ name: 'Monk', levels: 2 }]), evasionTier),
     monk9: tier(__bt([{ name: 'Monk', levels: 9 }]), evasionTier),
     rogueExplorer: tier(__bt([{ name: 'Rogue', levels: 5 }, { name: 'Explorer', levels: 4 }]), evasionTier),
+    monkRogue: tier(__bt([{ name: 'Monk', levels: 2 }, { name: 'Rogue', levels: 2 }]), evasionTier),
     explorerAlone: tier(__bt([{ name: 'Fast Hero', levels: 5 }, { name: 'Explorer', levels: 4 }]), evasionTier),
     ud1: tier(__bt([{ name: 'Berserker', levels: 2 }]), uncannyDodgeTier),
     ud2src: tier(__bt([{ name: 'Berserker', levels: 2 }, { name: 'Rogue', levels: 4 }]), uncannyDodgeTier),
   };
   const tal = __bt([{ name: 'Fighter', levels: 2 }]); addTalentToChar(tal, 'Evasion'); r.talent = tier(tal, evasionTier);
-  const pass = r.monk2 === 1 && r.monk9 === 2 && r.rogueExplorer === 2 && r.explorerAlone === 1 && r.ud1 === 1 && r.ud2src === 2 && r.talent === 1;
+  // v9.0.2 (Adam's ruling): instances of Evasion stack — any second source → Improved.
+  tal.classes.push({ name: 'Rogue', level: 2 }); r.talentRogue = tier(tal, evasionTier);
+  const pass = r.monk2 === 1 && r.monk9 === 2 && r.rogueExplorer === 2 && r.monkRogue === 2 && r.talentRogue === 2 && r.explorerAlone === 1 && r.ud1 === 1 && r.ud2src === 2 && r.talent === 1;
   return { pass, note: Object.entries(r).map(([k, v]) => `${k}:${v}`).join(' ') };
 });
 await t('UNNATURAL-FORMULAS', () => {
