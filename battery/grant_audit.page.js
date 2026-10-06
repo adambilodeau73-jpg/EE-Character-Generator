@@ -45,7 +45,7 @@ const moved = (c) => { const f1 = fp(c); return Object.keys(f0).some(k => f0[k] 
 const rows = [];
 // forceClaim: a grant that carries a chosen feat/skill IS a claim even when its
 // text names no number (the Feat Implant that hid Rhad's Dodge said none).
-const probe = (key, text, apply, forceClaim) => { const c = mkBase(); apply(c); rows.push({ key, claim: !!forceClaim || claims(text), visible: moved(c), d: (text || '').slice(0, 140) }); };
+const probe = (key, text, apply, forceClaim, structuredOnly) => { const c = mkBase(); apply(c); rows.push({ key, claim: !!forceClaim || (!structuredOnly && claims(text)), visible: moved(c), d: (text || '').slice(0, 140) }); };
 for (const ft of FEATS_DB) probe('feat:' + ft.n, ft.d, c => {
   const rec = { name: ft.n };
   if (ft.param) { const pk = ft.param.param_kind || ''; rec.param = /weapon/i.test(pk) ? 'Longsword' : /skill/i.test(pk) ? 'Hide' : (ft.param.classes || ft.param.options || [])[0]; }
@@ -58,6 +58,7 @@ for (const m of MUTATIONS_DB) probe('mutation:' + m.name, (m.benefit || '') + ' 
   if (/\[Attribute\] I\b|II|III|IV/.test(m.name)) c.mutations.unshift({ name: 'Extraordinary [Attribute]', kind: 'attribute', attr: 'STR' });
   if (typeof reconcileAttributeMutations === 'function') reconcileAttributeMutations(c);
 });
-// Equipment (opened 2026-10-06): a structured {kind:'bonus', amount} effect IS a claim.
-if (typeof EQUIPMENT_ITEMS !== 'undefined') for (const e of EQUIPMENT_ITEMS) probe('equipment:' + e.name, (e.effect && e.effect.text) || '', c => { c.items = (c.items || []).concat([{ id: 'ga-eq', catalogue: 'equipment', ref: e.name, equipped: true, gadgets: [] }]); }, !!(e.effect && e.effect.kind === 'bonus' && e.effect.amount));
+// Equipment (opened 2026-10-06): only STRUCTURED grants are claims (v9.1.0 data: effect.grants[]);
+// the authored mechanics text carries table-side numbers (DCs, ranges) by design.
+if (typeof EQUIPMENT_ITEMS !== 'undefined') for (const e of EQUIPMENT_ITEMS) probe('equipment:' + e.name, (e.effect && e.effect.text) || '', c => { c.items = (c.items || []).concat([{ id: 'ga-eq', catalogue: 'equipment', ref: e.name, equipped: true, gadgets: [], param: (e.effect && e.effect.param) ? e.effect.param.options[0] : undefined }]); }, !!(e.effect && ((e.effect.grants || []).some(g => g.v) || (e.effect.kind === 'bonus' && e.effect.amount))), true);
 return rows;

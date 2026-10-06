@@ -354,6 +354,28 @@ await t('TIER-CEILING-ONLY', () => {
   return { pass: bad.length === 0, note: bad[0] || `${zero.length} zero-level powers open at Minor/Moderate/Major/Mega; ceiling holds` };
 });
 
+await t('EQUIP-SKILL-KEYS', () => {
+  // v9.1.0: every gear grant/satisfier names a REAL lane — a skill row,
+  // a save, or the item's own chosen $param; basic tool kits grant nothing.
+  const rows = new Set(SKILLS.map(s => s.n)), bad = [];
+  for (const e of EQUIPMENT_ITEMS) {
+    const eff = e.effect || {};
+    for (const g of (eff.grants || [])) {
+      const t = String(g.t);
+      if (t.startsWith('skill:')) { const k = t.slice(6); if (k !== '$param' && !rows.has(k)) bad.push(`${e.name} → ${k}`); }
+      else if (!['fort', 'ref', 'will'].includes(t)) bad.push(`${e.name} → ${t}`);
+    }
+    for (const x of (eff.satisfies || [])) if (x !== '$param' && !rows.has(x)) bad.push(`${e.name} satisfies ${x}`);
+    if (eff.param) for (const o of eff.param.options) if (!rows.has(o)) bad.push(`${e.name} param option ${o}`);
+  }
+  for (const n of ['Electrical tool kit, basic', 'Mechanical tool kit, basic']) { const e = EQUIPMENT_ITEMS.find(x => x.name === n); if ((e.effect.grants || []).some(g => g.v)) bad.push(n + ' grants a bonus (HH p.308: basic kits only remove the penalty)'); }
+  // Live: the deluxe electrical kit's +2 reaches the Repair row (conditional).
+  const c = __bt([{ name: 'Fighter', levels: 2 }]); c.items = [{ id: 'k', catalogue: 'equipment', ref: 'Electrical tool kit, deluxe', equipped: true }];
+  const rep = computeSkillMiscBonuses(c)['Repair'];
+  if (!rep || !rep.cond.some(e => e.value === 2)) bad.push('deluxe electrical +2 did not reach the Repair row');
+  return { pass: bad.length === 0, note: bad[0] || `${EQUIPMENT_ITEMS.length} items: every grant lands on a real row` };
+});
+
 // workbench cleanup + render sanity
 await t('SHEET-NO-NAN', () => {
   const c = chars.find(x => x.name === 'Battery Workbench');

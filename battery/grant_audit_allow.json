@@ -203,42 +203,6 @@
     "equipment:Surgery kit": {
       "why": "fixture",
       "note": "toolkit satisfier — flips the ⚒/⚒✓ marker on the skill row (ownsSatisfyingToolkit), no number by design"
-    },
-    "equipment:Forgery kit": {
-      "why": "fixture",
-      "note": "toolkit satisfier — flips the ⚒/⚒✓ marker on the skill row (ownsSatisfyingToolkit), no number by design"
-    },
-    "equipment:Alchemist's lab": {
-      "why": "open",
-      "note": "OPEN — keyed 'Craft (alchemy)' — no such row (E&E: Craft (Chemical)?)"
-    },
-    "equipment:Artisan's tools, masterwork": {
-      "why": "open",
-      "note": "OPEN — keyed 'Craft' — the family name, not a row; should reach the Craft row being used"
-    },
-    "equipment:Musical instrument, masterwork": {
-      "why": "open",
-      "note": "OPEN — keyed 'Perform' — E&E rows are per-instrument (Perform (Keyboard Instruments) …)"
-    },
-    "equipment:Tool, masterwork": {
-      "why": "open",
-      "note": "OPEN — keyed the literal '(chosen related skill)' — needs a param picker"
-    },
-    "equipment:Electrical tool kit, basic": {
-      "why": "open",
-      "note": "OPEN — keyed 'Repair (electrical)' — reaches no row; AND the HH (p.308) gives the BASIC kit no bonus (only 'without penalty'), so the +2 is also wrong data"
-    },
-    "equipment:Electrical tool kit, deluxe": {
-      "why": "open",
-      "note": "OPEN — keyed 'Repair (electrical)' — the HH +2 equipment on Repair never reaches the Repair row"
-    },
-    "equipment:Mechanical tool kit, basic": {
-      "why": "open",
-      "note": "OPEN — keyed 'Repair (mechanical)' — reaches no row; AND the HH (p.308) gives the BASIC kit no bonus, so the +2 is also wrong data"
-    },
-    "equipment:Mechanical tool kit, deluxe": {
-      "why": "open",
-      "note": "OPEN — keyed 'Repair (mechanical)' — the HH +2 equipment on Repair never reaches the Repair row"
     }
   }
 }
