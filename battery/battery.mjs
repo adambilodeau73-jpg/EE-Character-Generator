@@ -366,7 +366,8 @@ await t('EQUIP-SKILL-KEYS', () => {
       else if (!['fort', 'ref', 'will'].includes(t)) bad.push(`${e.name} → ${t}`);
     }
     for (const x of (eff.satisfies || [])) if (x !== '$param' && !rows.has(x)) bad.push(`${e.name} satisfies ${x}`);
-    if (eff.param) for (const o of eff.param.options) if (!rows.has(o)) bad.push(`${e.name} param option ${o}`);
+    // v9.4.0: a param picks a SKILL row — unless the item uses it to pick an animal species.
+    if (eff.param) for (const o of eff.param.options) if (e.animal === '$param' ? !COMPANION_BASE_STATS[o] : !rows.has(o)) bad.push(`${e.name} param option ${o}`);
   }
   for (const n of ['Electrical tool kit, basic', 'Mechanical tool kit, basic']) { const e = EQUIPMENT_ITEMS.find(x => x.name === n); if ((e.effect.grants || []).some(g => g.v)) bad.push(n + ' grants a bonus (HH p.308: basic kits only remove the penalty)'); }
   // Live: the deluxe electrical kit's +2 reaches the Repair row (conditional).
@@ -436,6 +437,22 @@ await t('WEAPON-ACCESSORIES', async () => {
   removeItemFromChar('w1'); if (c.items.find(i => i.id === 'a1').mountedOn) bad.push('accessory still mounted on a removed weapon');
   chars = chars.filter(x => x.id !== c.id); curId = chars[0]?.id ?? null;
   return { pass: bad.length === 0, note: bad[0] || `eligibility, range ×1.5 (no stacking), row note, detach-on-remove` };
+});
+
+await t('OWNED-ANIMALS', () => {
+  // v9.4.0: purchased animals are owned companions tied to their Gear item.
+  const c = __bt([{ name: 'Fighter', levels: 2 }]); chars.push(c); curId = c.id; const bad = [];
+  c.items = [{ id: 'h', catalogue: 'equipment', ref: 'Horse, light', slot: 'carried', gadgets: [] }, { id: 'd', catalogue: 'equipment', ref: 'Donkey or mule', slot: 'carried', gadgets: [], param: 'Donkey' }];
+  syncOwnedAnimals(c);
+  const sp = (c.companions || []).filter(x => x.kind === 'owned').map(x => x.species).sort().join(',');
+  if (sp !== 'Donkey,Horse (light)') bad.push('cards: ' + sp);
+  if (!COMPANION_BASE_STATS['Mule'] || !COMPANION_BASE_STATS['Donkey']) bad.push('FF Donkey/Mule stats missing');
+  c.items.find(i => i.id === 'd').param = 'Mule'; syncOwnedAnimals(c);
+  if (!c.companions.some(x => x.species === 'Mule')) bad.push('param change did not follow');
+  removeItemFromChar('h'); if (c.companions.some(x => x.species === 'Horse (light)')) bad.push('card outlived its item');
+  removeCompanion(c.companions.find(x => x.species === 'Mule').id); if (c.items.some(i => i.id === 'd')) bad.push('item outlived its card');
+  chars = chars.filter(x => x.id !== c.id); curId = chars[0]?.id ?? null;
+  return { pass: bad.length === 0, note: bad[0] || 'buy → card; param → species; item ✕ ↔ card ✕' };
 });
 
 // workbench cleanup + render sanity
