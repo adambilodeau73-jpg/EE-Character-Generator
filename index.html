@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.6.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.7.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -7102,7 +7102,28 @@ function buildMagicItemBonuses(c) {
       });
     }
   }
+  // v9.7.0 (§257, Adam's wiring request): weapon special abilities with
+  // PASSIVE wielder effects. PARRYING (imbued, GMG): +1 insight to touch AC,
+  // the parry modifier, and Reflex saves whenever the wielder HOLDS the
+  // weapon — even flat-footed or surprised. The 'ac' lane feeds the touch
+  // tier (computeACDisplay) and 'ref' the save lanes (computeStatBlock);
+  // the parry modifier reads parryingHeldBonus directly (computeParryBonus).
+  for (const it of getCharItems(c)) {
+    if (it.catalogue !== 'weapon' || !it.equipped) continue;
+    if (!(it.enchant && (it.enchant.abilities || []).includes('Parrying'))) continue;
+    for (const target of ['ac', 'ref']) {
+      (out[target] = out[target] || []).push({
+        type: 'insight', source: 'item:' + it.id, value: 1,
+        label: `Parrying (${enchantDisplayName(it)})`,
+      });
+    }
+  }
   return out;
+}
+// v9.7.0 (§257): +1 insight per held Parrying weapon (typed: two Parrying
+// blades still grant +1 — insight does not self-stack).
+function parryingHeldBonus(c) {
+  return getCharItems(c).some(it => it.catalogue === 'weapon' && it.equipped && it.enchant && (it.enchant.abilities || []).includes('Parrying')) ? 1 : 0;
 }
 
 const MAGIC_TYPE_LABELS = {
@@ -8085,18 +8106,29 @@ function mastercraftKindFor(catalogue) {
 const ENERGY_DAMAGE_TYPES = new Set(['laser', 'plasma', 'cryonic', 'sonic', 'disintegration']);
 function isRangedWeapon(w) { return w.kind === 'ranged' || w.firearm === true; }
 
-// v8.5.2: Weapon Finesse eligibility (HH p.255-ish, "Weapon Finesse (Fighter)"):
-// "a light weapon, rapier, whip, or spiked chain made for a creature of your
-// size category" -- NOT simply kind==='light'. Whip and Spiked Chain are
-// classified one-handed/two-handed by handedness (kind), not light, so they
-// need a named exception; Rapier doesn't exist in E&E's weapon list at all
-// (verified against weapons.json, 2026-06-30) so it's omitted. Natural
-// attacks ("always considered light weapons" per RAW) aren't modeled here —
-// there's no natural-attack subsystem yet. The RAW's shield-ACP-applies-to-
-// attack-rolls clause is also not modeled (no shield-ACP-to-attack pipeline
-// exists anywhere in the generator) -- flagged, not silently dropped.
-const WEAPON_FINESSE_NAMED_EXCEPTIONS = new Set(['Whip', 'Spiked Chain']);
+// v8.5.2 / v9.7.0 (§257): Weapon Finesse eligibility (HH p.255, "Weapon
+// Finesse (Fighter)"): "a light weapon, rapier, whip, or spiked chain made
+// for a creature of your size category" -- NOT simply kind==='light'. Whip,
+// Spiked Chain, and Rapier are classified by handedness (kind), not light,
+// so they ride a named exception (Rapier joined the catalogue in v8.15.3;
+// this set predated it — closed in v9.7.0). Natural attacks and the unarmed
+// strike ("always considered light weapons", the feat's own Note) take the
+// Dex substitution on their synthesized rows, and the feat's shield clause
+// — "if you carry a shield, its armor check penalty applies to your attack
+// rolls" — now debits every finessed attack via finesseShieldACP.
+const WEAPON_FINESSE_NAMED_EXCEPTIONS = new Set(['Whip', 'Spiked Chain', 'Rapier']);
 function isFinesseEligible(w) { return w.kind === 'light' || WEAPON_FINESSE_NAMED_EXCEPTIONS.has(w.name); }
+// v9.7.0 (§257): the feat's shield rider — the equipped shield's armor check
+// penalty (0 when no shield, or ACP 0). Applies only to FINESSED attacks.
+function finesseShieldACP(c) {
+  let acp = 0;
+  for (const it of getCharItems(c)) {
+    if (it.catalogue !== 'armor' || !it.equipped) continue;
+    const d = getCatalogueEntry('armor', it.ref);
+    if (d && d.type === 'shield') acp += (typeof parseArmorCheckPenalty === 'function') ? (parseArmorCheckPenalty(d) || 0) : 0;
+  }
+  return acp;  // ≤ 0
+}
 function eligibleGadgets(catalogue, item, techScale) {
   return GADGETS_CATALOG.filter(g => {
     if (g.type !== catalogue) return false;
@@ -10162,21 +10194,23 @@ function computeEquippedWeaponSummaries(c) {
     // v8.5.2 fix (Adam, 2026-06-30): the attack roll formula is BAB + ability
     // mod + proficiency penalty — this was missing the ability mod entirely.
     // Ranged weapons use Dex, melee use Str, UNLESS Weapon Finesse applies
-    // (HH: light weapon / Whip / Spiked Chain, melee only — a ranged weapon
-    // already uses Dex so Finesse is a no-op there). See isFinesseEligible's
-    // comment for what's deliberately NOT modeled (natural attacks, shield-ACP
-    // penalty to attack rolls).
+    // (HH p.255: light weapon / Rapier / Whip / Spiked Chain, melee only — a
+    // ranged weapon already uses Dex so Finesse is a no-op there).
+    // v9.7.0 (§257): "you MAY use your Dexterity modifier" — the option is
+    // exercised only when Dex beats Str; and the feat's shield clause now
+    // debits the equipped shield's armor check penalty from FINESSED attacks.
     const bab = c.bab || 0;
     // v8.6.0 firm-wire: attack ability mods use effective attributes
     // (Belt of Giant Strength reaches the attack roll while worn).
     const _eff = effAttrs(c);
     const strM = am(_eff[0]), dexM = am(_eff[1]);
     const hasFinesse = (c.feats || []).some(f => (f.name || f.n) === 'Weapon Finesse');
-    const finesseApplies = !isRangedWeapon(def) && isFinesseEligible(def) && hasFinesse;
+    const finesseApplies = !isRangedWeapon(def) && isFinesseEligible(def) && hasFinesse && dexM > strM;
     const useDex = isRangedWeapon(def) || finesseApplies;
     const abilityMod = useDex ? dexM : strM;
     const abilityLabel = useDex ? (finesseApplies ? 'Dex (Weapon Finesse)' : 'Dex') : 'Str';
-    let attackBonus = bab + abilityMod + (proficient ? 0 : -4);
+    const _fsACP = finesseApplies ? finesseShieldACP(c) : 0;
+    let attackBonus = bab + abilityMod + (proficient ? 0 : -4) + _fsACP;
     // v8.8.1 (Adam's ease-of-use call): flat damage modifiers accumulate as
     // LABELED parts (dmgParts) and collapse into ONE summed number on the
     // dashboard — the ⓘ tooltip itemizes them. Only additional DICE (energy
@@ -10211,6 +10245,7 @@ function computeEquippedWeaponSummaries(c) {
       { label: `${abilityLabel} modifier`, value: abilityMod },
     ];
     if (!proficient) mods.push({ label: 'Not proficient', value: -4 });
+    if (_fsACP < 0) mods.push({ label: 'Shield armor check penalty (Weapon Finesse, HH p.255 — applies while finessing with a shield carried)', value: _fsACP });
     // v8.16.0 Races pass: size modifier to attack rolls (+1 Small, −1 Large).
     {
       const szm = (typeof raceACSizeMod === 'function') ? raceACSizeMod(c) : 0;
@@ -10564,8 +10599,15 @@ function computeEquippedWeaponSummaries(c) {
         const szNote = szIdx !== raceSizeIndex(c) ? ` Damage die reads as ${SIZE_LADDER[szIdx]} — Super-Strong size riders (Su).` : '';
         const _effN = effAttrs(c);
         const strMN = am(_effN[0]);
-        let atkN = (c.bab || 0) + strMN;
-        const modsN = [{ label: 'Base Attack Bonus', value: c.bab || 0 }, { label: 'Str modifier', value: strMN }];
+        // v9.7.0 (§257): "natural attacks are always considered light
+        // weapons" (Weapon Finesse's own Note, HH p.255) — the Dex
+        // substitution reaches these rows, shield clause included.
+        const dexMN = am(_effN[1]);
+        const finN = (c.feats || []).some(f => (f.name || f.n) === 'Weapon Finesse') && dexMN > strMN;
+        const abilN = finN ? dexMN : strMN;
+        let atkN = (c.bab || 0) + abilN;
+        const modsN = [{ label: 'Base Attack Bonus', value: c.bab || 0 }, { label: finN ? 'Dex modifier (Weapon Finesse — natural attacks count as light)' : 'Str modifier', value: abilN }];
+        if (finN) { const aN = finesseShieldACP(c); if (aN < 0) { atkN += aN; modsN.push({ label: 'Shield armor check penalty (Weapon Finesse, HH p.255)', value: aN }); } }
         { const szmN = (typeof raceACSizeMod === 'function') ? raceACSizeMod(c) : 0;
           if (szmN) { atkN += szmN; modsN.push({ label: `Size (${SIZE_LADDER[raceSizeIndex(c)]})`, value: szmN }); } }
         const apN = nonProficientArmorPenalty(c);
@@ -10610,11 +10652,16 @@ function computeEquippedWeaponSummaries(c) {
     const strM = am(_eff[0]);
     const bab = c.bab || 0;
     const small = raceSizeIndex(c) === 3;  // v8.68.0: routed through the size resolver (Hybrid-aware)
-    let attackBonus = bab + strM;
+    // v9.7.0 (§257): the unarmed strike is a light weapon — Weapon Finesse's
+    // Dex substitution (and its shield clause) reaches it (HH p.255).
+    const dexMU = am(_eff[1]);
+    const finU = ownsF('Weapon Finesse') && dexMU > strM;
+    let attackBonus = bab + (finU ? dexMU : strM);
     const mods = [
       { label: 'Base Attack Bonus', value: bab },
-      { label: 'Str modifier', value: strM },
+      { label: finU ? 'Dex modifier (Weapon Finesse — unarmed strike is a light weapon)' : 'Str modifier', value: finU ? dexMU : strM },
     ];
+    if (finU) { const aU = finesseShieldACP(c); if (aU < 0) { attackBonus += aU; mods.push({ label: 'Shield armor check penalty (Weapon Finesse, HH p.255)', value: aU }); } }
     const comp = ownsF('Improved Brawl') ? 2 : (ownsF('Brawl') ? 1 : 0);
     if (comp) { attackBonus += comp; mods.push({ label: `${comp === 2 ? 'Improved ' : ''}Brawl (competence)`, value: comp }); }
     const wfP = (n) => (c.feats || []).some(f => (f.name || f.n) === n && f.param === 'Unarmed strike');
@@ -18226,7 +18273,7 @@ const FEATS_DB = [
   {n:'Two-Weapon Defense',family:'Fighter',prereqs:[[{type:'attr',name:'DEX',min:15}],[{type:'feat',name:'Two-Weapon Fighting'}]],d:'You are able to use your weapons to defend yourself as well.'},
   {n:'Two-Weapon Fighting',family:'Fighter',prereqs:[[{type:'attr',name:'DEX',min:15}]],d:'You can fight with a weapon in each hand. You can make one extra attack each round with the second weapon.'},
   {n:'Unbalance Opponent',family:'Fighter',prereqs:[[{type:'feat',name:'Defensive Martial Arts'}],[{type:'bab',min:6}]],d:'You know how to keep your enemy off-balance.'},
-  {n:'Weapon Finesse',family:'Fighter',prereqs:[[{type:'bab',min:1}]],d:'You have learned to favor grace over power in wielding light weapons. With a light weapon, Whip, or Spiked Chain sized for you, you may use your Dexterity modifier instead of Strength on attack rolls (and Parry attempts). Natural attacks always count as light weapons for this purpose (not yet modeled — no natural-attack subsystem exists). If you carry a shield, its armor check penalty applies to your attack rolls (not yet modeled).'},
+  {n:'Weapon Finesse',family:'Fighter',prereqs:[[{type:'bab',min:1}]],d:'You have learned to favor grace over power in wielding light weapons. With a light weapon, Rapier, Whip, or Spiked Chain sized for you, you may use your Dexterity modifier instead of Strength on attack rolls and Parry attempts (applied automatically wherever Dex beats Str — weapon rows, unarmed strike, natural attacks, and the Parry modifier). Natural attacks and the unarmed strike always count as light weapons for this purpose. If you carry a shield, its armor check penalty applies to your finessed attack rolls (wired).'},
   {n:'Weapon Focus',family:'Fighter',prereqs:[[{type:'weaponProficiency'}],[{type:'bab',min:1}]],param:{param_kind:'weapon',param_label:'Weapon'},takeable:'multiple',d:'Choose one type of weapon. You can also choose unarmed strike, grapple, or ray as your weapon for purposes of this feat. You gain a +1 bonus on all attack rolls with the selected weapon. Multiple instances apply to different weapons; the effect does not stack for the same weapon.'},
   {n:'Weapon Specialization',family:'Fighter',prereqs:[[{type:'weaponProficiency'}],[{type:'featParam',name:'Weapon Focus'}],[{type:'classLevel',tier:'basic',name:'Fighter',min:4}]],param:{param_kind:'weapon',param_label:'Weapon'},takeable:'multiple',d:'Choose one type of weapon for which you have already selected the Weapon Focus feat. You can also choose unarmed strike or grapple as your weapon for purposes of this feat. You gain a +2 bonus on damage rolls with the selected weapon.'},
   {n:'Greater Weapon Specialization',family:'Fighter',prereqs:[[{type:'weaponProficiency'}],[{type:'featParam',name:'Greater Weapon Focus'}],[{type:'featParam',name:'Weapon Focus'}],[{type:'featParam',name:'Weapon Specialization'}],[{type:'classLevel',tier:'basic',name:'Fighter',min:12}]],param:{param_kind:'weapon',param_label:'Weapon'},takeable:'multiple',d:'Choose one type of weapon for which you have already selected Weapon Specialization. You can also choose unarmed strike or grapple as your weapon for purposes of this feat. You gain a further +2 bonus on damage rolls with the selected weapon — stacks with Weapon Specialization’s +2 (total +4).'},  // (v8.36.1: moved out of d — prose-only rule) v8.5.2: added to FEATS_DB — previously had a citation entry (HH p.218) but no actual feat data, making it structurally unobtainable.
@@ -38160,7 +38207,20 @@ function computeACDisplay(c, opts){
 // Formula: BAB + Str mod + Defense bonus + Shield AC bonus
 function computeParryBonus(c, opts){
   opts = opts || {};
-  const strM = am(c.attrs[0]);
+  let strM = am(c.attrs[0]);
+  let strLabel = 'Str';
+  // v9.7.0 (§257): Weapon Finesse — "you may use your Dexterity modifier
+  // instead of your Strength modifier on attack rolls AND PARRY ATTEMPTS"
+  // (HH p.255) — exercised while wielding a finesse-eligible melee weapon
+  // (or bare-handed: the unarmed strike is a light weapon) and Dex wins.
+  try {
+    if ((c.feats || []).some(f => (f.name || f.n) === 'Weapon Finesse')) {
+      const dexP = am(c.attrs[1]);
+      const held = getCharItems(c).filter(i => i.catalogue === 'weapon' && i.equipped);
+      const finesseWielding = held.length === 0 || held.some(i => { const d = getCatalogueEntry('weapon', i.ref); return d && !isRangedWeapon(d) && isFinesseEligible(d); });
+      if (finesseWielding && dexP > strM) { strM = dexP; strLabel = 'Dex (Weapon Finesse)'; }
+    }
+  } catch (e) {}
   const def = c.def || 0;
   const bab = c.bab || 0;
   const shield = opts.shield ?? (c.shieldAC ?? 0);
@@ -38182,10 +38242,15 @@ function computeParryBonus(c, opts){
   const _roP = _dP.ro ? 4 : 0;
   const parts = [
     {label:'BAB', value:bab},
-    {label:'Str', value:strM},
+    {label:strLabel, value:strM},
     {label:'Def', value:def},
     {label:'Shield', value:shield},
   ];
+  // v9.7.0 (§257): the Parrying imbued weapon ability — +1 insight to the
+  // parry modifier (and touch AC + Reflex via the item-bonus lanes)
+  // whenever the wielder holds the weapon, even flat-footed (GMG).
+  const _pw = (typeof parryingHeldBonus === 'function') ? parryingHeldBonus(c) : 0;
+  if (_pw) parts.push({label:'Parrying weapon (insight — held, even flat-footed)', value:_pw});
   if (_paP) parts.push({label:'Power Attack (declared — BA spent)', value:-_paP});
   if (_ceP) {
     parts.push({label:'Combat Expertise (declared — BA spent)', value:-_ceP});
@@ -38207,7 +38272,7 @@ function computeParryBonus(c, opts){
   // Amended total: BA (minus PA and CE spends) + Str + Def + Shield, the CE
   // amendment restoring +2 per CE point (+1 Parry, +1 Def Bonus) → PA costs
   // its full spend, CE nets +N defensive, exactly the ruling's intent.
-  return { total: bab - _paP - _ceP + strM + def + shield + 2 * _ceP - _bd - _roP, parts, ready, shieldParry };
+  return { total: bab - _paP - _ceP + strM + def + shield + 2 * _ceP - _bd - _roP + _pw, parts, ready, shieldParry };
 }
 
 // Compute Dodge attempt modifier per handbook HH p.373.
