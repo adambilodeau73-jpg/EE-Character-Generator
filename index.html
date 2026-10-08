@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.8.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.9.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -46745,12 +46745,56 @@ async function paAddLoadoutLine(itemId) {
         mountPick = { mount: 'fixed', arcs: [arc] };
       }
     }
+    // v9.9.0 (§259): the FIRE-LINK picker (FF pp.641-642) — identical beam/
+    // projectile weapons as ONE weapon: each doubling +½ base damage, +1 size
+    // category, +3 DC; the grown size must still fit the hull (I16); octo+ =
+    // the MAIN CANNON, one per ship. Missiles instead pick a BATTERY (up to 4
+    // launchers, +2 DC each, Colossal (Light)+ hulls only).
+    let linkPick = null;
+    const shipDef = it.catalogue === 'starship' ? shipDefOf(it) : null;
+    if (wepRow && shipDef && shipWeaponTakesMount(wepRow.name)) {
+      const hasMain = shipHasMainCannon(it);
+      const opts = shipLinkOptions(shipDef, wepRow, hasMain);
+      if (opts.length > 1) {
+        const labels = opts.map(o => o.link === 1
+          ? `×1 single weapon — ${o.dice || 'printed damage'} · ${o.size}${wepRow.dc ? ` · printed DC ${wepRow.dc}` : ''}`
+          : `×${o.link} ${o.main ? 'MAIN CANNON' : o.link === 2 ? 'dual-linked' : o.link === 4 ? 'quad-linked' : `${o.link}-linked`} — ${o.dice || `damage ×${(2 + o.doublings) / 2}`} · ${o.size}${wepRow.dc ? ` · DC ${o.dc}` : ''} (+${3 * o.doublings} DC)${o.main ? ' · one per ship' : ''}`);
+        const lk = await new Promise(res => openChoiceModal(`Fire link for the ${gear} (FF p.641 — each doubling: +½ base damage, +1 size category, +3 DC; the grown weapon must still fit the ${shipDef.cls} hull${hasMain ? '; the ship’s main cannon slot is already taken' : ''})`, labels, res));
+        if (!lk) return;
+        const chosen = opts[labels.indexOf(lk)];
+        if (chosen && chosen.link >= 2) {
+          linkPick = { link: chosen.link };
+          if (chosen.link >= 4 && !chosen.main) {
+            const vr = await new Promise(res => openChoiceModal('Variable fire link? (FF p.642 — quad+ links may be built variable: the gunner fires singly, in pairs, or at the full link, chosen attack to attack)', [
+              'Full link only (fires as one weapon every attack)',
+              'Variable fire link (singly / pairs / full — gunner’s choice each attack)',
+            ], res));
+            if (!vr) return;
+            if (vr.startsWith('Variable')) linkPick.variable = true;
+          }
+        }
+      }
+    }
+    if (wepRow && shipDef && /^Missile,/.test(wepRow.name) && shipDef.cls !== 'Ultralight') {
+      const bOpts = [1, 2, 3, 4].map(n => n === 1
+        ? `Single launcher — ${/crit (\d+(?:-20)?)/.exec(wepRow.stat)?.[1] ? `crit ${/crit (\d+(?:-20)?)/.exec(wepRow.stat)[1]}` : 'printed crit'}${wepRow.dc ? ` · printed DC ${wepRow.dc}` : ''}`
+        : `Battery of ${n} launchers — threat ${shipThreatRange(wepRow.stat, Math.min(n - 1, 3))} (+${Math.min(n - 1, 3)}) · crit ×${2 + (n - 1)}${wepRow.dc ? ` · DC ${wepRow.dc + 2} each (${n}×)` : ' · +2 DC each'}`);
+      const bk = await new Promise(res => openChoiceModal(`Missile battery for the ${gear}? (FF p.642 — up to 4 identical launchers fire as ONE weapon: +2 DC per launcher, +1 threat per missile past the first [max +3], crit multiplier +1 per extra missile; non-crit hits deal one missile’s damage; never split)`, bOpts, res));
+      if (!bk) return;
+      const bn = bk.startsWith('Battery of') ? parseInt(bk.replace('Battery of ', ''), 10) : 1;
+      if (bn >= 2) linkPick = { battery: bn };
+    }
     const slot = await textModal('Which slot?', 'e.g. Helmet, Left Arm, Shoulders, Boots, (no slot). Slot capacity is GM-adjudicated in Segment B.', '');
-    paLoadout(it).push(Object.assign({ slot: slot || '(no slot)', gear, state: 'ok' }, mountPick || {}));
+    paLoadout(it).push(Object.assign({ slot: slot || '(no slot)', gear, state: 'ok' }, mountPick || {}, linkPick || {}));
     const mountNote = wepRow && shipWeaponTakesMount(wepRow.name)
       ? (mountPick ? ` — ${mountPick.mount} ${mountPick.arcs.join('/')} (${SHIP_MOUNT_KINDS[mountPick.mount].disc} DC${wepRow.dc ? ` → DC ${wepRow.dc + SHIP_MOUNT_KINDS[mountPick.mount].disc}` : ''}, FF p.640)` : ` — full turret (any direction${wepRow.dc ? `, printed DC ${wepRow.dc}` : ''}, FF p.640)`)
       : (wepRow && /^Missile,/.test(wepRow.name) ? ' — omni launcher (a missile mount option awaits Adam’s ruling)' : '');
-    logAct(`${enchantDisplayName(it)} — installed ${gear}${slot ? ' (' + slot + ')' : ''}${mountNote}.`);
+    const linkNote = linkPick && linkPick.link
+      ? ` — ${linkPick.link >= 8 ? `★ MAIN CANNON (×${linkPick.link}: +1 threat, 25%/50% power modes, single RoF, one per ship)` : `fire-linked ×${linkPick.link}${linkPick.variable ? ' (variable)' : ''}`}${wepRow.dc ? `, DC ${wepRow.dc + 3 * Math.round(Math.log2(linkPick.link)) + (mountPick ? SHIP_MOUNT_KINDS[mountPick.mount].disc : 0)}` : ''} (FF pp.641-642)`
+      : linkPick && linkPick.battery
+        ? ` — ⧉ battery of ${linkPick.battery} (threat ${shipThreatRange(wepRow.stat, linkPick.battery - 1)}, crit ×${1 + linkPick.battery}${wepRow.dc ? `, ${linkPick.battery}× DC ${wepRow.dc + 2}` : ''}, FF p.642)`
+        : '';
+    logAct(`${enchantDisplayName(it)} — installed ${gear}${slot ? ' (' + slot + ')' : ''}${mountNote}${linkNote}.`);
     save(); renderVehicles(); renderSheet(); if (typeof renderSkills === 'function') renderSkills();
   });
 }
@@ -47382,6 +47426,69 @@ function shipMountChip(line) {
   const m = shipMountOf(line);
   return m.kind === 'turret' ? '' : `${m.icon} ${m.kind} ${m.arcs.map(a => a[0]).join('/')} (${m.disc} DC)`;
 }
+// v9.9.0 (§259) — FIRE-LINKED WEAPONS, MAIN CANNONS & MISSILE BATTERIES
+// (FF pp.641-642; HELM ship.ts linked/battery twin, RULINGS.md I16).
+// FIRE LINKS: identical beam/projectile weapons firing as ONE weapon (one
+// attack roll). Each full DOUBLING (×2, ×4, ×8…) = +½ base damage, +1 weapon
+// size category, +3 Purchase DC (the FF p.642 worked example: Ion Cannon 39 →
+// dual 42 → quad 45 → octo Main 48). I16 ceiling: the grown weapon must still
+// fit the hull — max link = 2^(hull size step − weapon minimum size step).
+// VARIABLE links (quad+): the gunner may fire singly, in pairs, or full.
+// MAIN CANNON = octo-linked (×8) or higher; power demands allow ONE per ship;
+// +1 threat range; may fire at 25% (dual-equiv) or 50% (quad-equiv) power;
+// always a SINGLE rate of fire. MISSILE BATTERIES: up to 4 identical
+// launchers as one weapon; +2 DC per launcher; +1 threat per missile past the
+// first (max +3); crit multiplier +1 per extra missile; one size larger than
+// the base weapon — Colossal (Light)+ hulls only; never split.
+const SHIP_SIZE_LADDER = ['Huge', 'Gargantuan', 'Colossal (Ultralight)', 'Colossal (Light)', 'Colossal (Mediumweight)', 'Colossal (Heavy)', 'Colossal (Superheavy)'];
+function shipHullSizeStep(cls) { return { Ultralight: 2, Light: 3, Mediumweight: 4, Heavy: 5, Superheavy: 6 }[cls] ?? 2; }
+function shipWeaponSizeStep(mss) { return { Huge: 0, Gargantuan: 1, Colossal: 2 }[mss] ?? 1; }
+// Leading pips dice of a stat string ("10d6 [1d3D] Ionic…"), scaled by the
+// link factor (2+doublings)/2 — 10d6 ×2 → 15d6, ×4 → 20d6, ×8 → 25d6.
+function shipLinkedDice(stat, link) {
+  const m = /^(\d+)d(\d+)/.exec(String(stat || ''));
+  if (!m) return null;
+  const d = Math.round(Math.log2(link)), n = parseInt(m[1], 10) * (2 + d) / 2;
+  return Number.isInteger(n) ? `${n}d${m[2]}` : `${m[1]}d${m[2]} ×${(2 + d) / 2}`;
+}
+// Threat range from a stat string, widened by +w (main cannon +1; battery +1
+// per extra missile, max +3). "crit 20" +1 → "19-20".
+function shipThreatRange(stat, w) {
+  const m = /crit (\d+)/.exec(String(stat || ''));
+  const lo = m ? parseInt(m[1], 10) : 20;
+  const lo2 = Math.max(2, lo - (w || 0));
+  return lo2 >= 20 ? '20' : `${lo2}-20`;
+}
+function shipLinkOf(line) { const l = parseInt(line && line.link, 10); return (l >= 2) ? l : 1; }
+function shipBatteryOf(line) { const b = parseInt(line && line.battery, 10); return (b >= 2) ? Math.min(b, 4) : 1; }
+// One main cannon (×8+) per ship — FF p.642's power-demand rule.
+function shipHasMainCannon(it) { return paLoadout(it).some(l => shipLinkOf(l) >= 8); }
+// The link ladder a weapon may climb on this hull: ×1 up to the I16 ceiling.
+function shipLinkOptions(def, wep, hasMain) {
+  const ceil = Math.max(0, shipHullSizeStep(def.cls) - shipWeaponSizeStep(wep.mss));
+  const out = [];
+  for (let d = 0; d <= ceil; d++) {
+    const link = Math.pow(2, d);
+    if (link >= 8 && hasMain) break; // power demands: one main cannon per ship
+    out.push({
+      link, doublings: d, main: link >= 8,
+      dc: (wep.dc || 0) + 3 * d,
+      dice: shipLinkedDice(wep.stat, link),
+      size: SHIP_SIZE_LADDER[shipWeaponSizeStep(wep.mss) + d] || 'beyond Colossal (Superheavy)',
+    });
+  }
+  return out;
+}
+// The chips a linked weapon / battery wears beside the mount chip.
+function shipLinkChip(line) {
+  const link = shipLinkOf(line);
+  if (link < 2) return '';
+  return link >= 8 ? `★ main cannon ×${link}` : `⛓ ×${link} link${line.variable ? ' (variable)' : ''}`;
+}
+function shipBatteryChip(line) {
+  const n = shipBatteryOf(line);
+  return n < 2 ? '' : `⧉ battery ×${n}`;
+}
 const STARSHIP_DEFENSES = [
   ['Autopilot System', 5, '5 + ¼ ship', '—'], ['Damage Control System', 5, 'varies', '—'], ['Sensor Jammer', 5, '5 + ½ ship', 'Mil (+3)'],
   ['Autopilot System, Improved', 6, '5 + ½ ship', '—'], ['Chaff Launcher', 6, '20', 'Lic (+1)'], ['Damage Control, Improved', 6, 'varies', 'Lic (+1)'],
@@ -47875,8 +47982,28 @@ function renderStarshipCards(c) {
       const mountTip = wep ? (shipWeaponTakesMount(wep.name)
         ? `\n⌖ Mount: ${mnt.kind === 'turret' ? `full turret/bank — fires any direction; the printed DC includes it (FF p.640; stock FF ships are all-turret, GMG p.474)` : `${mnt.kind} ${mnt.arcs.join('/')}${wep.dc ? ` — DC ${wep.dc + mnt.disc} (printed ${wep.dc} −${Math.abs(mnt.disc)} ${mnt.kind}, FF p.640)` : ` (${mnt.disc} DC, FF p.640)`}`}`
         : (/^Missile,/.test(wep.name) ? '\n⌖ Omni launcher — missiles fire any direction (FF p.641); a missile mount option awaits Adam’s ruling.' : '')) : '';
-      const tip = wep ? `${wep.stat} · min ship ${wep.mss}${wep.dc ? ' · DC ' + wep.dc : ''}${autofireTip}${mountTip}` : dfx ? `Defense system · TS ${dfx.ts} · DC ${dfx.dc} · ${dfx.restriction}${fxLookup(dfx.name)}` : sen ? `Sensor system · TS ${sen.ts} · DC ${sen.dc}${fxLookup(sen.name)}` : fxLookup(l.gear);
-      const mountChip = wep ? shipMountChip(l) : '';
+      // v9.9.0 (§259): the fire-link / main-cannon / missile-battery dossier
+      // rides the tooltip (FF pp.641-642) — linked damage, grown size, the
+      // stepped DC (mount discount folded in), the main cannon's power modes,
+      // a battery's threat/multiplier math.
+      let linkTip = '';
+      if (wep) {
+        const link = shipLinkOf(l), bat = shipBatteryOf(l);
+        if (link >= 2) {
+          const d = Math.round(Math.log2(link));
+          const dice = shipLinkedDice(wep.stat, link);
+          const grown = SHIP_SIZE_LADDER[shipWeaponSizeStep(wep.mss) + d] || 'beyond Colossal (Superheavy)';
+          const effDC = wep.dc ? wep.dc + 3 * d + (mnt ? mnt.disc : 0) : null;
+          linkTip = `\n⛓ Fire-linked ×${link} (FF p.641): ONE attack roll${dice ? ` · damage ${dice} (base ×${(2 + d) / 2}; capital dice scale alike)` : ` · damage ×${(2 + d) / 2}`} · size ${grown} (+1 category per doubling)${effDC ? ` · DC ${effDC} (printed ${wep.dc} +3 per doubling${mnt && mnt.disc ? ` ${mnt.disc} ${mnt.kind}` : ''})` : ''}`;
+          if (link >= 8) linkTip += `\n★ MAIN CANNON (FF p.642): one per ship (power demands) · threat +1 — crit ${shipThreatRange(wep.stat, 1)} · may fire at 25% power (dual-equivalent) or 50% (quad-equivalent) · always a SINGLE rate of fire.`;
+          else if (l.variable) linkTip += `\n⛓ Variable link (FF p.642): the gunner fires the weapons singly, in pairs, or at the full link, chosen attack to attack.`;
+        }
+        if (bat >= 2) {
+          linkTip = `\n⧉ Missile battery ×${bat} (FF p.642): ${bat} identical launchers fire as ONE weapon (one attack roll) · threat ${shipThreatRange(wep.stat, Math.min(bat - 1, 3))} (+${Math.min(bat - 1, 3)}) · crit multiplier ×${1 + bat} (+1 per extra missile) · a non-critical hit deals ONE missile's damage${wep.dc ? ` · DC ${wep.dc + 2} per launcher (${bat}× — printed ${wep.dc} +2)` : ' · +2 DC per launcher'} · one size category above the base weapon — Colossal (Light)+ hulls only · never split: all fire or none · vs force fields: crits never confirm, but damage lands per-missile.`;
+        }
+      }
+      const tip = wep ? `${wep.stat} · min ship ${wep.mss}${wep.dc ? ' · DC ' + wep.dc : ''}${autofireTip}${mountTip}${linkTip}` : dfx ? `Defense system · TS ${dfx.ts} · DC ${dfx.dc} · ${dfx.restriction}${fxLookup(dfx.name)}` : sen ? `Sensor system · TS ${sen.ts} · DC ${sen.dc}${fxLookup(sen.name)}` : fxLookup(l.gear);
+      const mountChip = wep ? [shipMountChip(l), shipLinkChip(l), shipBatteryChip(l)].filter(Boolean).join(' · ') : '';
       const sIcon = l.state === 'destroyed' ? '☠' : l.state === 'damaged' ? '⚑' : '●';
       const sColor = l.state === 'destroyed' ? '#999' : l.state === 'damaged' ? '#d47070' : '#6dba88';
       return `<div style="display:flex;align-items:center;gap:6px;font-size:11px;padding:1px 0;">
@@ -52851,7 +52978,7 @@ function printSheet(){
     const mParts = [];
     const loadoutLines = (it) => {
       const ll = (typeof paLoadout==='function')?paLoadout(it):[];
-      return ll.length?`<div style="font-size:7pt;color:#555;">${ll.map(l=>`${l.slot}: ${l.gear}${l.mount&&l.mount!=='turret'?` [${l.mount} ${(l.arcs||[]).map(a=>a[0]).join('/')}]`:''}${l.state&&l.state!=='ok'?` <b>[${l.state.toUpperCase()}]</b>`:''}`).join(' · ')}</div>`:'';
+      return ll.length?`<div style="font-size:7pt;color:#555;">${ll.map(l=>`${l.slot}: ${l.gear}${l.mount&&l.mount!=='turret'?` [${l.mount} ${(l.arcs||[]).map(a=>a[0]).join('/')}]`:''}${(typeof shipLinkOf==='function'&&shipLinkOf(l)>=2)?` <b>[${shipLinkOf(l)>=8?`main cannon ×${shipLinkOf(l)}`:`×${shipLinkOf(l)} link${l.variable?', variable':''}`}]</b>`:''}${(typeof shipBatteryOf==='function'&&shipBatteryOf(l)>=2)?` <b>[battery ×${shipBatteryOf(l)}]</b>`:''}${l.state&&l.state!=='ok'?` <b>[${l.state.toUpperCase()}]</b>`:''}`).join(' · ')}</div>`:'';
     };
     const pv = (typeof pilotedVehicle==='function')?pilotedVehicle(c):null;
     const pvG = (pv && typeof vehicleIntegrity==='function')?vehicleIntegrity(pv):null;
