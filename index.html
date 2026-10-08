@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.5.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.6.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1132,7 +1132,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
       </div>
       <div id="gear-tut-body" style="display:none;padding:0 14px 12px;font-size:12px;line-height:1.65;color:rgba(220,205,170,.88);">
         <p style="margin:.3rem 0 .6rem;">The top of the page is your ledger and combat dashboard. <b style="color:var(--gold);">Wealth</b> tracks your funds — every item added below is either 💰 <i>Purchased</i> (deducted at the market-adjusted DC) or 🎁 <i>Acquired</i> free. <b style="color:var(--gold);">Equipped — Held &amp; Worn</b> shows what is where on your body right now (hands, armor, and a two-handed weapon's claim on the off hand), and <b style="color:var(--gold);">Equipped Weapons — Attack &amp; Damage</b> is the live dashboard: attack and damage lines computed from your stats, proficiencies, mastercraft and enchantments, with alternate modes (autofire, flurry, Rapid Shot…) alongside. <b style="color:var(--gold);">Magic / Imbued Item Body Slots</b> maps the body-slot affinities — enchanted items land in their natural slot as you add them.</p>
-        <p style="margin:0;">Below that sit the inventories: <b style="color:var(--gold);">Enchanted &amp; Imbued Items</b> (browse the full catalogue), <b style="color:var(--gold);">Weapons</b>, <b style="color:var(--gold);">Armor &amp; Shields</b>, and <b style="color:var(--gold);">Tools &amp; Skill Kits</b> — add from the pickers, then <i>Equip</i>/<i>Unequip</i> on each row; ✎ renames an item, ✨ opens the mastercraft/enchant builder, 💱 sells it at another market's prices. (Owning a tool kit is enough to use it — no equipping needed.) At the bottom is the motor pool — <b style="color:var(--gold);">Vehicles</b>, <b style="color:var(--gold);">Mecha</b> (samples, or 🏗 custom builds), and <b style="color:var(--gold);">Starships</b> (🚀 commissioned through the shipyard). They are <i>bought</i> here but <i>operated</i> on the 🕹 Vehicles tab, which appears once you own something pilotable.</p>
+        <p style="margin:0;">Below that sit the inventories: <b style="color:var(--gold);">Enchanted &amp; Imbued Items</b> (browse the full catalogue), <b style="color:var(--gold);">Weapons</b>, <b style="color:var(--gold);">Armor &amp; Shields</b>, and <b style="color:var(--gold);">Tools &amp; Skill Kits</b> — add from the pickers, then <i>Equip</i>/<i>Unequip</i> on each row; the ▸ beside an item's name opens its dossier — provenance, Purchase DC, and the ✨ Enchant / Mastercraft controls (the result becomes the name: “+2 Mastercrafted (Damage) Plasma Pistol”); ✎ renames an item, 💱 sells it at another market's prices. (Owning a tool kit is enough to use it — no equipping needed.) At the bottom is the motor pool — <b style="color:var(--gold);">Vehicles</b>, <b style="color:var(--gold);">Mecha</b> (samples, or 🏗 custom builds), and <b style="color:var(--gold);">Starships</b> (🚀 commissioned through the shipyard). They are <i>bought</i> here but <i>operated</i> on the 🕹 Vehicles tab, which appears once you own something pilotable.</p>
       </div>
     </div>
 
@@ -1163,9 +1163,9 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
          useful reference, but perpetual noise for a fresh Level 1. -->
     <div class="sec-head sm" onclick="toggleGearMagicSlots()" style="cursor:pointer;user-select:none;"><span id="gear-magic-slots-chev" style="font-size:9px;color:var(--bronze);">▸</span> Magic / Imbued Item Body Slots <span class="cite cite-GG" title="GM's Guide, p. 222 — Body Slot Affinities for Enchanted and Imbued Items">GG 222</span> <span style="font-weight:400;font-size:10px;opacity:.5;text-transform:none;letter-spacing:0;">— click to expand</span></div>
     <div id="gear-magic-slots-wrap" style="display:none;">
-      <div style="margin-bottom:.5rem;font-size:11px;color:rgba(200,151,30,.6);">Ring (×2) and Imbued Tattoo (×20, temporary) slots are author rulings beyond the GM's Guide table. Add items from the catalogue below — they land in their natural slot.</div>
+      <div style="margin-bottom:.5rem;font-size:11px;color:rgba(200,151,30,.6);">A humanoid body wears one item per place — Head, Eyes, Neck, Torso, Body (one robe OR suit of armor), Waist, Shoulders, Arms/Wrists, Hands (gloves and gauntlets share), two Rings, Feet — plus the Back (house addendum †). The GM's Guide p. 222 table lists enchantment <i>affinities</i> within each place (hover a row). Ring (×2) and Imbued Tattoo (×20, temporary, no slot) are author rulings. Add items from the catalogue below — they land in their natural place.</div>
       <div class="panel" style="overflow-x:auto;margin-bottom:.9rem;">
-        <table class="sk-tbl"><thead><tr><th style="min-width:160px;">Slot</th><th>Affinity / Equipped</th></tr></thead><tbody id="gear-magic-slots"></tbody></table>
+        <table class="sk-tbl"><thead><tr><th style="min-width:160px;">Body Slot</th><th>Affinity / Equipped</th></tr></thead><tbody id="gear-magic-slots"></tbody></table>
       </div>
     </div>
 
@@ -10862,9 +10862,15 @@ async function addItemToChar(catalogue, ref, slot, opts) {
   // same capacity check toggleItemEquipped already enforces).
   // v8.6.1: virtual off-hand claim by an equipped two-handed weapon counts
   // against capacity, and an incoming two-hander needs the off hand free too.
-  const occupants = (c.items || []).filter(i => i.slot === slot && i.equipped).length
-    + ((slot === 'off_hand' && twoHandedEquipped(c)) ? 1 : 0);
-  let hasFreeSlot = slotDef && (occupants < (slotDef.capacity || 1));
+  // v9.6.0 (§255): body-slot occupancy counts per GROUP (the canonical
+  // twelve + Back) — a Hat must not auto-don over a worn Helmet.
+  const gidAdd = slotDef && slotDef.category === 'body' ? slotGroupIdOf(slot) : null;
+  const occupants = gidAdd
+    ? (c.items || []).filter(i => i.equipped && SLOT_GROUPS[gidAdd].slots.includes(i.catalogue === 'equipment' ? ((gearDef(i) || {}).slot || i.slot) : i.slot)).length
+      + ((SLOT_GROUPS[gidAdd].armorShares && (c.items || []).some(i => i.catalogue === 'armor' && i.equipped && i.slot === 'armor')) ? 1 : 0)
+    : (c.items || []).filter(i => i.slot === slot && i.equipped).length
+      + ((slot === 'off_hand' && twoHandedEquipped(c)) ? 1 : 0);
+  let hasFreeSlot = slotDef && (occupants < (gidAdd ? SLOT_GROUPS[gidAdd].cap : (slotDef.capacity || 1)));
   if (hasFreeSlot && catalogue === 'weapon' && weaponHands(entry) === 2
       && (c.items || []).some(i => i.slot === 'off_hand' && i.equipped)) hasFreeSlot = false;
   const item = {
@@ -12394,8 +12400,23 @@ function toggleItemEquipped(itemId) {
       const th = twoHandedEquipped(c);
       if (it.slot === 'off_hand' && th) { toast(`Off Hand is claimed by the two-handed ${th.ref}. Unequip it first.`); return; }
     }
-    const sameSlot = c.items.filter(i => i.slot === it.slot && i.equipped && i.id !== it.id);
-    if (sameSlot.length >= (slotDef.capacity || 1)) { toast(`${slotDef.label} slot is full (capacity ${slotDef.capacity}). Unequip something first.`); return; }
+    // v9.6.0 (§255, Adam's chart): body-slot occupancy is enforced per
+    // GROUP — Gloves and Gauntlets share the hands, a hat and a helmet the
+    // head, a torc the neck. Two rings; the Back is the house addendum.
+    const gid = slotDef.category === 'body' ? slotGroupIdOf(it.slot) : null;
+    if (gid) {
+      const g = SLOT_GROUPS[gid];
+      const effSlotOf = (i) => i.catalogue === 'equipment' ? ((gearDef(i) || {}).slot || i.slot) : i.slot;
+      const worn = c.items.filter(i => i.id !== it.id && i.equipped && g.slots.includes(effSlotOf(i)));
+      if (worn.length >= g.cap) { toast(`${g.label} is occupied by ${itemDisplayName(worn[0])}${g.cap > 1 ? ` (and ${worn.length - 1} more; capacity ${g.cap})` : ''}. One item per body slot — remove it first.`); return; }
+      // canon: one robe OR suit of armor on the body
+      if (g.armorShares && c.items.some(i => i.catalogue === 'armor' && i.equipped && i.slot === 'armor')) { toast('The Body is occupied by a suit of armor — a robe and armor cannot be worn together (one robe OR suit of armor on the body).'); return; }
+    } else {
+      const sameSlot = c.items.filter(i => i.slot === it.slot && i.equipped && i.id !== it.id);
+      if (sameSlot.length >= (slotDef.capacity || 1)) { toast(`${slotDef.label} slot is full (capacity ${slotDef.capacity}). Unequip something first.`); return; }
+      // canon, the other direction: donning armor is blocked by a worn robe
+      if (it.slot === 'armor' && c.items.some(i => i.id !== it.id && i.equipped && ((i.catalogue === 'equipment' ? ((gearDef(i) || {}).slot || i.slot) : i.slot) === 'robe'))) { toast('The Body is occupied by a robe — a robe and a suit of armor cannot be worn together.'); return; }
+    }
   }
   it.equipped = !it.equipped;
   save(); renderGear(); renderSheet(); renderSkills();
@@ -12528,26 +12549,55 @@ function toggleGadgetCtl(itemId) {
   if (_gadgetOpen.has(itemId)) _gadgetOpen.delete(itemId); else _gadgetOpen.add(itemId);
   if (typeof renderGear === 'function') renderGear();
 }
+// v9.6.0 (§255, Adam): the customization controls (Enchant / Mastercraft)
+// and the provenance + Purchase DC line collapse INTO the item name — the
+// name is the toggle, the decorated result ("+2 Mastercrafted (Damage)
+// Plasma Pistol") is the summary.
+const _itemOpen = new Set();
+function toggleItemCtl(itemId) {
+  if (_itemOpen.has(itemId)) _itemOpen.delete(itemId); else _itemOpen.add(itemId);
+  if (typeof renderGear === 'function') renderGear();
+}
 // v8.56.0 (playtest issue #3d): the body-slot rows, buildable for the Gear
 // dashboard (interactive) OR the Sheet's read-only reference copy.
 function magicSlotRowsHTML(c, interactive) {
-  const bodySlots = ITEM_SLOTS.filter(s => s.category === 'body');
-  return bodySlots.map(s => {
-    // v9.2.0: wearable equipment shares the body slots with magic items.
-    const inSlot = (i) => (i.catalogue === 'magic' && i.slot === s.id) || (i.catalogue === 'equipment' && (gearDef(i) || {}).slot === s.id);
-    const equipped = c.items.filter(i => inSlot(i) && i.equipped);
-    const free = (s.capacity || 1) - equipped.length;
-    const unequipped = c.items.filter(i => inSlot(i) && !i.equipped);
-    const chips = equipped.map(it => interactive
-      ? renderEquippedItemChip(it)
-      : `<span style="display:inline-flex;align-items:center;background:rgba(200,151,30,.08);border:1px solid rgba(200,151,30,.25);border-radius:3px;padding:2px 7px;font-size:11px;margin-right:4px;">${escapeHTML(itemDisplayName(it))}</span>`).join('');
+  // v9.6.0 (§255, Adam's chart): the dashboard shows the REAL body — the
+  // canonical twelve places plus the Back (house addendum), occupancy per
+  // group. The finer slot names (hat vs helmet, gloves vs gauntlets) remain
+  // as enchantment affinities in the hover and in the empty-row hint.
+  const slotById = (id) => ITEM_SLOTS.find(s => s.id === id) || {};
+  const chipOf = (it) => interactive
+    ? renderEquippedItemChip(it)
+    : `<span style="display:inline-flex;align-items:center;background:rgba(200,151,30,.08);border:1px solid rgba(200,151,30,.25);border-radius:3px;padding:2px 7px;font-size:11px;margin-right:4px;">${escapeHTML(itemDisplayName(it))}</span>`;
+  const rows = Object.keys(SLOT_GROUPS).map(gid => {
+    const g = SLOT_GROUPS[gid];
+    const inGroup = (i) => (i.catalogue === 'magic' && g.slots.includes(i.slot)) || (i.catalogue === 'equipment' && g.slots.includes((gearDef(i) || {}).slot));
+    const equipped = c.items.filter(i => inGroup(i) && i.equipped);
+    const armorWorn = g.armorShares && c.items.some(i => i.catalogue === 'armor' && i.equipped && i.slot === 'armor');
+    const free = g.cap - equipped.length - (armorWorn ? 1 : 0);
+    const unequipped = c.items.filter(i => inGroup(i) && !i.equipped);
+    const chips = equipped.map(chipOf).join('')
+      + (armorWorn ? `<span style="display:inline-flex;align-items:center;background:rgba(120,145,170,.1);border:1px solid rgba(120,145,170,.3);border-radius:3px;padding:2px 7px;font-size:11px;margin-right:4px;" title="One robe OR suit of armor on the body — the worn armor occupies this place.">🛡 suit of armor</span>` : '');
     const eqSel = (interactive && free > 0 && unequipped.length)
       ? `<select onchange="if(this.value){toggleItemEquipped(this.value);this.value='';}" style="font-size:11px;margin-left:6px;"><option value="">+ equip…</option>${unequipped.map(i => `<option value="${i.id}">${escapeHTML(i.ref)}</option>`).join('')}</select>`
       : '';
-    const empty = !equipped.length && !unequipped.length
-      ? `<span style="opacity:.45;font-size:11px;font-style:italic;">${escapeHTML(s.affinity || '')}</span>` : '';
-    return `<tr><td style="color:rgba(200,151,30,.7);">${s.label}${s.capacity > 1 ? ` <span style="opacity:.5;font-size:10px;">(×${s.capacity}${s.temporary ? ', temporary' : ''})</span>` : ''}</td><td>${chips}${eqSel}${empty}</td></tr>`;
-  }).join('');
+    const empty = (!equipped.length && !unequipped.length && !armorWorn)
+      ? `<span style="opacity:.45;font-size:11px;font-style:italic;">${escapeHTML(g.slots.map(id => slotById(id).label || id).join(' / '))}</span>` : '';
+    const affin = g.slots.map(id => { const s = slotById(id); return s.affinity ? `${s.label}: ${s.affinity}` : s.label; }).filter(Boolean).join(' · ');
+    return `<tr><td style="color:rgba(200,151,30,.7);${affin ? 'cursor:help;' : ''}" title="${escapeHTML(affin)}">${g.label}${g.cap > 1 ? ` <span style="opacity:.5;font-size:10px;">(×${g.cap})</span>` : ''}${g.house ? ' <span style="opacity:.5;font-size:9px;" title="House addendum — not in the canonical twelve.">†</span>' : ''}</td><td>${chips}${eqSel}${empty}</td></tr>`;
+  });
+  // Imbued tattoos take no body slot (temporary; bodily limit) — their row rides below the groups.
+  const t = ITEM_SLOTS.find(s => s.id === 'tattoo');
+  if (t) {
+    const inSlot = (i) => (i.catalogue === 'magic' && i.slot === 'tattoo') || (i.catalogue === 'equipment' && (gearDef(i) || {}).slot === 'tattoo');
+    const equipped = c.items.filter(i => inSlot(i) && i.equipped);
+    const unequipped = c.items.filter(i => inSlot(i) && !i.equipped);
+    const eqSel = (interactive && equipped.length < (t.capacity || 1) && unequipped.length)
+      ? `<select onchange="if(this.value){toggleItemEquipped(this.value);this.value='';}" style="font-size:11px;margin-left:6px;"><option value="">+ equip…</option>${unequipped.map(i => `<option value="${i.id}">${escapeHTML(i.ref)}</option>`).join('')}</select>` : '';
+    const empty = !equipped.length && !unequipped.length ? `<span style="opacity:.45;font-size:11px;font-style:italic;">${escapeHTML(t.affinity || '')}</span>` : '';
+    rows.push(`<tr><td style="color:rgba(200,151,30,.7);" title="${escapeHTML(t.note || '')}">${t.label} <span style="opacity:.5;font-size:10px;">(×${t.capacity}, temporary — takes no body slot)</span></td><td>${equipped.map(chipOf).join('')}${eqSel}${empty}</td></tr>`);
+  }
+  return rows.join('');
 }
 function addItemFromPicker(catalogue) {
   const sel = document.getElementById('gear-add-' + catalogue + '-sel');
@@ -12573,8 +12623,15 @@ function addGadgetFromPicker(itemId) {
 // "Frostbite" over "+2 Icy Burst Keen Longsword". Mechanics key off it.ref,
 // so a rename is pure flavor; enchantDisplayName resolves customName first.
 function itemDisplayName(it) {
-  if (it.customName || it.enchant) return enchantDisplayName(it);
-  return it.ref + (it.mastercraft ? ` (+${it.mastercraft.bonus} mastercraft)` : '');
+  // v9.6.0 (§255, Adam): the grade is part of the NAME — "+2 Mastercrafted
+  // (Damage) Plasma Pistol". A custom name stays pure flavor and overrides
+  // all decoration (the base ref rides in the small note beside it).
+  const base = (it.customName || it.enchant) ? enchantDisplayName(it) : it.ref;
+  if (it.customName) return base;
+  const mc = it.mastercraft && it.mastercraft.bonus > 0
+    ? `+${it.mastercraft.bonus} Mastercrafted${it.mastercraft.target ? ` (${it.mastercraft.target.charAt(0).toUpperCase() + it.mastercraft.target.slice(1)})` : ''} `
+    : '';
+  return mc + base;
 }
 
 function renderEquippedItemChip(it) {
@@ -12702,12 +12759,32 @@ function renderInventoryList(items, techScale, catalogue) {
       const offBusy = curChar && getCharItems(curChar).some(o => o.id !== it.id && o.equipped && o.slot === 'off_hand');
       return `<button class="btn btn-sm" style="font-size:10px;${on ? 'border-color:rgba(220,205,138,.6);color:rgba(220,205,138,.95);' : (offBusy ? 'opacity:.4;' : '')}" onclick="toggleTwoHandGrip('${it.id}')" title="${on ? 'Wielded in BOTH hands: Str ×1.5 damage, Power Attack ×2, off hand committed. Click to return to one hand.' : (offBusy ? 'Off hand is occupied — free it to take a two-handed grip.' : 'Wield this one-handed weapon in both hands (off hand stays committed): Str ×1.5 damage, Power Attack counts double.')}">🤲</button>`;
     })() : '';
+    // v9.6.0 (§255, Adam): line 1 = decorated name (the toggle) + state
+    // buttons + the end-of-line trio (rename / sell / remove). Provenance +
+    // Purchase DC open the collapsible; the Enchant / Mastercraft controls
+    // live inside it. Enchantments get their own chip line, like Gadgets.
+    const rowOpen = _itemOpen.has(it.id);
+    const priceHtml = (() => { const pts = (_priceCheckTs != null) ? _priceCheckTs : techScale; if (enchInfo) return priceSpan(dcForDollars(enchInfo.cost * 100), pts); const eff = (typeof itemEffectivePDC === 'function') ? itemEffectivePDC(it, def) : { dc: parseInt(def.dc, 10) || def.purchase_dc || 0, parts: [] }; return priceSpan(eff.dc, pts, (def.tl != null ? def.tl : def.tech_scale) || 0, eff.parts.length ? `Effective Purchase DC ${eff.dc} = base ${eff.base} + ${eff.parts.join(' + ')}.` : ''); })();
+    const provHtml = it.provenance
+      ? `<span style="font-size:10px;cursor:help;" title="${it.provenance === 'purchased' ? 'Purchased — paid from funds' : 'Acquired — loot, gift, or GM grant'}">${it.provenance === 'purchased' ? '💰 Purchased' : '🎁 Acquired'}</span>`
+      : '<span style="font-size:10px;opacity:.45;">provenance unrecorded</span>';
+    const custRow = (enchantBtn || mcControl) ? `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;font-size:10px;">${enchantBtn}<span>${mcControl}</span></div>` : '';
+    const dropdown = rowOpen
+      ? `<div style="margin-top:4px;padding:5px 8px;border:1px solid rgba(200,151,30,.18);border-radius:3px;background:rgba(200,151,30,.04);">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">${provHtml} ${priceHtml}</div>${custRow}
+        </div>`
+      : '';
+    // Enchantments / Imbuements chip line (the Gadgets line's twin): each
+    // built-in ability wears its GMG description as a hover pop-up.
+    const enchLine = enchInfo
+      ? `<div style="margin-top:3px;font-size:10px;">Enchantments / Imbuements: <span style="font-size:9px;padding:1px 5px;border-radius:2px;background:rgba(196,153,212,.12);border:1px solid rgba(196,153,212,.35);margin-right:3px;color:#c499d4;" title="${escapeHTML(`Aggregate modifier +${enchInfo.totalMod} · value ${enchInfo.cost.toLocaleString()} gp`)}">${enchInfo.imbued ? '◈ imbued' : '✨ enchanted'} +${enchInfo.enh}</span>${enchInfo.abilities.map(a => `<span title="${escapeHTML((a.def && a.def.d) ? a.def.d : (a.bonus ? `+${a.bonus} bonus equivalent` : `${a.gp.toLocaleString()} gp`))}" style="font-size:9px;padding:1px 5px;border-radius:2px;background:rgba(196,153,212,.08);border:1px solid rgba(196,153,212,.25);margin-right:3px;cursor:help;color:#c499d4;">${escapeHTML(a.name)}</span>`).join('')}${enchInfo.overCap ? ' <span style="font-size:9px;color:#d47070;" title="Aggregate modifier exceeds this item’s Tech Scale cap — recorded as a GM override.">⚑ over TS cap (GM)</span>' : ''}</div>`
+      : '';
     return `<div style="border:1px solid rgba(200,151,30,.15);border-radius:3px;padding:6px 8px;margin-bottom:5px;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-        <div><b${nameTip}>${escapeHTML((enchInfo || it.customName) ? enchantDisplayName(it) : it.ref)}</b>${it.customName ? ` <span style="font-size:9px;opacity:.55;">(${escapeHTML(it.ref)})</span>` : ''}${enchantTags}${profFlag} <span style="font-size:10px;opacity:.6;">(${catalogue}${it.equipped ? ', equipped' : ''})</span>${it.provenance ? ` <span style="font-size:10px;cursor:help;" title="${it.provenance === 'purchased' ? 'Purchased — paid from funds' : 'Acquired — loot, gift, or GM grant'}">${it.provenance === 'purchased' ? '💰' : '🎁'}</span>` : ''} ${(() => { const pts = (_priceCheckTs != null) ? _priceCheckTs : techScale; if (enchInfo) return priceSpan(dcForDollars(enchInfo.cost * 100), pts); const eff = (typeof itemEffectivePDC === 'function') ? itemEffectivePDC(it, def) : { dc: parseInt(def.dc, 10) || def.purchase_dc || 0, parts: [] }; return priceSpan(eff.dc, pts, (def.tl != null ? def.tl : def.tech_scale) || 0, eff.parts.length ? `Effective Purchase DC ${eff.dc} = base ${eff.base} + ${eff.parts.join(' + ')}.` : ''); })()}${armorStrip}</div>
-        <div style="display:flex;align-items:center;gap:6px;">${equipToggle}${handSwap}${gripBtn}${enchantBtn}${mcControl}<button class="btn btn-sm" style="font-size:10px;" onclick="renameItem('${it.id}')" title="Give this item a custom name (flavor only)">✎</button><button class="btn btn-sm" style="font-size:10px;" onclick="sellItem('${it.id}')" title="Sell — into any market's Tech Scale (cross-scalar; HH p.257 Sale Price rule applies)">💱</button><button class="btn btn-sm" style="font-size:10px;" onclick="removeItemFromChar('${it.id}')" title="Remove from inventory">🗑</button></div>
+        <div><span style="cursor:pointer;font-size:10px;opacity:.7;" onclick="toggleItemCtl('${it.id}')" title="${rowOpen ? 'Hide' : 'Show'} provenance, Purchase DC, and the Enchant / Mastercraft controls">${rowOpen ? '▾' : '▸'}</span> <b${nameTip || ` style="cursor:pointer;" onclick="toggleItemCtl('${it.id}')"`}>${escapeHTML(itemDisplayName(it))}</b>${it.customName ? ` <span style="font-size:9px;opacity:.55;">(${escapeHTML(it.ref)})</span>` : ''}${profFlag} <span style="font-size:10px;opacity:.6;">(${catalogue}${it.equipped ? ', equipped' : ''})</span>${armorStrip}</div>
+        <div style="display:flex;align-items:center;gap:6px;">${equipToggle}${handSwap}${gripBtn}<button class="btn btn-sm" style="font-size:10px;" onclick="renameItem('${it.id}')" title="Give this item a custom name (flavor only)">✎</button><button class="btn btn-sm" style="font-size:10px;" onclick="sellItem('${it.id}')" title="Sell — into any market's Tech Scale (cross-scalar; HH p.257 Sale Price rule applies)">💱</button><button class="btn btn-sm" style="font-size:10px;" onclick="removeItemFromChar('${it.id}')" title="Remove from inventory">🗑</button></div>
       </div>
-      ${effectNote}${gadgetHtml}
+      ${dropdown}${effectNote}${enchLine}${gadgetHtml}
     </div>`;
   }).join('');
 }
@@ -26338,6 +26415,32 @@ const ITEM_SLOTS = /*<<JSON:ITEM_SLOTS>>*/ [
     "note": "Unslotted gear (tool kits, consumables, misc). Tool-kit skill bonuses apply by ownership (no equip needed)."
   }
 ] /*<<END:ITEM_SLOTS>>*/;
+
+// v9.6.0 (§255, Adam's chart, 2026-10-07): THE REAL BODY SLOTS. The GMG
+// p.222 table lists enchantment AFFINITIES (a hat and a helmet predispose
+// toward different magics), but a humanoid body has only twelve places —
+// plus the Back, the house addendum — one item each, two rings. OCCUPANCY
+// is enforced per GROUP; the finer ITEM_SLOTS ids survive as affinity
+// labels and stable save-file references. Canon: one robe OR suit of armor
+// on the body; tattoos take no slot (temporary, bodily limit 20).
+const SLOT_GROUPS = {
+  head:      { label: 'Head',          slots: ['head', 'hat', 'phylactery'], cap: 1 },
+  eyes:      { label: 'Eyes',          slots: ['eyes'],                      cap: 1 },
+  neck:      { label: 'Neck',          slots: ['neck', 'torc'],              cap: 1 },
+  torso:     { label: 'Torso',         slots: ['shirt', 'vest'],             cap: 1 },
+  body:      { label: 'Body',          slots: ['robe'],                      cap: 1, armorShares: true },
+  waist:     { label: 'Waist',         slots: ['belt'],                      cap: 1 },
+  shoulders: { label: 'Shoulders',     slots: ['shoulders'],                 cap: 1 },
+  back:      { label: 'Back',          slots: ['back'],                      cap: 1, house: true },
+  arms:      { label: 'Arms / Wrists', slots: ['bracers', 'bracelets'],      cap: 1 },
+  hands:     { label: 'Hands',         slots: ['gloves', 'gauntlets'],       cap: 1 },
+  rings:     { label: 'Rings',         slots: ['ring'],                      cap: 2 },
+  feet:      { label: 'Feet',          slots: ['boots'],                     cap: 1 },
+};
+function slotGroupIdOf(slotId) {
+  for (const gid in SLOT_GROUPS) if (SLOT_GROUPS[gid].slots.includes(slotId)) return gid;
+  return null;
+}
 
 // ----- Enchanted & Imbued Item catalogue (GMG Ch.V pp.212-373; intelligent
 // items EXCLUDED per Adam 2026-09-01 — reserved for the GM's Familiar) -----
