@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.7.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.8.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -46720,9 +46720,37 @@ async function paAddLoadoutLine(itemId) {
       gear = await textModal('✎ Custom loadout line', 'Name the equipment (e.g. "M-9 Barrage Chaingun").', '');
       if (!gear) return;
     }
+    // v9.8.0 (§258): the mount economy (FF p.640; GMG p.474) — a starship
+    // beam/projectile weapon picks its mount at purchase: full turret (the
+    // printed DC, any direction, the stock-ship default), cupola (two
+    // adjacent arcs, −1 DC) or fixed (one arc, −2 DC). Missiles stay omni
+    // (mount option awaits Adam's ruling); mines and grapple systems have none.
+    let mountPick = null;
+    const wepRow = it.catalogue === 'starship' ? STARSHIP_WEAPONS.find(w => w.name === gear) : null;
+    if (wepRow && shipWeaponTakesMount(wepRow.name)) {
+      const dcN = wepRow.dc;
+      const mk = await new Promise(res => openChoiceModal(`Mount for the ${gear} (FF p.640 — the printed Purchase DC buys a full turret; restricted mounts discount it)`, [
+        `Turret / bank — fires any direction${dcN ? ` · printed DC ${dcN}` : ''} (the default; stock FF ships are all-turret, GMG p.474)`,
+        `Cupola — two ADJACENT arcs${dcN ? ` · DC ${dcN - 1}` : ''} (−1 DC)`,
+        `Fixed mount — one arc${dcN ? ` · DC ${dcN - 2}` : ''} (−2 DC)`,
+      ], res));
+      if (!mk) return;
+      if (mk.startsWith('Cupola')) {
+        const pair = await new Promise(res => openChoiceModal('Cupola coverage — two adjacent arcs (Port/Starboard and Fore/Aft are not adjacent pairs, FF p.640)', SHIP_CUPOLA_PAIRS, res));
+        if (!pair) return;
+        mountPick = { mount: 'cupola', arcs: pair.split('/') };
+      } else if (mk.startsWith('Fixed')) {
+        const arc = await new Promise(res => openChoiceModal('Fixed mount — which arc does it cover?', SHIP_FIXED_ARCS, res));
+        if (!arc) return;
+        mountPick = { mount: 'fixed', arcs: [arc] };
+      }
+    }
     const slot = await textModal('Which slot?', 'e.g. Helmet, Left Arm, Shoulders, Boots, (no slot). Slot capacity is GM-adjudicated in Segment B.', '');
-    paLoadout(it).push({ slot: slot || '(no slot)', gear, state: 'ok' });
-    logAct(`${enchantDisplayName(it)} — installed ${gear}${slot ? ' (' + slot + ')' : ''}.`);
+    paLoadout(it).push(Object.assign({ slot: slot || '(no slot)', gear, state: 'ok' }, mountPick || {}));
+    const mountNote = wepRow && shipWeaponTakesMount(wepRow.name)
+      ? (mountPick ? ` — ${mountPick.mount} ${mountPick.arcs.join('/')} (${SHIP_MOUNT_KINDS[mountPick.mount].disc} DC${wepRow.dc ? ` → DC ${wepRow.dc + SHIP_MOUNT_KINDS[mountPick.mount].disc}` : ''}, FF p.640)` : ` — full turret (any direction${wepRow.dc ? `, printed DC ${wepRow.dc}` : ''}, FF p.640)`)
+      : (wepRow && /^Missile,/.test(wepRow.name) ? ' — omni launcher (a missile mount option awaits Adam’s ruling)' : '');
+    logAct(`${enchantDisplayName(it)} — installed ${gear}${slot ? ' (' + slot + ')' : ''}${mountNote}.`);
     save(); renderVehicles(); renderSheet(); if (typeof renderSkills === 'function') renderSkills();
   });
 }
@@ -47327,6 +47355,33 @@ const STARSHIP_WEAPONS = [
   { name: 'Grapplers', ts: 5, mss: 'Huge', dc: null, stat: 'Grappling system (counts as a weapon slot) — latch via Pilot check (DC by target size + touch AC); DC 10 + ½ base ship' },
   { name: 'Tractor Beam Emitter', ts: 7, mss: 'Colossal', dc: null, stat: 'Grappling system (counts as a weapon slot) — ranged-attack gravity tether; immobilizes smaller ships; DC 15 + ½ base ship · Lic (+1)' },
 ];
+// v9.8.0 (§258) — THE MOUNT ECONOMY (FF p.640; GMG p.474; HELM v0.10.0 twin).
+// A starship beam/projectile weapon's printed Purchase DC buys a FULL TURRET
+// or bank firing in any direction. Optional mounts trade coverage for cost:
+// CUPOLA = two ADJACENT arcs (Fore/Starboard, Fore/Port, Aft/Starboard,
+// Aft/Port — never Port/Starboard or Fore/Aft) at −1 DC; FIXED turret = one
+// arc at −2 DC. GMG p.474: a statblock printing no arc is a full turret, so
+// stock FF ships are all-turret as printed. MISSILES: always omni — the FF
+// prints no missile mount text; a missile mount option AWAITS ADAM'S RULING
+// (proposed: omni only, no discount). Mines are deployed and grapple systems
+// latch — neither takes a mount.
+const SHIP_MOUNT_KINDS = {
+  turret: { label: 'Turret / bank', disc: 0, icon: '⌖' },
+  cupola: { label: 'Cupola', disc: -1, icon: '◧' },
+  fixed: { label: 'Fixed mount', disc: -2, icon: '▮' },
+};
+const SHIP_CUPOLA_PAIRS = ['Fore/Starboard', 'Fore/Port', 'Aft/Starboard', 'Aft/Port'];
+const SHIP_FIXED_ARCS = ['Fore', 'Starboard', 'Port', 'Aft'];
+function shipWeaponTakesMount(name) { return !/^(Missile|Mine),/.test(name) && name !== 'Grapplers' && name !== 'Tractor Beam Emitter'; }
+function shipMountOf(line) {
+  const kind = SHIP_MOUNT_KINDS[line.mount] ? line.mount : 'turret';
+  return Object.assign({ kind, arcs: line.arcs || [] }, SHIP_MOUNT_KINDS[kind]);
+}
+// The chip a restricted mount wears on its loadout row and the print sheet (arcs by initial: F/S/P/A).
+function shipMountChip(line) {
+  const m = shipMountOf(line);
+  return m.kind === 'turret' ? '' : `${m.icon} ${m.kind} ${m.arcs.map(a => a[0]).join('/')} (${m.disc} DC)`;
+}
 const STARSHIP_DEFENSES = [
   ['Autopilot System', 5, '5 + ¼ ship', '—'], ['Damage Control System', 5, 'varies', '—'], ['Sensor Jammer', 5, '5 + ½ ship', 'Mil (+3)'],
   ['Autopilot System, Improved', 6, '5 + ½ ship', '—'], ['Chaff Launcher', 6, '20', 'Lic (+1)'], ['Damage Control, Improved', 6, 'varies', 'Lic (+1)'],
@@ -47799,9 +47854,12 @@ function renderStarshipCards(c) {
     }).join('');
     const critTip = 'Starship Critical Hits (FF p.648 — the table header misprints d%; it is a d20): 1-7 normal crit · 8-10 crit + crew casualties (1d10) · 11-16 damaged system (comm/targeting/weapon/defense/engines[−1,000 ft]/sensors[blind]) — repair 10 hrs DC 30 or jury-rig DC 25 · 17 defense destroyed · 18 weapon destroyed · 19 severe ×10 + casualties · 20 severe ×10 + gravity out 1d10 rds.';
     const loadout = paLoadout(it).map((l, idx) => {
-      const wep = STARSHIP_WEAPONS.find(w => l.gear.startsWith(w.name));
-      const dfx = STARSHIP_DEFENSES.find(d => l.gear.startsWith(d.name));
-      const sen = STARSHIP_SENSORS.find(d => l.gear.startsWith(d.name));
+      // v9.8.0 (§258, probe catch): longest name wins — "Laser, Heavy" was
+      // matching the plain "Laser" row (and "…, Improved" its base) by array order.
+      const longest = (rows) => rows.filter(w => l.gear.startsWith(w.name)).sort((a, b) => b.name.length - a.name.length)[0];
+      const wep = longest(STARSHIP_WEAPONS);
+      const dfx = longest(STARSHIP_DEFENSES);
+      const sen = longest(STARSHIP_SENSORS);
       // v8.26.0 pass 2: the per-system effect prose (FF pp.646-661) reaches
       // the tooltips — the pass-1 "table-level" placeholder retires. Auto-
       // capable weapons carry the FF p.640 autofire ladder.
@@ -47811,13 +47869,20 @@ function renderStarshipCards(c) {
         return key ? '\n— ' + STARSHIP_SYSTEM_FX[key] : '';
       };
       const autofireTip = (wep && /Auto/.test(wep.stat)) ? '\n✈ AUTOFIRE (FF p.640): target a 1,000-ft cube (4 hx) vs AC 10 — every ship inside: Pilot DC 15 or take the damage (size penalty: Garg −0 · C-UL −4 · C-L −8 · C-M −12 · C-H −16 · C-SH −20). Anti-missile: vs AC 20; each missile rolls automated Pilot DC 15.' : '';
-      const tip = wep ? `${wep.stat} · min ship ${wep.mss}${wep.dc ? ' · DC ' + wep.dc : ''}${autofireTip}` : dfx ? `Defense system · TS ${dfx.ts} · DC ${dfx.dc} · ${dfx.restriction}${fxLookup(dfx.name)}` : sen ? `Sensor system · TS ${sen.ts} · DC ${sen.dc}${fxLookup(sen.name)}` : fxLookup(l.gear);
+      // v9.8.0 (§258): the mount rides the tooltip — turret (printed DC, any
+      // direction), cupola/fixed with the discounted DC, missiles omni.
+      const mnt = wep ? shipMountOf(l) : null;
+      const mountTip = wep ? (shipWeaponTakesMount(wep.name)
+        ? `\n⌖ Mount: ${mnt.kind === 'turret' ? `full turret/bank — fires any direction; the printed DC includes it (FF p.640; stock FF ships are all-turret, GMG p.474)` : `${mnt.kind} ${mnt.arcs.join('/')}${wep.dc ? ` — DC ${wep.dc + mnt.disc} (printed ${wep.dc} −${Math.abs(mnt.disc)} ${mnt.kind}, FF p.640)` : ` (${mnt.disc} DC, FF p.640)`}`}`
+        : (/^Missile,/.test(wep.name) ? '\n⌖ Omni launcher — missiles fire any direction (FF p.641); a missile mount option awaits Adam’s ruling.' : '')) : '';
+      const tip = wep ? `${wep.stat} · min ship ${wep.mss}${wep.dc ? ' · DC ' + wep.dc : ''}${autofireTip}${mountTip}` : dfx ? `Defense system · TS ${dfx.ts} · DC ${dfx.dc} · ${dfx.restriction}${fxLookup(dfx.name)}` : sen ? `Sensor system · TS ${sen.ts} · DC ${sen.dc}${fxLookup(sen.name)}` : fxLookup(l.gear);
+      const mountChip = wep ? shipMountChip(l) : '';
       const sIcon = l.state === 'destroyed' ? '☠' : l.state === 'damaged' ? '⚑' : '●';
       const sColor = l.state === 'destroyed' ? '#999' : l.state === 'damaged' ? '#d47070' : '#6dba88';
       return `<div style="display:flex;align-items:center;gap:6px;font-size:11px;padding:1px 0;">
         <button class="btn btn-sm" style="font-size:9px;padding:0 4px;color:${sColor};" title="Cycle: ok → damaged (10 hrs, Repair DC 30; jury-rig DC 25 for the battle) → destroyed (replace) → ok" onclick="paCycleSlotState('${it.id}',${idx})">${sIcon}</button>
         <span style="color:rgba(200,151,30,.55);min-width:80px;">${escapeHTML(l.slot)}</span>
-        <span style="flex:1;${l.state !== 'ok' ? 'opacity:.5;text-decoration:line-through;' : ''}${l.fixed ? 'color:#78afcd;' : ''}${wep ? 'color:#d4865a;' : ''}" ${tip ? `title="${escapeHTML(tip)}" style="cursor:help;"` : ''}>${escapeHTML(l.gear)}</span>
+        <span style="flex:1;${l.state !== 'ok' ? 'opacity:.5;text-decoration:line-through;' : ''}${l.fixed ? 'color:#78afcd;' : ''}${wep ? 'color:#d4865a;' : ''}" ${tip ? `title="${escapeHTML(tip)}" style="cursor:help;"` : ''}>${escapeHTML(l.gear)}${mountChip ? ` <span style="color:#78afcd;font-size:9.5px;">${escapeHTML(mountChip)}</span>` : ''}</span>
         ${l.fixed ? '' : `<button class="btn btn-sm" style="font-size:9px;padding:0 4px;" onclick="paRemoveLoadoutLine('${it.id}',${idx})">✕</button>`}
       </div>`;
     }).join('');
@@ -52786,7 +52851,7 @@ function printSheet(){
     const mParts = [];
     const loadoutLines = (it) => {
       const ll = (typeof paLoadout==='function')?paLoadout(it):[];
-      return ll.length?`<div style="font-size:7pt;color:#555;">${ll.map(l=>`${l.slot}: ${l.gear}${l.state&&l.state!=='ok'?` <b>[${l.state.toUpperCase()}]</b>`:''}`).join(' · ')}</div>`:'';
+      return ll.length?`<div style="font-size:7pt;color:#555;">${ll.map(l=>`${l.slot}: ${l.gear}${l.mount&&l.mount!=='turret'?` [${l.mount} ${(l.arcs||[]).map(a=>a[0]).join('/')}]`:''}${l.state&&l.state!=='ok'?` <b>[${l.state.toUpperCase()}]</b>`:''}`).join(' · ')}</div>`:'';
     };
     const pv = (typeof pilotedVehicle==='function')?pilotedVehicle(c):null;
     const pvG = (pv && typeof vehicleIntegrity==='function')?vehicleIntegrity(pv):null;
