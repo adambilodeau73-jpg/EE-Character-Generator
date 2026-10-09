@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.9.2</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.9.3</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1429,7 +1429,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
     <div class="panel" style="margin-bottom:.9rem;">
       <div class="sec-head sm">Add a Talent</div>
       <div style="font-size:13px;color:rgba(200,151,30,.75);margin-bottom:.5rem;line-height:1.5;">
-        Browse the talent catalog with live prereq validation. Only your Hero class trees are shown by default; if you have Multi-Talented, you can browse other classes' trees as well.
+        Browse the talent catalog with live prereq validation. Only your Hero class trees are shown by default; Multi-Talented — or a "Bonus Feat or Talent" flex slot (Anti-Hero 1+, Super-Hero/Villain 2+) with 13+ in the tree's associated attribute — opens other classes' trees as well.
       </div>
       <div class="btn-row">
         <button class="btn btn-sm btn-pri" onclick="openTalentBrowser()">⌕ Browse Talents</button>
@@ -16540,9 +16540,32 @@ function checkTalentPrereqs(talentName, c) {
   // (For v8.3.21, presence of Multi-Talented unlocks any one cross-class
   // talent; we don't track which class the bonus is "spent on" — that's a
   // v8.3.22+ refinement.)
+  // v9.9.3 (§262): the v8.11.1 flex classes open cross-class talents too.
+  // Anti-Hero (Talent @1, convertible slots 3/5/7/9) and Super-Hero /
+  // Super-Villain (Bonus Feat or Talent @2/@4) may take "a Talent from any
+  // Hero class for which they qualify (i.e., a score of 13+ in that Hero
+  // class's associated attribute)", treated as 1st level in unowned classes
+  // (GMG p.152 / p.183). The budget side (getTalentBudget's flexUsed) was
+  // wired in v8.11.1 but this gate never learned about it, so the talent
+  // half of "Bonus Feat or Talent" was unreachable cross-class. Like
+  // Multi-Talented, spend is not tracked here — the four-state budget
+  // display owns the accounting.
   if (t.hero_class && !heroClassNames.has(t.hero_class)) {
-    if (!hasMultiTalented) {
-      missing.push(`Requires a level in ${t.hero_class}`);
+    const _flexLvl = (n) => classArr.filter(e => e.name === n).reduce((s, e) => s + (e.level || 0), 0);
+    const hasFlexClass = _flexLvl('Anti-Hero') >= 1 || _flexLvl('Super-Hero') >= 2 || _flexLvl('Super-Villain') >= 2;
+    let flexAttrOk = false, flexAttrKey = null;
+    if (hasFlexClass && typeof HERO_CLASSES === 'object' && HERO_CLASSES[t.hero_class]) {
+      flexAttrKey = HERO_CLASSES[t.hero_class].attr || null;
+      const _ai = {STR:0, DEX:1, CON:2, INT:3, WIS:4, CHA:5}[flexAttrKey];
+      if (_ai !== undefined && c) {
+        const _scores = (typeof effAttrs === 'function') ? effAttrs(c) : (c.attrs || [10,10,10,10,10,10]);
+        flexAttrOk = ((_scores && _scores[_ai]) || 10) >= 13;
+      }
+    }
+    if (!hasMultiTalented && !flexAttrOk) {
+      missing.push(hasFlexClass && flexAttrKey
+        ? `Requires a level in ${t.hero_class} — or ${flexAttrKey} 13+ to take it cross-class via your Bonus Feat or Talent flex (treated as 1st level)`
+        : `Requires a level in ${t.hero_class}`);
     }
   }
 
