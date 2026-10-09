@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.9.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.9.2</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -38962,7 +38962,26 @@ async function saveCharacter(){
                        // v8.5.4 wipe trap — an edit-save silently dropped every implant
                        // and active gear Boon. (cybNacHpApplied deliberately NOT
                        // preserved — the reconciler re-bakes onto the fresh maxHP.)
-                       'cybernetics','activeEffects']) {
+                       'cybernetics','activeEffects',
+                       // v9.9.2 (§261, 2026-10-09): the SYSTEMATIC AUDIT — after the trap
+                       // bit twice (v8.5.4, §260), every `c.<field> =` site in the file
+                       // was enumerated and classified. These thirteen runtime fields had
+                       // accumulated since v8.3.x–v9.x with no preservation line; an
+                       // edit-save wiped each one. The Mind's Ledger (c.mind), ability
+                       // damage (c.attrDmg), the nonlethal tally, declared combat stances,
+                       // psionic/battle focus, the Techsmith mastercraft reserve, the MDT
+                       // adjustment, Mental Pinnacle picks, Second Skin, the career goal,
+                       // the HP-auto-assign flag and the NAC-banner dismissal all live
+                       // ONLY on the saved record — nothing re-derives them.
+                       // (conDmgHpApplied deliberately NOT preserved — ledger convention;
+                       // reconcileConDamageHP below re-debits onto the fresh maxHP.
+                       // actionLog, fatePoints and talents need no line here — the
+                       // assembly literal above pre-merges them from the prior record.
+                       // ap/apMax deliberately restamped fresh: the AP pool replenishes,
+                       // and fatePoints preservation already carries the permanent spend.)
+                       'attrDmg','nlDmg','battleFocused','psiFocused','combatDecl',
+                       'mdtAdj','mcReserve','careerGoal','mentalPinnacle','mind',
+                       'secondSkin','hpAutoAssigned','_natACDismissed']) {
         // (talentHpApplied deliberately NOT preserved — reconcileTalentHp
         // re-applies onto the assembly's fresh maxHP, like mutNacHpApplied.)
         if (chars[idx][k] !== undefined) char[k] = chars[idx][k];
@@ -39006,6 +39025,19 @@ async function saveCharacter(){
       reconcileGrantedFeats(char);  // v8.6.1: class-entry feat grants (Monk CMA/DMA) sync with the edited class array
       reconcileTalentHp(char);  // v8.8.0: Robust HP re-applies onto the fresh maxHP (talentHpApplied not preserved — same convention as mutNacHpApplied)
       if (typeof reconcileMutantSubtype === 'function') reconcileMutantSubtype(char);  // v8.67.0: Unnatural Prowess/Resilience re-apply onto the fresh bab/def/maxHP (mutSubApplied not preserved — same convention)
+      // v9.9.2 (§261): attrDmg is now preserved above, but its HP ledger
+      // (conDmgHpApplied) follows the not-preserved convention — and its
+      // reconciler otherwise runs only on damage/heal events, which left the
+      // rebuilt maxHP un-debited until the next hit. Re-debit here, like the
+      // other ledgers. The preserved currentHP already carries the debit from
+      // the live damage event, so only maxHP needs it back: snapshot current
+      // around the call (the ledger was wiped, so the reconciler would debit
+      // BOTH and double-charge current); the v8.12.3 clamp below still rules.
+      if (typeof reconcileConDamageHP === 'function') {
+        const _curSnap = char.currentHP;
+        reconcileConDamageHP(char);
+        if (typeof _curSnap === 'number' && isFinite(_curSnap)) char.currentHP = _curSnap;
+      }
       // v8.12.3 (Adam's Rhad retcon report): a class retcon can legitimately
       // SHRINK the recomputed maxHP (a d10 level traded for a d6 one) while
       // currentHP is preserved verbatim above — leaving impossibilities like
