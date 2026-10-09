@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.9.3</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.10.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -6086,7 +6086,13 @@ function getCatalogueEntry(catalogue, ref) {
   if (catalogue === 'weapon') return WEAPONS_CATALOG.find(w => w.name === ref) || null;
   if (catalogue === 'armor') return ARMOR_CATALOG.find(a => a.name === ref) || null;
   if (catalogue === 'equipment') return EQUIPMENT_ITEMS.find(e => e.name === ref) || null;
-  if (catalogue === 'magic') return MAGIC_ITEMS_DB.find(m => m.name === ref) || null;  // v8.6.0
+  if (catalogue === 'magic') {
+    // v9.10.0 (§263): case-insensitive fallback — the title-case sweep of
+    // the catalogue names must not orphan items owned under the old casing.
+    return MAGIC_ITEMS_DB.find(m => m.name === ref)
+        || MAGIC_ITEMS_DB.find(m => m.name.toLowerCase() === String(ref).toLowerCase())
+        || null;  // v8.6.0
+  }
   if (catalogue === 'vehicle') return VEHICLES_DB.find(v => v.name === ref) || null;   // v8.13.x Segment A
   if (catalogue === 'mecha') return (typeof MECHA_UNITS !== 'undefined' && MECHA_UNITS[ref]) || null;  // v8.17.0 Segment C
   if (catalogue === 'starship') return (typeof STARSHIP_SUBTYPES !== 'undefined' && STARSHIP_SUBTYPES[ref]) || null;  // v8.18.0 Segment D
@@ -9581,6 +9587,27 @@ function computeGrapple(c) {
   return { total, parts, sizeIdx };
 }
 
+// v9.10.0 (§263, Adam's Tytyvyllus report): named movement powers feed the
+// Speed cell. Keyed by spell/power NAME, so the same map serves (a) owned
+// super-powers (pool:'super' — at-will, permanent display) and (b) active
+// buff effects (c.activeEffects from casts — display while in effect).
+// Every number verified against the HH dump: Fly "at a speed of 60 ft.",
+// Overland Flight 40 ft., Spider Climb "climb speed of 20 feet",
+// Ectoplasmic Form "20 feet (perfect)", Expeditious Route +30 ft.,
+// Longstrider +10 ft., Haste "+30 feet, to a maximum of twice... normal"
+// (all modes, enhancement — multiple Hastes don't stack), Levitate
+// "up or down as much as 20 feet each round; doing so is a move action".
+// Extend here as more movement powers come up.
+const MOVEMENT_GRANTS = {
+  'Fly':               { mode: { type: 'Fly', speed: 60, note: 'Fly' } },
+  'Overland Flight':   { mode: { type: 'Fly', speed: 40, note: 'Overland Flight' } },
+  'Spider Climb':      { mode: { type: 'Climb', speed: 20, note: 'Spider Climb' } },
+  'Ectoplasmic Form':  { mode: { type: 'Fly', speed: 20, note: 'perfect (Ectoplasmic Form)' } },
+  'Levitate':          { mode: { type: 'Levitate', speed: 20, note: 'up/down only, move action (Levitate)' } },
+  'Expeditious Route': { walk: 30 },
+  'Longstrider':       { walk: 10 },
+  'Haste':             { haste: true },
+};
 function computeSpeeds(c) {
   // v8.68.0: a Hybrid's size parent governs movement too (HH p.30 — size is
   // selected "by which the character's movement modes and movement rate are
@@ -9667,6 +9694,17 @@ function computeSpeeds(c) {
   for (const a of ((c.activeEffects || []).filter(x => x.gear))) for (const e of a.effects) {
     if (e.k === 'speed') { walk += e.v; parts.push(`+${e.v}′ ${a.name} (active)`); }
   }
+  // v9.10.0 (§263): named movement BUFFS — walk bonuses while in effect
+  // (gear Boons keep their own k:'speed' channel above).
+  let _hasted = false;
+  for (const a of (c.activeEffects || [])) {
+    if (a.gear) continue;
+    const g = MOVEMENT_GRANTS[a.name];
+    if (!g) continue;
+    if (g.walk) { walk += g.walk; parts.push(`+${g.walk}′ ${a.name} (active)`); }
+    if (g.haste) _hasted = true;
+  }
+  if (_hasted) { const hb = Math.min(30, walk); walk += hb; parts.push(`+${hb}′ Haste (active — all modes +30′, max ×2, enhancement; multiple Hastes don't stack)`); }
   const out = { walk: Math.max(0, walk), run, parts, modes: [] };
   for (const a of ((c.activeEffects || []).filter(x => x.gear))) for (const e of a.effects) {
     if (e.k === 'fly') out.modes.push({ type: 'Fly', speed: e.v, note: `${e.note || ''} (${a.name} — active)` });
@@ -9676,6 +9714,32 @@ function computeSpeeds(c) {
   for (const m of (rdef.modes || [])) out.modes.push({ type: m.type, speed: Math.max(0, m.speed - reduced), note: m.note || `${race} racial` });
   // Other movement modes from mutations.
   if ((c.mutations || []).some(m => m.name === 'Wings') && !out.modes.some(m => m.type === 'Fly')) out.modes.push({ type: 'Fly', speed: Math.max(0, 60 - reduced), note: 'average maneuverability (Wings)' });
+  // v9.10.0 (§263, Adam's Tytyvyllus report): alternate locomotion joins the
+  // Speed cell. (a) Named movement BUFFS grant their mode while active;
+  // (b) owned SUPER-POWERS (pool:'super') grant theirs permanently — at
+  // will, so they belong on the dashboard (Su: suppressed while nullified,
+  // the Hyper-Speed treatment). A super mode is skipped when an equal-or-
+  // faster mode of the same type is already listed (racial Fly outruns the
+  // power; no duplicate rows).
+  for (const a of (c.activeEffects || [])) {
+    if (a.gear) continue;
+    const g = MOVEMENT_GRANTS[a.name];
+    if (g && g.mode) out.modes.push({ type: g.mode.type, speed: g.mode.speed, note: `${g.mode.note} — active` });
+  }
+  for (const p of (c.powers || [])) {
+    if (p.pool !== 'super') continue;
+    const g = MOVEMENT_GRANTS[p.name];
+    if (!g || !g.mode) continue;
+    if (c.nullified) { parts.push(`⊘ ${p.name} suppressed (nullified)`); continue; }
+    if (!out.modes.some(m => m.type === g.mode.type && m.speed >= g.mode.speed)) {
+      out.modes.push({ type: g.mode.type, speed: g.mode.speed, note: `${g.mode.note} — super-power, at will` });
+    }
+  }
+  // Haste reaches every mode: +30′ each, capped at twice that mode's speed.
+  if (_hasted) for (const m of out.modes) {
+    const hb = Math.min(30, m.speed);
+    if (hb > 0) { m.speed += hb; m.note = `${m.note} · Haste +${hb}′`; }
+  }
   return out;
 }
 function armorStatStrip(def, it) {
@@ -28192,7 +28256,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": "A weapon of this type enables its wielder to determine the location, depth, kind, and number of aquatic predators within 680 feet. A trident of warning must be grasped and pointed in order for the character using it to gain such information, and it requires 1 round to scan a hemisphere with a radius of 680 feet. The weapon is otherwise a +2 trident."
  },
  {
-  "name": "Cure light wounds (potion)",
+  "name": "Cure Light Wounds (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28203,7 +28267,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Endure elements (potion)",
+  "name": "Endure Elements (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28214,7 +28278,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Hide from animals (potion)",
+  "name": "Hide from Animals (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28225,7 +28289,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Hide from undead (potion)",
+  "name": "Hide from Undead (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28236,7 +28300,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Jump (potion)",
+  "name": "Jump (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28247,7 +28311,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Mage armor (potion)",
+  "name": "Mage Armor (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28258,7 +28322,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Magic fang (potion)",
+  "name": "Magic Fang (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28269,7 +28333,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Magic stone (oil)",
+  "name": "Magic Stone (Oil)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28280,7 +28344,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Magic weapon (oil)",
+  "name": "Magic Weapon (Oil)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28291,7 +28355,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Pass without trace (potion)",
+  "name": "Pass Without Trace (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28302,7 +28366,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Protection from (alignment) (potion)",
+  "name": "Protection from (Alignment) (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28313,7 +28377,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Remove fear (potion)",
+  "name": "Remove Fear (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28324,7 +28388,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Sanctuary (potion)",
+  "name": "Sanctuary (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28335,7 +28399,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Shillelagh (oil)",
+  "name": "Shillelagh (Oil)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28346,7 +28410,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Bless weapon (oil)",
+  "name": "Bless Weapon (Oil)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28357,7 +28421,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Enlarge person (potion)",
+  "name": "Enlarge Person (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28368,7 +28432,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Reduce person (potion)",
+  "name": "Reduce Person (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28379,7 +28443,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Aid (potion)",
+  "name": "Aid (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28390,7 +28454,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Bear’s endurance (potion)",
+  "name": "Bear’s Endurance (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28401,7 +28465,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Blur (potion)",
+  "name": "Blur (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28412,7 +28476,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Bull’s strength (potion)",
+  "name": "Bull’s Strength (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28423,7 +28487,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Cat’s grace (potion)",
+  "name": "Cat’s Grace (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28434,7 +28498,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Cure moderate wounds (potion)",
+  "name": "Cure Moderate Wounds (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28445,7 +28509,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Darkness (oil)",
+  "name": "Darkness (Oil)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28456,7 +28520,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Darkvision (potion)",
+  "name": "Darkvision (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28467,7 +28531,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Delay poison (potion)",
+  "name": "Delay Poison (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28478,7 +28542,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Eagle’s splendor (potion)",
+  "name": "Eagle’s Splendor (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28489,7 +28553,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Fox’s cunning (potion)",
+  "name": "Fox’s Cunning (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28500,7 +28564,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Invisibility (potion or oil)",
+  "name": "Invisibility (Potion or Oil)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28511,7 +28575,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Lesser restoration (potion)",
+  "name": "Lesser Restoration (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28522,7 +28586,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Levitate (potion or oil)",
+  "name": "Levitate (Potion or Oil)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28533,7 +28597,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Misdirection (potion)",
+  "name": "Misdirection (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28544,7 +28608,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Owl’s wisdom (potion)",
+  "name": "Owl’s Wisdom (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28555,7 +28619,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Remove paralysis (potion)",
+  "name": "Remove Paralysis (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28566,7 +28630,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Spider climb (potion)",
+  "name": "Spider Climb (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28577,7 +28641,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Undetectable alignment (potion)",
+  "name": "Undetectable Alignment (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28588,7 +28652,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Cure serious wounds (potion)",
+  "name": "Cure Serious Wounds (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28599,7 +28663,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Daylight (oil)",
+  "name": "Daylight (Oil)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28610,7 +28674,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Displacement (potion)",
+  "name": "Displacement (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28621,7 +28685,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Flame arrow (oil)",
+  "name": "Flame Arrow (Oil)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28632,7 +28696,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Fly (potion)",
+  "name": "Fly (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28643,7 +28707,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Gaseous form (potion)",
+  "name": "Gaseous Form (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28654,7 +28718,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Haste (potion)",
+  "name": "Haste (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28665,7 +28729,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Heroism (potion)",
+  "name": "Heroism (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28676,7 +28740,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Keen edge (oil)",
+  "name": "Keen Edge (Oil)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28687,7 +28751,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Magic circle against (alignment) (potion)",
+  "name": "Magic Circle Against (Alignment) (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28698,7 +28762,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Neutralize poison (potion)",
+  "name": "Neutralize Poison (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28709,7 +28773,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Nondetection (potion)",
+  "name": "Nondetection (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28720,7 +28784,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Protection from energy (type) (potion)",
+  "name": "Protection from Energy (Type) (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28731,7 +28795,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Rage (potion)",
+  "name": "Rage (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28742,7 +28806,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Remove blindness/deafness (potion)",
+  "name": "Remove Blindness/Deafness (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28753,7 +28817,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Remove curse (potion)",
+  "name": "Remove Curse (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28764,7 +28828,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Remove disease (potion)",
+  "name": "Remove Disease (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28775,7 +28839,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Tongues (potion)",
+  "name": "Tongues (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28786,7 +28850,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Water breathing (potion)",
+  "name": "Water Breathing (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28797,7 +28861,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Water walking (potion)",
+  "name": "Water Walking (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -28808,7 +28872,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Good hope (potion)",
+  "name": "Good Hope (Potion)",
   "type": "potion",
   "aura": null,
   "cl": null,
@@ -30117,7 +30181,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": "This small ½ lb. hand mirror manifests its power up to twice per day against creatures that see their reflections within it, as a gaze attack with a range of 30 feet. Potential victims can attempt to avert their eyes or look away as they would from a normal gaze attack. A creature meeting its own gaze in the mirror must succeed on a DC 14 Will save or be pushed forward in time by 5 rounds, as if subject to the time hop power. Because the mirror is small, only a single creature can meet its own gaze each round. The wielder of the mirror is not affected by seeing themselves."
  },
  {
-  "name": "Faint telepathy",
+  "name": "Faint Telepathy",
   "type": "universal_item",
   "aura": null,
   "cl": 3,
@@ -30161,7 +30225,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": "This tiny pearly sphere speeds toward its target when hurled by its owner. They can hurl the pearl at any target within 130 feet that they can see and to which they has line of effect. If the target fails a DC 16 Will saving throw, the pearl seems to impact and then enter the flesh of the target. The target is affected as if by personality parasite for 5 rounds. The use destroys the item."
  },
  {
-  "name": "Psionatrix of clairsentience",
+  "name": "Psionatrix of Clairsentience",
   "type": "universal_item",
   "aura": "Moderate clairsentience",
   "cl": 8,
@@ -30172,7 +30236,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": "Blue light glimmers in this crystal’s heart."
  },
  {
-  "name": "Psionatrix of metacreativity",
+  "name": "Psionatrix of Metacreativity",
   "type": "universal_item",
   "aura": "Moderate metacreativity",
   "cl": 8,
@@ -30183,7 +30247,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": "Green light glimmers in this crystal’s heart."
  },
  {
-  "name": "Psionatrix of psychokinesis",
+  "name": "Psionatrix of Psychokinesis",
   "type": "universal_item",
   "aura": "Moderate psychokinesis",
   "cl": 8,
@@ -30194,7 +30258,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": "Red light glimmers in this crystal’s heart."
  },
  {
-  "name": "Psionatrix of psychometabolism",
+  "name": "Psionatrix of Psychometabolism",
   "type": "universal_item",
   "aura": "Moderate psychometabolism",
   "cl": 8,
@@ -30205,7 +30269,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": "Violet light glimmers in this crystal’s heart."
  },
  {
-  "name": "Psionatrix of psychoportation",
+  "name": "Psionatrix of Psychoportation",
   "type": "universal_item",
   "aura": "Moderate psychoportation",
   "cl": 8,
@@ -30216,7 +30280,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": "Yellow-red light glimmers in this crystal’s heart."
  },
  {
-  "name": "Psionatrix of telepathy",
+  "name": "Psionatrix of Telepathy",
   "type": "universal_item",
   "aura": "Moderate telepathy",
   "cl": 8,
@@ -30524,7 +30588,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": "This item is a band inlaid with precious metal, worn around the neck or upper arm. The wearer of a torc of power preservation manifests all powers by paying power points equal to the standard cost minus 1 (minimum of 1). A torc is treated as an amulet for the purpose of determining which items can be worn on the body."
  },
  {
-  "name": "Detect magic & psionics",
+  "name": "Detect Magic & Psionics",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30546,7 +30610,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Burning hands",
+  "name": "Burning Hands",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30557,7 +30621,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Charm animal",
+  "name": "Charm Animal",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30568,7 +30632,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Charm person",
+  "name": "Charm Person",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30579,7 +30643,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Color spray",
+  "name": "Color Spray",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30590,7 +30654,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Cure light wounds",
+  "name": "Cure Light Wounds",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30601,7 +30665,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Detect secret doors",
+  "name": "Detect Secret Doors",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30612,7 +30676,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Enlarge person",
+  "name": "Enlarge Person",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30623,7 +30687,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Shocking grasp",
+  "name": "Shocking Grasp",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30634,7 +30698,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Summon monster I",
+  "name": "Summon Monster I",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30645,7 +30709,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Bear’s endurance",
+  "name": "Bear’s Endurance",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30656,7 +30720,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Bull’s strength",
+  "name": "Bull’s Strength",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30667,7 +30731,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Cat’s grace",
+  "name": "Cat’s Grace",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30678,7 +30742,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Cure moderate wounds",
+  "name": "Cure Moderate Wounds",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30711,7 +30775,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Delay poison",
+  "name": "Delay Poison",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30722,7 +30786,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Eagle’s splendor",
+  "name": "Eagle’s Splendor",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30733,7 +30797,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "False life",
+  "name": "False Life",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30744,7 +30808,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Fox’s cunning",
+  "name": "Fox’s Cunning",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30755,7 +30819,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Ghoul touch",
+  "name": "Ghoul Touch",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30766,7 +30830,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Hold person",
+  "name": "Hold Person",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30810,7 +30874,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Acid arrow",
+  "name": "Acid Arrow",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30821,7 +30885,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Mirror image",
+  "name": "Mirror Image",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30832,7 +30896,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Owl’s wisdom",
+  "name": "Owl’s Wisdom",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30865,7 +30929,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Summon monster II",
+  "name": "Summon Monster II",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30898,7 +30962,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Cure serious wounds",
+  "name": "Cure Serious Wounds",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30909,7 +30973,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Dispel magic",
+  "name": "Dispel Magic",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30920,7 +30984,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Keen edge",
+  "name": "Keen Edge",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30953,7 +31017,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Summon monster III",
+  "name": "Summon Monster III",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30964,7 +31028,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Charm monster",
+  "name": "Charm Monster",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30975,7 +31039,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Cure critical wounds",
+  "name": "Cure Critical Wounds",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -30986,7 +31050,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Dimensional anchor",
+  "name": "Dimensional Anchor",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -31008,7 +31072,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Greater invisibility",
+  "name": "Greater Invisibility",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -31019,7 +31083,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Ice storm",
+  "name": "Ice Storm",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -31030,7 +31094,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Inflict critical wounds",
+  "name": "Inflict Critical Wounds",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -31041,7 +31105,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Neutralize poison",
+  "name": "Neutralize Poison",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -31074,7 +31138,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Summon monster IV",
+  "name": "Summon Monster IV",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -31085,7 +31149,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Wall of fire",
+  "name": "Wall of Fire",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -31096,7 +31160,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Wall of ice",
+  "name": "Wall of Ice",
   "type": "wand",
   "aura": null,
   "cl": null,
@@ -33142,7 +33206,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": "This silver figurine turns into a raven on command (but it retains its metallic consistency, which gives it hardness 10). Another command sends it off into the air, bearing a message just like a creature affected by an animal messenger spell. If not commanded to carry a message, the raven obeys the commands of its owner, although it has no special powers or telepathic abilities. It can maintain its non-figurine status for only 24 hours per week, but the duration need not be continuous."
  },
  {
-  "name": "Potion / tattoo of mechanical aptitude",
+  "name": "Potion / Tattoo of Mechanical Aptitude",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33153,7 +33217,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Potion / tattoo of vehicle handling",
+  "name": "Potion / Tattoo of Vehicle Handling",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33164,7 +33228,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Thunderclap taser",
+  "name": "Thunderclap Taser",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33175,7 +33239,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Chemical lightstick of revealing",
+  "name": "Chemical Lightstick of Revealing",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33186,7 +33250,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Decoder ring",
+  "name": "Decoder Ring",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33197,7 +33261,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Magic-billiard ball",
+  "name": "Magic-Billiard Ball",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33208,7 +33272,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Fuel tablets",
+  "name": "Fuel Tablets",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33219,7 +33283,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Pen of invisible ink",
+  "name": "Pen of Invisible Ink",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33230,7 +33294,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Umbrella of feather falling",
+  "name": "Umbrella of Feather Falling",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33241,7 +33305,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Duct tape of repair",
+  "name": "Duct Tape of Repair",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33252,7 +33316,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Chainsaw of the psycho +1",
+  "name": "Chainsaw of the Psycho +1",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33263,7 +33327,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Bulletproof shirt",
+  "name": "Bulletproof Shirt",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33274,7 +33338,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Illusory concealable vest +1",
+  "name": "Illusory Concealable Vest +1",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33285,7 +33349,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Leather jacket of endurance +1",
+  "name": "Leather Jacket of Endurance +1",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33296,7 +33360,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Undercover vest of landing +1",
+  "name": "Undercover Vest of Landing +1",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33318,7 +33382,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Riot shield of fear +1",
+  "name": "Riot Shield of Fear +1",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33329,7 +33393,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Haz-mat gloves",
+  "name": "Haz-Mat Gloves",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33340,7 +33404,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Invisifinder goggles",
+  "name": "Invisifinder Goggles",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33351,7 +33415,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Keen chainsaw +1",
+  "name": "Keen Chainsaw +1",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33362,7 +33426,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Quick-draw holster",
+  "name": "Quick-Draw Holster",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33373,7 +33437,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Skeleton key",
+  "name": "Skeleton Key",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33384,7 +33448,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Demolition hammer +1",
+  "name": "Demolition Hammer +1",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33395,7 +33459,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Chainsaw of the psycho +2",
+  "name": "Chainsaw of the Psycho +2",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33406,7 +33470,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Deadeye rifle +1",
+  "name": "Deadeye Rifle +1",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33417,7 +33481,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Illusory concealable vest +2",
+  "name": "Illusory Concealable Vest +2",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33428,7 +33492,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Leather jacket of endurance +2",
+  "name": "Leather Jacket of Endurance +2",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33439,7 +33503,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Undercover vest of landing +2",
+  "name": "Undercover Vest of Landing +2",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33450,7 +33514,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Watch of speed",
+  "name": "Watch of Speed",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33461,7 +33525,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Riot shield of fear +2",
+  "name": "Riot Shield of Fear +2",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33472,7 +33536,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Air duct filtration suit",
+  "name": "Air Duct Filtration Suit",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33494,7 +33558,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Riot shield of fear +3",
+  "name": "Riot Shield of Fear +3",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33505,7 +33569,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Illusory concealable vest +3",
+  "name": "Illusory Concealable Vest +3",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33516,7 +33580,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Leather jacket of endurance +3",
+  "name": "Leather Jacket of Endurance +3",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33527,7 +33591,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Undercover vest of landing +3",
+  "name": "Undercover Vest of Landing +3",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33549,7 +33613,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Keen chainsaw +2",
+  "name": "Keen Chainsaw +2",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33560,7 +33624,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Translator’s earpiece",
+  "name": "Translator’s Earpiece",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33571,7 +33635,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Wounding handgun +1",
+  "name": "Wounding Handgun +1",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33582,7 +33646,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Demolition hammer +2",
+  "name": "Demolition Hammer +2",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33593,7 +33657,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Chainsaw of the psycho +3",
+  "name": "Chainsaw of the Psycho +3",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33604,7 +33668,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Deadeye rifle +2",
+  "name": "Deadeye Rifle +2",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33615,7 +33679,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Trench coat of useful items",
+  "name": "Trench Coat of Useful Items",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33626,7 +33690,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Rod of technology",
+  "name": "Rod of Technology",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33637,7 +33701,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Staff of the urban jungle",
+  "name": "Staff of the Urban Jungle",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33648,7 +33712,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Staff of voltage",
+  "name": "Staff of Voltage",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33659,7 +33723,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Camera of soul stealing",
+  "name": "Camera of Soul Stealing",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33670,7 +33734,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Keen chainsaw +3",
+  "name": "Keen Chainsaw +3",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33681,7 +33745,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Wounding handgun +2",
+  "name": "Wounding Handgun +2",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33692,7 +33756,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Demolition hammer +3",
+  "name": "Demolition Hammer +3",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33703,7 +33767,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Ring of surveillance detection",
+  "name": "Ring of Surveillance Detection",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33714,7 +33778,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Deadeye rifle +3",
+  "name": "Deadeye Rifle +3",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33736,7 +33800,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Eldritch cell phone",
+  "name": "Eldritch Cell Phone",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33758,7 +33822,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Video camera of true seeing",
+  "name": "Video Camera of True Seeing",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33769,7 +33833,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Wounding handgun +3",
+  "name": "Wounding Handgun +3",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33780,7 +33844,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Animated tools",
+  "name": "Animated Tools",
   "type": "modern",
   "aura": null,
   "cl": null,
@@ -33791,7 +33855,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "d": null
  },
  {
-  "name": "Tempus fugit watch",
+  "name": "Tempus Fugit Watch",
   "type": "modern",
   "aura": null,
   "cl": null,
