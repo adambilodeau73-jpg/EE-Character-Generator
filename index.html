@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.10.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.10.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -6089,8 +6089,12 @@ function getCatalogueEntry(catalogue, ref) {
   if (catalogue === 'magic') {
     // v9.10.0 (§263): case-insensitive fallback — the title-case sweep of
     // the catalogue names must not orphan items owned under the old casing.
-    return MAGIC_ITEMS_DB.find(m => m.name === ref)
-        || MAGIC_ITEMS_DB.find(m => m.name.toLowerCase() === String(ref).toLowerCase())
+    // v9.10.1 (§264): one true rename — the GMG table's "Air duct
+    // filtration suit" is a typo for the description head's (and Urban
+    // Arcana's) "Infiltration" (it casts gaseous form to travel air ducts).
+    const _aliased = String(ref).toLowerCase() === 'air duct filtration suit' ? 'Air Duct Infiltration Suit' : ref;
+    return MAGIC_ITEMS_DB.find(m => m.name === _aliased)
+        || MAGIC_ITEMS_DB.find(m => m.name.toLowerCase() === String(_aliased).toLowerCase())
         || null;  // v8.6.0
   }
   if (catalogue === 'vehicle') return VEHICLES_DB.find(v => v.name === ref) || null;   // v8.13.x Segment A
@@ -7194,6 +7198,39 @@ function magicPriceLabel(m) {
   if (m.type === 'artifact') return 'priceless';
   return '—';
 }
+// v9.10.1 (§264): every catalogue row earns its hand cursor. An item's own
+// d wins; a spell-vehicle without one (the potions, oils, and wands came
+// through the build with empty descriptions) derives its text from the
+// spell it carries, looked up in SPELLS_DB at render time. Returns '' when
+// nothing can be said — the row then renders without pointer or chevron.
+function magicItemDesc(m) {
+  if (m.d) return m.d;
+  if (m.type !== 'potion' && m.type !== 'wand') return '';
+  const base = m.name.replace(/\s*\((?:Potion|Oil|Potion or Oil)\)\s*$/i, '').trim();
+  // Legacy 3.5 item names bridge to E&E's merged spell families (§218/§219):
+  // "Cure Light Wounds" → "Cure Wounds", "Cure Serious Wounds" → "Cure
+  // Wounds (Serious)", "Lesser Restoration" → "Restoration, Lesser".
+  const candidates = [base];
+  const cw = /^(Cure|Inflict) (Light|Moderate|Serious|Critical) Wounds$/.exec(base);
+  if (cw) {
+    if (cw[2] !== 'Light') candidates.push(`${cw[1]} Wounds (${cw[2]})`);
+    candidates.push(`${cw[1]} Wounds`);
+  }
+  const lg = /^(Lesser|Greater) (.+)$/.exec(base);
+  if (lg) candidates.push(`${lg[2]}, ${lg[1]}`);
+  let sp = null;
+  if (typeof SPELLS_DB !== 'undefined') {
+    for (const cand of candidates) {
+      sp = SPELLS_DB.find(s => s.name === cand) || SPELLS_DB.find(s => s.name.toLowerCase() === cand.toLowerCase());
+      if (sp) break;
+    }
+  }
+  const vehicle = m.type === 'potion'
+    ? 'Single use — a potion (or oil) carrying the spell'
+    : 'A charged wand carrying the spell';
+  if (sp && sp.d) return `${vehicle} ${base}${m.cl ? ` at ${m.cl_kind || 'CL'} ${m.cl}` : ''}: ${sp.d}`;
+  return `${vehicle} ${base} — see its entry in the spell catalogue.`;
+}
 function renderMagicBrowse() {
   if (!_magicBrowseOpen) return;
   const el = document.getElementById('magic-browse-list'); if (!el) return;
@@ -7216,19 +7253,22 @@ function renderMagicBrowse() {
   el.innerHTML = propBanner + _magicBrowseList.slice(0, CAP).map((m, i) => {
     const open = _magicExpanded.has(m.name);
     const isProp = MAGIC_PROPERTY_TYPES.has(m.type);
+    // v9.10.1 (§264): the dropdown text — own d, or spell-derived for
+    // potions/wands. A row with nothing to say loses the hand cursor.
+    const desc = (typeof magicItemDesc === 'function') ? magicItemDesc(m) : (m.d || '');
     const addBtn = isProp
       ? `<span style="font-size:9px;color:rgba(200,151,30,.5);">property — apply via ✨ Enchant on a weapon/armor row (Gear inventory)</span>`
       : `<button class="btn btn-sm btn-pri" style="font-size:10px;" onclick="addMagicFromBrowse(${i})">+ Add${m.type === 'artifact' ? ' (GM)' : ''}</button>`;
     return `<div style="padding:6px 9px;border-bottom:1px solid rgba(200,151,30,.08);">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">
-        <div style="cursor:pointer;flex:1;" onclick="toggleMagicDetail(${i})"><b>${escapeHTML(m.name)}</b>
+        <div style="${desc ? 'cursor:pointer;' : ''}flex:1;" ${desc ? `onclick="toggleMagicDetail(${i})"` : ''}><b>${escapeHTML(m.name)}</b>
           <span style="font-size:9px;padding:1px 5px;border-radius:2px;background:rgba(196,153,212,.12);border:1px solid rgba(196,153,212,.3);margin-left:4px;">${MAGIC_TYPE_LABELS[m.type] || m.type}</span>
           <span style="font-size:10px;opacity:.55;margin-left:5px;">${m.cl ? (m.cl_kind || 'CL') + ' ' + m.cl + ' · ' : ''}${magicPriceLabel(m)}</span>
-          <span style="font-size:10px;opacity:.4;">${open ? '▾' : '▸'}</span></div>
+          ${desc ? `<span style="font-size:10px;opacity:.4;">${open ? '▾' : '▸'}</span>` : ''}</div>
         ${addBtn}
       </div>
       ${m.aura ? `<div style="font-size:10px;opacity:.5;">${escapeHTML(m.aura)}</div>` : ''}
-      ${open && m.d ? `<div style="font-size:11.5px;margin-top:4px;line-height:1.5;color:var(--parch);">${escapeHTML(m.d)}</div>${m.provenance ? `<div style="font-size:10px;opacity:.55;margin-top:3px;">${escapeHTML(m.provenance)}</div>` : ''}` : ''}
+      ${open && desc ? `<div style="font-size:11.5px;margin-top:4px;line-height:1.5;color:var(--parch);">${escapeHTML(desc)}</div>${m.provenance ? `<div style="font-size:10px;opacity:.55;margin-top:3px;">${escapeHTML(m.provenance)}</div>` : ''}` : ''}
     </div>`;
   }).join('') + (_magicBrowseList.length > CAP ? `<div style="padding:6px 9px;font-size:11px;color:rgba(200,151,30,.5);text-align:center;">…and ${_magicBrowseList.length - CAP} more — refine the filters.</div>` : '')
   || `<div style="padding:.9rem;font-size:12px;color:rgba(200,151,30,.45);text-align:center;">Nothing matches the filters.</div>`;
@@ -33213,8 +33253,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 3,
   "price_gp": 7500,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint clairsentience / divination; CL / ML 3rd; Enchant Potion or Imbue Tattoo; Base / Market Price $7,500.",
+  "d": "This potion / tattoo makes the user more proficient in understanding how technological devices work, gaining a +5 circumstance bonus on Computer Use and Repair checks for 1 hour."
  },
  {
   "name": "Potion / Tattoo of Vehicle Handling",
@@ -33224,8 +33264,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 3,
   "price_gp": 7500,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint clairsentience / divination; CL / ML 3rd; Enchant Potion or Imbue Tattoo; Base / Market Price $7,500.",
+  "d": "This potion / tattoo makes the user better at driving and piloting vehicles, gaining a +5 circumstance bonus on Drive and Pilot skill checks for 1 hour."
  },
  {
   "name": "Thunderclap Taser",
@@ -33235,8 +33275,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 8,
   "price_gp": 16000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint evocation / psychokinesis; CL / ML 3rd; Enchant Arms and Armor or Imbue Arms and Armor, energy stun or sound blast; Base / Market Price $16,000.",
+  "d": "This taser releases a deafening blast of thunder when it strikes an opponent. It deals normal damage (1d4 electrical) plus an additional 2d6 points of concussion (non-lethal sonic) damage. Furthermore, the Fortitude save, normally DC 15, is DC 17 to avoid temporary paralysis from the thunderclap taser. The taser’s battery is exhausted after a successful hit and must be replaced after each use."
  },
  {
   "name": "Chemical Lightstick of Revealing",
@@ -33246,8 +33286,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 40,
   "price_gp": 80000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint divination; CL 5th; Enchant Wondrous Item, see invisibility; Base / Market Price $80,000.",
+  "d": "This mundane-looking item reveals invisible creatures and objects within its 5-foot light radius. This magic item usually comes in packs of five, and each light stick lasts 6 hours. The price and weight given below are for a pack of five."
  },
  {
   "name": "Decoder Ring",
@@ -33257,8 +33297,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 50,
   "price_gp": 100000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate clairsentience / divination; CL / ML 10th; Enchant Ring or Imbue Ring; Base / Market Price $100,000.",
+  "d": "This cheap-looking tin ring has a small dial adorned with letters of the alphabet. It grants its wearer a +10 equipment bonus on Decipher Code checks. Note that understanding does not necessarily imply spell use."
  },
  {
   "name": "Magic-Billiard Ball",
@@ -33268,8 +33308,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 80,
   "price_gp": 160000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint divination; CL 3rd; Enchant Wondrous Item, augury; Base / Market Price $160,000.",
+  "d": "Once per day, this otherwise normal looking toy Magic Billiard-ball can be used to cast augury (as by a 5th-level Acolyte). To activate this ability, the user must state the question out loud and shake the Magic Billiard-ball. It provides no answers whatsoever if used more than once in a 24-hour period."
  },
  {
   "name": "Fuel Tablets",
@@ -33279,8 +33319,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 100,
   "price_gp": 200000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint psychokinesis / transmutation; CL / ML 3rd; Enchant Wondrous Item or Imbue Universal Item, power device; Base / Market Price $200,000 (for a bottle of 10 tablets).",
+  "d": "These amber-colored tablets come in bottles of ten. Each fuel tablet transforms into liquid or gaseous fuel (gasoline, diesel, kerosine, jet fuel, or propane) when dropped into the fuel tank of a vehicle or other machine. The fuel completely fills the tank, but it is otherwise like regular fuel and is destroyed once used."
  },
  {
   "name": "Pen of Invisible Ink",
@@ -33290,8 +33330,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 100,
   "price_gp": 200000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint transmutation; CL 3rd; Enchant Wondrous Item, arcane mark, message; Base / Market Price $200,000.",
+  "d": "This pen looks like an old-fashioned calligraphy stylus, but it contains its own magical supply of black ink. Any letter printed with this pen appears normal until the user speaks a name and blows upon the paper. Once spoken, the ink fades and can only be viewed by the person who was stated at the time of writing. If the name is not specific, then anyone with the same name will be able to read the message as normal. A read magic spell will indicate that invisible ink has been used, but it will not reveal the message. It is possible to create a chemical compound (Craft [chemical] check, DC 25) that, when spread over the surface of the paper, reveals the message written in invisible ink. A pen of invisible ink holds enough ink for 50 messages."
  },
  {
   "name": "Umbrella of Feather Falling",
@@ -33302,7 +33342,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "xp_cost": 100,
   "price_gp": 200000,
   "provenance": null,
-  "d": null
+  "d": "If this umbrella is open, the user can jump from any height and drift to the ground as though affected by a feather fall spell. The umbrella does not function if it is not open, although the user can attempt to do so while falling by succeeding at a Dexterity check (DC 10), taking no damage if successful. Failure indicates that the umbrella does not open in time, and the user takes the full damage from the fall. Faint transmutation; CL 3rd; Enchant Wondrous Item, feather fall; Base / Market Price $200,000. 363"
  },
  {
   "name": "Duct Tape of Repair",
@@ -33312,8 +33352,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 120,
   "price_gp": 240000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint metacreativity / transmutation; CL / ML 5th; Enchant Wondrous Item or Imbue Universal Item, make repairs; Base / Market Price $240,000.",
+  "d": "This magic brand of duct tape can repair damaged objects and vehicles. When a 5-foot strip of the duct tape is applied to the damaged area, the duct tape disappears and the object regains 1d8+5 hit points 359 instantly. Duct tape of repair comes in a standard-size roll and can be used 15 times before the roll is exhausted. Applying the duct tape is a full-round action that provokes attacks of opportunity."
  },
  {
   "name": "Chainsaw of the Psycho +1",
@@ -33323,8 +33363,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 150,
   "price_gp": 300000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate necromancy; CL / ML 9th; Enchant Arms and Armor or Imbue Arms and Armor; Base / Market Price $300,000 (+1); Base / Market Price $900,000 (+2); Base / Market Price $1,900,000 (+3).",
+  "d": "This battered chain saw has a +1 to +3 enhancement bonus. It constantly drips oil and small amounts of blood, and it does not require gas to activate. The chain saw deals x3 damage (instead of x2 damage) on a successful critical hit. Any creature with a good alignment or allegiance who handles a chain saw of the psycho gains two negative levels. These negative levels remain so long as the chain saw is in hand and disappear when it is no longer wielded. These negative levels never result in actual level loss, but they cannot be overcome in any way while the chain saw is wielded."
  },
  {
   "name": "Bulletproof Shirt",
@@ -33334,8 +33374,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 200,
   "price_gp": 400000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint abjuration; CL 5th; Enchant Wondrous Item, protection from arrows/bullets; Base / Market Price $400,000.",
+  "d": "This light shirt provides protection from ranged damage, granting its wearer the benefit of a continuous protection from arrows/bullets effect (granting damage reduction 5/magic against ranged weapons). ===== PAGE 358 ====="
  },
  {
   "name": "Illusory Concealable Vest +1",
@@ -33346,7 +33386,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "xp_cost": 200,
   "price_gp": 400000,
   "provenance": null,
-  "d": null
+  "d": "The wearer of this medium armor benefits from a +1 to +3 enhancement bonus to the vest’s AC modifier (base equipment modifier for a concealable vest is normally +4). Upon command, the protective garment changes shape and form to assume the appearance of a sweater or other normal piece of clothing. The vest retains all its properties (including weight) when its illusion ability is in effect. Only a true seeing spell reveals the true nature of the armor. Faint illusion; CL 9th; Enchant Arms and Armor, disguise self; Base / Market Price $400,000 (+1); Base / Market Price $900,000 (+2); Base / Market Price $1,600,000 (+3). ===== PAGE 360 ====="
  },
  {
   "name": "Leather Jacket of Endurance +1",
@@ -33356,8 +33396,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 200,
   "price_gp": 400000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint abjuration; CL / ML 9th; Enchant Arms and Armor or Imbue Arms and Armor, adapt body or endure elements; Base / Market Price $400,000 (+1); Base / Market Price $900,000 (+2); Base / Market Price $1,600,000 (+3).",
+  "d": "The wearer of this light armor benefits from a +1 to +3 enhancement bonus to the jacket’s AC (base equipment modifier equivalent to a light undercover shirt is +2) as well as granting the wearer a perpetual endure elements effect while worn."
  },
  {
   "name": "Undercover Vest of Landing +1",
@@ -33367,8 +33407,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 200,
   "price_gp": 400000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint psychoportation; ML 9th; Imbue Arms and Armor, catfall; Base / Market Price $400,000 (+1); Base / Market Price $900,000 (+2); Base / Market Price $1,600,000 (+3).",
+  "d": "The wearer of this light armor benefits from a +1 to +3 enhancement bonus to the vest’s AC modifier (base equipment modifier for an undercover vest is normally +3). The wearer also ignores the first 20 feet of damage from any fall. Regardless of the height of the fall, the wearer always lands on their feet."
  },
  {
   "name": "Bladegun +1",
@@ -33378,8 +33418,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 300,
   "price_gp": 600000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate transmutation; CL 10th; Enchant Arms and Armor, fabricate; Base / Market Price $600,000 (+1); Base / Market Price $1,800,000 (+2); Base Price $3,800,000, Market Price $7,400,000 (+3).",
+  "d": "A bladegun is a magic pistol that transforms into a magic short sword (and back again) upon command. Each bladegun is either a revolver or an automatic pistol, but regardless of the type the gun always does 2x the damage of the short sword damage die. The handgun and short sword versions of the weapon possess the same enhancement bonus (+1 to +3). Turning the handgun into a short sword—and vice versa— takes a move action. A bladegun in handgun form must be loaded with ammunition to fire (as any gun)."
  },
  {
   "name": "Riot Shield of Fear +1",
@@ -33390,7 +33430,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "xp_cost": 387,
   "price_gp": 775000,
   "provenance": null,
-  "d": null
+  "d": "Introduced by police forces that employ magical gear, this riot/tower shield has an enhancement bonus to its equipment AC modifier (+1 to +3). At its wielder’s command, the shield can also cast fear once a day (Will save DC 16 to negate). Moderate necromancy; CL 9th; Enchant Arms and Armor, fear; Base / Market Price $775,000 (+1); Base / Market Price $1,075,000 (+2); Base / Market Price $1,575,000 (+3). 361"
  },
  {
   "name": "Haz-Mat Gloves",
@@ -33400,8 +33440,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 400,
   "price_gp": 800000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint abjuration / psychometabolism; CL / ML 3rd; Enchant Wondrous Item or Imbue Universal Item, resist energy or energy adaptation (specified); Base / Market Price $800,000.",
+  "d": "These elbow-length, optic yellow gloves are made of coarse, stiff material. The wearer gains acid, cold, and fire resistance 10 so long as both gloves are worn."
  },
  {
   "name": "Invisifinder Goggles",
@@ -33411,8 +33451,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 400,
   "price_gp": 800000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint divination; CL 3rd; Enchant Wondrous Item, see invisibility; Base / Market Price $800,000.",
+  "d": "These military-grade night vision goggles are carved with runes and other occult symbols. In addition to the benefits of regular night-vision goggles, they also allow the wearer to see invisibility as the spell."
  },
  {
   "name": "Keen Chainsaw +1",
@@ -33422,8 +33462,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 400,
   "price_gp": 800000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate metacreativity / transmutation; CL / ML 10th; Enchant Arms and Armor or Imbue Arms and Armor, keen edge; Base / Market Price $800,000 (+1); Base / Market Price $1,800,000 (+2); Base Price $3,200,000, Market Price $6,400,000 (+3).",
+  "d": "In addition to its enhancement bonus, this chain saw threatens a critical hit on a natural roll of 19 or 20 (a normal chain saw has a threat range of 20). It never needs to be refueled or maintained, only requiring repairs when it is damaged. (Remember that a magical weapon ignores 5 points of hardness for every +1 of its enhancement bonus.) 360"
  },
  {
   "name": "Quick-Draw Holster",
@@ -33433,8 +33473,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 400,
   "price_gp": 800000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint transmutation / psychometabolism; CL / ML 3rd; Enchant Wondrous Item or Imbue Universal Item, creator must have Quick Draw feat; Base / Market Price $800,000.",
+  "d": "Any handgun placed in this hip holster fits perfectly. The quick-draw holster allows its wearer to draw or holster the weapon as a free action (as though the wearer had the Quick Draw feat)."
  },
  {
   "name": "Skeleton Key",
@@ -33444,8 +33484,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 400,
   "price_gp": 800000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint psychoportation / transmutation; CL / ML 5th; Enchant Wondrous Item or Imbue Universal Item; knock; Base / Market Price $800,000 (fully charged).",
+  "d": "This crystallized shard looks like a key at a glance, but a closer examination betrays its nature as crystallized bone. It comes with 50 charges when first created (when found randomly it will 1d20+20 charges). Touching it to a lock and saying the command word (or thinking the command thought) will manifest the equivalent of a knock effect on the targeted lock. Unlike a knock spell, the key must use one charge for each lock to be disengaged, and the locking mechanism to be disengaged must be known to the user of the key."
  },
  {
   "name": "Demolition Hammer +1",
@@ -33455,8 +33495,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 417,
   "price_gp": 835000,
-  "provenance": null,
-  "d": null
+  "provenance": "Strong psychoportation / transmutation; CL / ML 12th; Enchant Arms and Armor or Imbue Arms and Armor, disintegrate; Base / Market Price $835,000 (+1); Base / Market Price $1,835,000 (+2); Base Price $3,235,000, Market Price $6,435,000 (+3).",
+  "d": "This weapon resembles a standard sledgehammer (use the warhammer statistics) with runes carved into its wooden handle. Besides its enhancement bonus (+1 to +3), the hammer has a disintegrate effect that the wielder may activate once per day after a successful melee attack. The target must succeed at a Fortitude save (DC 20 half) or take 10d6 points of damage. If the target is reduced to –(Con score) hit points or less (or a ===== PAGE 359 ===== construct, object, or undead is reduced to 0 hit points), it is destroyed as if disintegrated, leaving behind only a trace of fine dust."
  },
  {
   "name": "Chainsaw of the Psycho +2",
@@ -33466,8 +33506,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 450,
   "price_gp": 900000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate necromancy; CL / ML 9th; Enchant Arms and Armor or Imbue Arms and Armor; Base / Market Price $300,000 (+1); Base / Market Price $900,000 (+2); Base / Market Price $1,900,000 (+3).",
+  "d": "This battered chain saw has a +1 to +3 enhancement bonus. It constantly drips oil and small amounts of blood, and it does not require gas to activate. The chain saw deals x3 damage (instead of x2 damage) on a successful critical hit. Any creature with a good alignment or allegiance who handles a chain saw of the psycho gains two negative levels. These negative levels remain so long as the chain saw is in hand and disappear when it is no longer wielded. These negative levels never result in actual level loss, but they cannot be overcome in any way while the chain saw is wielded."
  },
  {
   "name": "Deadeye Rifle +1",
@@ -33477,8 +33517,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 450,
   "price_gp": 900000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate transmutation / psychokinesis; CL / ML 9th; Enchant Arms and Armor or Imbue Arms and Armor, telekinesis or telekinetic force or telekinetic thrust; Base / Market Price $900,000 (+1); Base / Market Price $1,900,000 (+2); Base Price $3,300,000, Market Price $6,500,000 (+3).",
+  "d": "The deadeye rifle is a sniper rifle with an enhancement bonus of +1 to +3. The stock is covered with elaborate runes, and the deadeye rifle is considerably lighter than a normal sniper rifle. The rifle’s wielder suffers no penalties for 5 range increments, with each additional increment accruing only a –1 penalty."
  },
  {
   "name": "Illusory Concealable Vest +2",
@@ -33489,7 +33529,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "xp_cost": 450,
   "price_gp": 900000,
   "provenance": null,
-  "d": null
+  "d": "The wearer of this medium armor benefits from a +1 to +3 enhancement bonus to the vest’s AC modifier (base equipment modifier for a concealable vest is normally +4). Upon command, the protective garment changes shape and form to assume the appearance of a sweater or other normal piece of clothing. The vest retains all its properties (including weight) when its illusion ability is in effect. Only a true seeing spell reveals the true nature of the armor. Faint illusion; CL 9th; Enchant Arms and Armor, disguise self; Base / Market Price $400,000 (+1); Base / Market Price $900,000 (+2); Base / Market Price $1,600,000 (+3). ===== PAGE 360 ====="
  },
  {
   "name": "Leather Jacket of Endurance +2",
@@ -33499,8 +33539,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 450,
   "price_gp": 900000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint abjuration; CL / ML 9th; Enchant Arms and Armor or Imbue Arms and Armor, adapt body or endure elements; Base / Market Price $400,000 (+1); Base / Market Price $900,000 (+2); Base / Market Price $1,600,000 (+3).",
+  "d": "The wearer of this light armor benefits from a +1 to +3 enhancement bonus to the jacket’s AC (base equipment modifier equivalent to a light undercover shirt is +2) as well as granting the wearer a perpetual endure elements effect while worn."
  },
  {
   "name": "Undercover Vest of Landing +2",
@@ -33510,8 +33550,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 450,
   "price_gp": 900000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint psychoportation; ML 9th; Imbue Arms and Armor, catfall; Base / Market Price $400,000 (+1); Base / Market Price $900,000 (+2); Base / Market Price $1,600,000 (+3).",
+  "d": "The wearer of this light armor benefits from a +1 to +3 enhancement bonus to the vest’s AC modifier (base equipment modifier for an undercover vest is normally +3). The wearer also ignores the first 20 feet of damage from any fall. Regardless of the height of the fall, the wearer always lands on their feet."
  },
  {
   "name": "Watch of Speed",
@@ -33521,8 +33561,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 450,
   "price_gp": 900000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint transmutation; CL 5th; Enchant Wondrous Item, haste; Base / Market Price $900,000.",
+  "d": "This modern looking wristwatch improves the wearer’s concept of time, granting a +2 equipment bonus on initiative checks. This bonus stacks with other abilities that improve initiative, such as the Improved Initiative feat."
  },
  {
   "name": "Riot Shield of Fear +2",
@@ -33533,18 +33573,18 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "xp_cost": 503,
   "price_gp": 1075000,
   "provenance": null,
-  "d": null
+  "d": "Introduced by police forces that employ magical gear, this riot/tower shield has an enhancement bonus to its equipment AC modifier (+1 to +3). At its wielder’s command, the shield can also cast fear once a day (Will save DC 16 to negate). Moderate necromancy; CL 9th; Enchant Arms and Armor, fear; Base / Market Price $775,000 (+1); Base / Market Price $1,075,000 (+2); Base / Market Price $1,575,000 (+3). 361"
  },
  {
-  "name": "Air Duct Filtration Suit",
+  "name": "Air Duct Infiltration Suit",
   "type": "modern",
   "aura": null,
   "cl": null,
   "cl_kind": null,
   "xp_cost": 600,
   "price_gp": 1200000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate transmutation; CL 5th; Enchant Wondrous Item, gaseous form; Base / Market Price $1,200,000.",
+  "d": "This is a pale blue pair of coveralls, like the kind worn by many janitors, that are favored by corporate spies. Four times per day, the wearer can use the suit to trigger a gaseous form spell, allowing him to travel through a building’s air ducts. The suit occupies the same slot as a suit of armor, and it can be worn either under or over armor, but it cannot be used while there is armor over or under it."
  },
  {
   "name": "Universal ID",
@@ -33554,8 +33594,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 750,
   "price_gp": 1500000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint illusion; CL 5th; Enchant Wondrous Item, major image; Base / Market Price $1,500,000.",
+  "d": "This blank piece of plastic is the size of a credit card and can transform into any form of ID on command, including photo, holographic imprints, and watermarks (as per the major image spell). It does not create a magnetic strip or other form of nonvisual information. The card must be held by the user for the image to be changed."
  },
  {
   "name": "Riot Shield of Fear +3",
@@ -33566,7 +33606,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "xp_cost": 753,
   "price_gp": 1575000,
   "provenance": null,
-  "d": null
+  "d": "Introduced by police forces that employ magical gear, this riot/tower shield has an enhancement bonus to its equipment AC modifier (+1 to +3). At its wielder’s command, the shield can also cast fear once a day (Will save DC 16 to negate). Moderate necromancy; CL 9th; Enchant Arms and Armor, fear; Base / Market Price $775,000 (+1); Base / Market Price $1,075,000 (+2); Base / Market Price $1,575,000 (+3). 361"
  },
  {
   "name": "Illusory Concealable Vest +3",
@@ -33577,7 +33617,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "xp_cost": 800,
   "price_gp": 1600000,
   "provenance": null,
-  "d": null
+  "d": "The wearer of this medium armor benefits from a +1 to +3 enhancement bonus to the vest’s AC modifier (base equipment modifier for a concealable vest is normally +4). Upon command, the protective garment changes shape and form to assume the appearance of a sweater or other normal piece of clothing. The vest retains all its properties (including weight) when its illusion ability is in effect. Only a true seeing spell reveals the true nature of the armor. Faint illusion; CL 9th; Enchant Arms and Armor, disguise self; Base / Market Price $400,000 (+1); Base / Market Price $900,000 (+2); Base / Market Price $1,600,000 (+3). ===== PAGE 360 ====="
  },
  {
   "name": "Leather Jacket of Endurance +3",
@@ -33587,8 +33627,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 800,
   "price_gp": 1600000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint abjuration; CL / ML 9th; Enchant Arms and Armor or Imbue Arms and Armor, adapt body or endure elements; Base / Market Price $400,000 (+1); Base / Market Price $900,000 (+2); Base / Market Price $1,600,000 (+3).",
+  "d": "The wearer of this light armor benefits from a +1 to +3 enhancement bonus to the jacket’s AC (base equipment modifier equivalent to a light undercover shirt is +2) as well as granting the wearer a perpetual endure elements effect while worn."
  },
  {
   "name": "Undercover Vest of Landing +3",
@@ -33598,8 +33638,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 800,
   "price_gp": 1600000,
-  "provenance": null,
-  "d": null
+  "provenance": "Faint psychoportation; ML 9th; Imbue Arms and Armor, catfall; Base / Market Price $400,000 (+1); Base / Market Price $900,000 (+2); Base / Market Price $1,600,000 (+3).",
+  "d": "The wearer of this light armor benefits from a +1 to +3 enhancement bonus to the vest’s AC modifier (base equipment modifier for an undercover vest is normally +3). The wearer also ignores the first 20 feet of damage from any fall. Regardless of the height of the fall, the wearer always lands on their feet."
  },
  {
   "name": "Bladegun +2",
@@ -33609,8 +33649,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 900,
   "price_gp": 1800000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate transmutation; CL 10th; Enchant Arms and Armor, fabricate; Base / Market Price $600,000 (+1); Base / Market Price $1,800,000 (+2); Base Price $3,800,000, Market Price $7,400,000 (+3).",
+  "d": "A bladegun is a magic pistol that transforms into a magic short sword (and back again) upon command. Each bladegun is either a revolver or an automatic pistol, but regardless of the type the gun always does 2x the damage of the short sword damage die. The handgun and short sword versions of the weapon possess the same enhancement bonus (+1 to +3). Turning the handgun into a short sword—and vice versa— takes a move action. A bladegun in handgun form must be loaded with ammunition to fire (as any gun)."
  },
  {
   "name": "Keen Chainsaw +2",
@@ -33620,8 +33660,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 900,
   "price_gp": 1800000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate metacreativity / transmutation; CL / ML 10th; Enchant Arms and Armor or Imbue Arms and Armor, keen edge; Base / Market Price $800,000 (+1); Base / Market Price $1,800,000 (+2); Base Price $3,200,000, Market Price $6,400,000 (+3).",
+  "d": "In addition to its enhancement bonus, this chain saw threatens a critical hit on a natural roll of 19 or 20 (a normal chain saw has a threat range of 20). It never needs to be refueled or maintained, only requiring repairs when it is damaged. (Remember that a magical weapon ignores 5 points of hardness for every +1 of its enhancement bonus.) 360"
  },
  {
   "name": "Translator’s Earpiece",
@@ -33631,8 +33671,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 900,
   "price_gp": 1800000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate divination; CL 5th; Enchant Wondrous Item, tongues; Base / Market Price $1,800,000.",
+  "d": "This tiny molded earpiece (which requires a succcessful Spot check, DC 20, to notice) lets the wearer speak and understand the language of any intelligent creature, whether it is a racial tongue or regional dialect (as per the tongues spell, albeit continuously). It does not allow reading comprehension."
  },
  {
   "name": "Wounding Handgun +1",
@@ -33643,7 +33683,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "xp_cost": 900,
   "price_gp": 1800000,
   "provenance": null,
-  "d": null
+  "d": "Any bullet fired from this magic handgun deals such a terrible wound that, in addition to taking normal damage, the victim bleeds for 1 point of damage each round thereafter. Multiple wounds from the handgun result in cumulative bleeding loss. The bleeding can only be stopped with a successful Treat Injury check (DC 15) or the application of a healing spell. Moderate necromancy; CL 10th; Enchant Arms and Armor, inflict wounds; Base / Market Price $1,800,000 (+1); Base Price $3,200,000, Market Price $6,400,000 (+2); Base Price $5,000,000, Market Price $15,000,000 (+3). Vehicular Enchanted and Imbued Upgrades With the prospect of enchanting or imbuing items comes the inevitable conclusion that someone will want to enchant or imbue their vehicle(s) with such power. Just as characters are limited in their ability to carry magic items, a vehicle can only bear so many functional magic items / upgrades. In the case of built-in items and upgrades, the maximum enchantment modifier that the vehicle can have is based on its Tech Scale (TS). Tech Scale 0 doesn’t allow mastercrafting so enchanting is impossible; Tech Scales 1-2 vehicles allow for up to +10 total enchantment modifier; Tech Scale 3-4 vehicles allow for up to +8; Tech Scale 5-6 vehicles allow for up to +6; Tech Scale 7-8 vehicles allow for up to +4; and Tech Scale 9 allows for up to a total of +2 in enchantment modifiers for vehicular magic items and upgrades. The limits are as follows: ===== PAGE 364 ===== • 1 ramplate or set of bumpers (built-in) • 1 steering wheel, control wheel, or sidestick controller (built-in) • 1 coat of paint or external adornment (built-in) • 1 set of tires or traction system • 1 pair of headlights (built-in) • 1 horn or siren (built-in) • 1 containment area (ashtray, glove compartment, trunk, etc.; built-in) 364 • 1 non-electronic pilot’s accessory (hung from the rear view mirror, on the dashboard, etc.) • 1 seat or set of seats • 1 engine or engine accessory (built-in) • 1 set of windows (including windshield and side windows; built-in) • 2 electronic accessories (sensor system, stereo, radio, vehicular alarm, etc.; built-in) Pricing Vehicular Magic Items There are two basic types of vehicular magic items; magic items that are independent of the vehicle and upon which the vehicle is not dependent for proper operation (fuzzy dice of luck, dashboard figurines, etc.), and magic upgrades that are built into the vehicle. In instances where the upgrade is built right into the vehicle, the additional cost to enchant or imbue and the XP cost required is based on Purchase DC’s. The magic upgrade gives a Purchase DC modifier, and the overall price is the Market Price. However, the Base Price for the magic upgrade is equal to the vehicle’s new Purchase DC price minus the original Purchase DC price. Keep in mind that the vehicle must be mastercrafted in order to be enchanted or imbued, and the additional Purchase DC for mastercrafted is added before any Purchase DC modifiers for magic upgrades. For example, a player in a TS 6 setting wants to upgrade their Nakazawa Delta-9 motorcycle (original Purchase DC 31, or original Market Price of 50,000 cr) with an Ablative Paint Job (Purchase DC modifier +2). The bike’s owner decides to have the bike mastercrafted to +2, incurring a Purchase DC modifier of +5. So the mastercrafted bike is Purchase DC 36 (200,000 cr) before any enchanting is done. Add in the Purchase DC for the Ablative Paint Job and the new Purchase DC is 38, 350,000 cr (or 3,500 gp). To get the Base Price of a built-in vehicle upgrade, take the difference of the enchanted / imbued vehicle’s price from the mastercrafted vehicle’s price (in this case 350,000 – 200,000 = 150,000 cr or 1,500 gp) and that is the Base Price of the magical effect to be built into the vehicle. So, in this case, an Ablative Paint Job on the +2 mastercrafted Nakazawa Delta-9 has a Base Price of 150,000 cr. The Special Supplies cost is ½ of the vehicle upgrade’s Base Price, while the XP cost is 1/20th of the Base Price if in gp, or 1/2000th of the Base Price if in cr. Thus the Special Supplies cost for the Ablative Paint Job in this instance is ½ of the Base Price of 150,000 cr, so 75,000 cr (or 750 gp), and the XP cost is 1/20th of the Base Cost in gp, or 1/2000th of the Base Cost in cr, making for an XP cost of 75 XP. Enchantment Modifiers for Vehicular Upgrades Tech Scale of Maximum Aggregate Mastercrafted Vehicle Examples of Vehicles Enchantment Modifier 1-2 Chariots, galleys, triremes, wagons +10 3-4 Carriages, steamboats, trains +8 5-6 Battleships, cars, planes, tanks +6 7-8 Mecha, power armor, starships +4 9 Any of the above, techno-magic +2 ===== PAGE 365 ===== A vehicle can only bear so many magic upgrades, depending on how technologically complex the vehicle is. Each built-in upgrade has an enchantment modifier, and a vehicle can only accommodate as much of an enchantment modifier as 1) its mastercrafting allows for, and 2) the Tech Scale of the vehicle being enchanted or imbued. A +1 mastercrafted item or vehicle can accommodate a maximum aggregate enchantment modifier of +3, so it can have either three +1 enchantment modifier upgrades, a +2 and a +1 enchantment modifier upgrade, or a single +3 enchantment modifier upgrade placed upon it. Similarly, a +2 mastercrafted item or vehicle can accommodate an aggregate enchantment modifier of +5, while a +3 mastercrafted item or vehicle can accommodate an aggregate enchantment modifier of +10. 365 For purposes of the enchantment modifier of built-in vehicle upgrades, the Purchase DC modifier is also the enchantment modifier. In the example given above, the +2 mastercrafted Nakazawa Delta-9 motorcycle (TS 6) can receive a maximum enchantment modifier of +5 based on being +2 mastercrafted even though the maximum enchantment modifier for a TS 6 item is +6 (it would have to be mastercrafted to +3 to allow for a +6 enchantment modifier). With an Ablative Paint Job, the motorcycle has an effective enchantment modifier of +2, the same as the Purchase DC modifier, and can accommodate up to +3 more (for a total of +5 enchantment modifier) in built-in magical vehicle upgrades. Vehicular Magic Item Descriptions The following section described several new vehicular magic items."
  },
  {
   "name": "Demolition Hammer +2",
@@ -33653,8 +33693,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 917,
   "price_gp": 1835000,
-  "provenance": null,
-  "d": null
+  "provenance": "Strong psychoportation / transmutation; CL / ML 12th; Enchant Arms and Armor or Imbue Arms and Armor, disintegrate; Base / Market Price $835,000 (+1); Base / Market Price $1,835,000 (+2); Base Price $3,235,000, Market Price $6,435,000 (+3).",
+  "d": "This weapon resembles a standard sledgehammer (use the warhammer statistics) with runes carved into its wooden handle. Besides its enhancement bonus (+1 to +3), the hammer has a disintegrate effect that the wielder may activate once per day after a successful melee attack. The target must succeed at a Fortitude save (DC 20 half) or take 10d6 points of damage. If the target is reduced to –(Con score) hit points or less (or a ===== PAGE 359 ===== construct, object, or undead is reduced to 0 hit points), it is destroyed as if disintegrated, leaving behind only a trace of fine dust."
  },
  {
   "name": "Chainsaw of the Psycho +3",
@@ -33664,8 +33704,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 950,
   "price_gp": 1900000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate necromancy; CL / ML 9th; Enchant Arms and Armor or Imbue Arms and Armor; Base / Market Price $300,000 (+1); Base / Market Price $900,000 (+2); Base / Market Price $1,900,000 (+3).",
+  "d": "This battered chain saw has a +1 to +3 enhancement bonus. It constantly drips oil and small amounts of blood, and it does not require gas to activate. The chain saw deals x3 damage (instead of x2 damage) on a successful critical hit. Any creature with a good alignment or allegiance who handles a chain saw of the psycho gains two negative levels. These negative levels remain so long as the chain saw is in hand and disappear when it is no longer wielded. These negative levels never result in actual level loss, but they cannot be overcome in any way while the chain saw is wielded."
  },
  {
   "name": "Deadeye Rifle +2",
@@ -33675,8 +33715,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 950,
   "price_gp": 1900000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate transmutation / psychokinesis; CL / ML 9th; Enchant Arms and Armor or Imbue Arms and Armor, telekinesis or telekinetic force or telekinetic thrust; Base / Market Price $900,000 (+1); Base / Market Price $1,900,000 (+2); Base Price $3,300,000, Market Price $6,500,000 (+3).",
+  "d": "The deadeye rifle is a sniper rifle with an enhancement bonus of +1 to +3. The stock is covered with elaborate runes, and the deadeye rifle is considerably lighter than a normal sniper rifle. The rifle’s wielder suffers no penalties for 5 range increments, with each additional increment accruing only a –1 penalty."
  },
  {
   "name": "Trench Coat of Useful Items",
@@ -33686,8 +33726,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 1000,
   "price_gp": 4000000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate transmutation; CL 10th; Enchant Wondrous Item; Base Price $2,000,000, Market Price $4,000,000.",
+  "d": "This appears to be an unremarkable black trench coat, but a character who dons it notes that it is adorned with small cloth patches in various shapes. Only the wearer of trench coat can see these patches, recognize them for what items they become, and detach them. One patch can be detached each round. Detaching a patch causes it to become an actual item, as indicated below. A newly created trench coat of useful items always has two each of the following patches: • Flashlight, standard • Knife • Multipurpose tool • Duct tape • 150-foot-long rope • Boltcutter In addition, the trench coat has 2d6+4 other items, determined by rolling on the table below. d% Result 01–08 Bundle of cash ($20,000) 09–15 Loaded flare gun (with 3 extra rounds) 16–22 Gas mask (with an extra filter canister) 23–30 Night vision goggles 31–44 24-foot-long metal ladder 45–51 Diamondback X-20 mountain bike 52–59 Steel handcuffs 60–68 Portable generator (with full tank of gas) 69–75 Fire extinguisher 76–83 Small bag of jewels ($200,000) 84–90 Cell phone (connects to any cellular network and works for 8 hours before becoming useless) 91–96 First aid kit 97–00 Roll twice more, ignoring results of 97–00 ===== PAGE 363 ====="
  },
  {
   "name": "Rod of Technology",
@@ -33697,8 +33737,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 1125,
   "price_gp": 4500000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate varies; CL 10th; Enchant Rod, degauss, fabricate, power device; Base Price $2,250,000, Market Price $4,500,000.",
+  "d": "This 18-inch-long metal rod is covered in wires and diodes, and topped with a large crystal. Six switches are built into its length. Each switch activates a special power of the rod. • The first button turns the rod into a portable satellite telephone. • The second button transforms the rod into a metal detector. • The third switch turns the rod into a lock release gun. • The fourth button transforms the rod into a GPS receiver. • The fifth switch causes the rod’s crystal tip to shed bright light equivalent to a light spell. • The sixth button delivers an electrical pulse to any device touched by the rod’s crystal tip, duplicating the effects of a power device or degauss spell (at the wielder’s discretion)."
  },
  {
   "name": "Staff of the Urban Jungle",
@@ -33708,8 +33748,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 1350,
   "price_gp": 5400000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate varies; CL 9th; Enchant Staff, arcane mark, burglar’s buddy, change self, machine invisibility, power device, synchronicity; Base Price $2,700,000, Market Price $5,400,000.",
+  "d": "This staff is crafted from a long piece of rebar and topped with a variety of bangles, including doll heads, wires, and bolts. It requires that the user hold it forth in at least one hand. The staff has a number of uses, and each time the staff is used, it depletes a certain number of charges. A fully-charged staff holds 50 charges, and all spells are cast at 9th-level of ability. • Arcane mark; uses no charges. • Change self; 1 charge. • Power device; 1 charge. • Burglar’s buddy (Will save DC 14); 1 charge. • Machine invisibility; 1 charge. • Synchronicity (Will save DC 17); 2 charges."
  },
  {
   "name": "Staff of Voltage",
@@ -33719,8 +33759,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 1368,
   "price_gp": 5437500,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate evocation; CL 10th; Enchant Staff, degauss, electromagnetic pulse, lightning bolt, shutdown; Base Price $2,737,500, Market Price $5,475,000.",
+  "d": "This staff is made from a solid piece of copper and etched with lightning bolts or electrical symbols resembling circuitry. It requires that the user hold it forth in at least one hand. A fully-charged staff holds 50 charges. The staff has a number of uses, and each time the staff is used, it depletes a certain number of charges. • Degauss (by touch); 1 charge. • Electromagnetic pulse (DC 15); uses 1 charge. • Lightning bolt (10d6; Reflex DC 15); 1 charge. • Shutdown (by touch); 2 charges."
  },
  {
   "name": "Camera of Soul Stealing",
@@ -33730,8 +33770,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 1600,
   "price_gp": 6400000,
-  "provenance": null,
-  "d": null
+  "provenance": "Strong necromancy; CL 10th; Enchant Wondrous Item, enervation; Base Price $3,200,000, Market Price $6,400,000.",
+  "d": "This bulky, old-fashioned instant camera steals the life force of anyone caught in its field of view. Once per day, the user of the camera of soul stealing can take a picture (the camera does not need to be loaded with film). Anyone within a 30-foot cone must succeed at a Will save (DC 20) or gain 1d4 negative levels. If a creature successfully makes the Will save, it is permanently immune to the effects of that camera of soul stealing. 358 The pictures taken by the camera of soul stealing are black and white, and they possess a horrific, mind- bending quality such that people look gaunt and haunted, objects are twisted in a sinister way, and shadows seem darker and menacing."
  },
  {
   "name": "Keen Chainsaw +3",
@@ -33741,8 +33781,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 1600,
   "price_gp": 6400000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate metacreativity / transmutation; CL / ML 10th; Enchant Arms and Armor or Imbue Arms and Armor, keen edge; Base / Market Price $800,000 (+1); Base / Market Price $1,800,000 (+2); Base Price $3,200,000, Market Price $6,400,000 (+3).",
+  "d": "In addition to its enhancement bonus, this chain saw threatens a critical hit on a natural roll of 19 or 20 (a normal chain saw has a threat range of 20). It never needs to be refueled or maintained, only requiring repairs when it is damaged. (Remember that a magical weapon ignores 5 points of hardness for every +1 of its enhancement bonus.) 360"
  },
  {
   "name": "Wounding Handgun +2",
@@ -33753,7 +33793,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "xp_cost": 1600,
   "price_gp": 6400000,
   "provenance": null,
-  "d": null
+  "d": "Any bullet fired from this magic handgun deals such a terrible wound that, in addition to taking normal damage, the victim bleeds for 1 point of damage each round thereafter. Multiple wounds from the handgun result in cumulative bleeding loss. The bleeding can only be stopped with a successful Treat Injury check (DC 15) or the application of a healing spell. Moderate necromancy; CL 10th; Enchant Arms and Armor, inflict wounds; Base / Market Price $1,800,000 (+1); Base Price $3,200,000, Market Price $6,400,000 (+2); Base Price $5,000,000, Market Price $15,000,000 (+3). Vehicular Enchanted and Imbued Upgrades With the prospect of enchanting or imbuing items comes the inevitable conclusion that someone will want to enchant or imbue their vehicle(s) with such power. Just as characters are limited in their ability to carry magic items, a vehicle can only bear so many functional magic items / upgrades. In the case of built-in items and upgrades, the maximum enchantment modifier that the vehicle can have is based on its Tech Scale (TS). Tech Scale 0 doesn’t allow mastercrafting so enchanting is impossible; Tech Scales 1-2 vehicles allow for up to +10 total enchantment modifier; Tech Scale 3-4 vehicles allow for up to +8; Tech Scale 5-6 vehicles allow for up to +6; Tech Scale 7-8 vehicles allow for up to +4; and Tech Scale 9 allows for up to a total of +2 in enchantment modifiers for vehicular magic items and upgrades. The limits are as follows: ===== PAGE 364 ===== • 1 ramplate or set of bumpers (built-in) • 1 steering wheel, control wheel, or sidestick controller (built-in) • 1 coat of paint or external adornment (built-in) • 1 set of tires or traction system • 1 pair of headlights (built-in) • 1 horn or siren (built-in) • 1 containment area (ashtray, glove compartment, trunk, etc.; built-in) 364 • 1 non-electronic pilot’s accessory (hung from the rear view mirror, on the dashboard, etc.) • 1 seat or set of seats • 1 engine or engine accessory (built-in) • 1 set of windows (including windshield and side windows; built-in) • 2 electronic accessories (sensor system, stereo, radio, vehicular alarm, etc.; built-in) Pricing Vehicular Magic Items There are two basic types of vehicular magic items; magic items that are independent of the vehicle and upon which the vehicle is not dependent for proper operation (fuzzy dice of luck, dashboard figurines, etc.), and magic upgrades that are built into the vehicle. In instances where the upgrade is built right into the vehicle, the additional cost to enchant or imbue and the XP cost required is based on Purchase DC’s. The magic upgrade gives a Purchase DC modifier, and the overall price is the Market Price. However, the Base Price for the magic upgrade is equal to the vehicle’s new Purchase DC price minus the original Purchase DC price. Keep in mind that the vehicle must be mastercrafted in order to be enchanted or imbued, and the additional Purchase DC for mastercrafted is added before any Purchase DC modifiers for magic upgrades. For example, a player in a TS 6 setting wants to upgrade their Nakazawa Delta-9 motorcycle (original Purchase DC 31, or original Market Price of 50,000 cr) with an Ablative Paint Job (Purchase DC modifier +2). The bike’s owner decides to have the bike mastercrafted to +2, incurring a Purchase DC modifier of +5. So the mastercrafted bike is Purchase DC 36 (200,000 cr) before any enchanting is done. Add in the Purchase DC for the Ablative Paint Job and the new Purchase DC is 38, 350,000 cr (or 3,500 gp). To get the Base Price of a built-in vehicle upgrade, take the difference of the enchanted / imbued vehicle’s price from the mastercrafted vehicle’s price (in this case 350,000 – 200,000 = 150,000 cr or 1,500 gp) and that is the Base Price of the magical effect to be built into the vehicle. So, in this case, an Ablative Paint Job on the +2 mastercrafted Nakazawa Delta-9 has a Base Price of 150,000 cr. The Special Supplies cost is ½ of the vehicle upgrade’s Base Price, while the XP cost is 1/20th of the Base Price if in gp, or 1/2000th of the Base Price if in cr. Thus the Special Supplies cost for the Ablative Paint Job in this instance is ½ of the Base Price of 150,000 cr, so 75,000 cr (or 750 gp), and the XP cost is 1/20th of the Base Cost in gp, or 1/2000th of the Base Cost in cr, making for an XP cost of 75 XP. Enchantment Modifiers for Vehicular Upgrades Tech Scale of Maximum Aggregate Mastercrafted Vehicle Examples of Vehicles Enchantment Modifier 1-2 Chariots, galleys, triremes, wagons +10 3-4 Carriages, steamboats, trains +8 5-6 Battleships, cars, planes, tanks +6 7-8 Mecha, power armor, starships +4 9 Any of the above, techno-magic +2 ===== PAGE 365 ===== A vehicle can only bear so many magic upgrades, depending on how technologically complex the vehicle is. Each built-in upgrade has an enchantment modifier, and a vehicle can only accommodate as much of an enchantment modifier as 1) its mastercrafting allows for, and 2) the Tech Scale of the vehicle being enchanted or imbued. A +1 mastercrafted item or vehicle can accommodate a maximum aggregate enchantment modifier of +3, so it can have either three +1 enchantment modifier upgrades, a +2 and a +1 enchantment modifier upgrade, or a single +3 enchantment modifier upgrade placed upon it. Similarly, a +2 mastercrafted item or vehicle can accommodate an aggregate enchantment modifier of +5, while a +3 mastercrafted item or vehicle can accommodate an aggregate enchantment modifier of +10. 365 For purposes of the enchantment modifier of built-in vehicle upgrades, the Purchase DC modifier is also the enchantment modifier. In the example given above, the +2 mastercrafted Nakazawa Delta-9 motorcycle (TS 6) can receive a maximum enchantment modifier of +5 based on being +2 mastercrafted even though the maximum enchantment modifier for a TS 6 item is +6 (it would have to be mastercrafted to +3 to allow for a +6 enchantment modifier). With an Ablative Paint Job, the motorcycle has an effective enchantment modifier of +2, the same as the Purchase DC modifier, and can accommodate up to +3 more (for a total of +5 enchantment modifier) in built-in magical vehicle upgrades. Vehicular Magic Item Descriptions The following section described several new vehicular magic items."
  },
  {
   "name": "Demolition Hammer +3",
@@ -33763,8 +33803,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 1617,
   "price_gp": 6435000,
-  "provenance": null,
-  "d": null
+  "provenance": "Strong psychoportation / transmutation; CL / ML 12th; Enchant Arms and Armor or Imbue Arms and Armor, disintegrate; Base / Market Price $835,000 (+1); Base / Market Price $1,835,000 (+2); Base Price $3,235,000, Market Price $6,435,000 (+3).",
+  "d": "This weapon resembles a standard sledgehammer (use the warhammer statistics) with runes carved into its wooden handle. Besides its enhancement bonus (+1 to +3), the hammer has a disintegrate effect that the wielder may activate once per day after a successful melee attack. The target must succeed at a Fortitude save (DC 20 half) or take 10d6 points of damage. If the target is reduced to –(Con score) hit points or less (or a ===== PAGE 359 ===== construct, object, or undead is reduced to 0 hit points), it is destroyed as if disintegrated, leaving behind only a trace of fine dust."
  },
  {
   "name": "Ring of Surveillance Detection",
@@ -33774,8 +33814,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 1625,
   "price_gp": 6500000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate clairsentience / divination; CL / ML 10th; Enchant Ring or Imbue Ring, detect remote viewing or detect scrying; Base Price $3,250,000, Market Price $6,500,000.",
+  "d": "This ring pulses dimly when electronic devices are monitoring the wearer. The ring can detect a working video camera, microphone, motion detector, or other sensor within 50 feet. By taking a full- round action, the wearer can locate the direction and distance to the device. It grants a +5 circumstance bonus on Search checks when trying to find concealed monitoring devices. ===== PAGE 361 ====="
  },
  {
   "name": "Deadeye Rifle +3",
@@ -33785,8 +33825,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 1650,
   "price_gp": 6600000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate transmutation / psychokinesis; CL / ML 9th; Enchant Arms and Armor or Imbue Arms and Armor, telekinesis or telekinetic force or telekinetic thrust; Base / Market Price $900,000 (+1); Base / Market Price $1,900,000 (+2); Base Price $3,300,000, Market Price $6,500,000 (+3).",
+  "d": "The deadeye rifle is a sniper rifle with an enhancement bonus of +1 to +3. The stock is covered with elaborate runes, and the deadeye rifle is considerably lighter than a normal sniper rifle. The rifle’s wielder suffers no penalties for 5 range increments, with each additional increment accruing only a –1 penalty."
  },
  {
   "name": "Bladegun +3",
@@ -33796,8 +33836,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 1900,
   "price_gp": 7400000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate transmutation; CL 10th; Enchant Arms and Armor, fabricate; Base / Market Price $600,000 (+1); Base / Market Price $1,800,000 (+2); Base Price $3,800,000, Market Price $7,400,000 (+3).",
+  "d": "A bladegun is a magic pistol that transforms into a magic short sword (and back again) upon command. Each bladegun is either a revolver or an automatic pistol, but regardless of the type the gun always does 2x the damage of the short sword damage die. The handgun and short sword versions of the weapon possess the same enhancement bonus (+1 to +3). Turning the handgun into a short sword—and vice versa— takes a move action. A bladegun in handgun form must be loaded with ammunition to fire (as any gun)."
  },
  {
   "name": "Eldritch Cell Phone",
@@ -33807,8 +33847,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 2250,
   "price_gp": 13500000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate evocation; CL 9th; Enchant Wondrous Item, sending; Base Price $4,500,000, Market Price $9,000,000.",
+  "d": "This cell phone has an unusually long and odd-shaped antenna but is otherwise nondescript. It has the ability to connect to any other phone regardless of weather conditions or distance. The connection has a slight warble to it, but is otherwise free of static and other interference. If the person being contacted doesn’t have a phone, the eldritch cell phone automatically dials the phone nearest to the individual (even though the contact might be unable to reach it). Furthermore, the eldritch cell phone magically encrypts the conversation so that anyone who taps into the conversation (using a cellular interceptor or other hardware) hears only gibberish. The eldritch cell phone has a built-in caller ID defeater and cannot be traced by mundane technology."
  },
  {
   "name": "Icethrower",
@@ -33818,8 +33858,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 2500,
   "price_gp": 15000000,
-  "provenance": null,
-  "d": null
+  "provenance": "Strong evocation / psychokinesis; CL / ML 10th; Enchant Wondrous Item or Imbue Universal Item, cone of cold or energy cone (cold); Base Price $5,000,000, Market Price $15,000,000.",
+  "d": "This backpack and spray nozzle looks like a flamethrower but shoots a 45-foot-long cone of cold that deals 10d6 points of cold damage to creatures and objects in the area. A successful Reflex save (DC 17) halves the damage. Using the icethrower is an attack action and provokes attacks of opportunity. The cold fuel stored in the icethrower’s backpack is drained after 10 shots but can be replenished (at the cost of the item’s Base Price). No proficiency is required to use it, just the command word (or thought)."
  },
  {
   "name": "Video Camera of True Seeing",
@@ -33829,8 +33869,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 2500,
   "price_gp": 15000000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate clairsentience / divination; Enchant Wondrous Item or Imbue Universal Item, true seeing; Base Price $5,000,000, Market Price $15,000,000.",
+  "d": "This video camera is covered in runes and sigils. In addition to operating like a normal video camera, it is also capable of videotaping things unseen by normal eyes, as if through the true seeing spell. The camera records invisible beings as well as the actual form of Shadow creatures with perfect clarity."
  },
  {
   "name": "Wounding Handgun +3",
@@ -33841,7 +33881,7 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "xp_cost": 2500,
   "price_gp": 15000000,
   "provenance": null,
-  "d": null
+  "d": "Any bullet fired from this magic handgun deals such a terrible wound that, in addition to taking normal damage, the victim bleeds for 1 point of damage each round thereafter. Multiple wounds from the handgun result in cumulative bleeding loss. The bleeding can only be stopped with a successful Treat Injury check (DC 15) or the application of a healing spell. Moderate necromancy; CL 10th; Enchant Arms and Armor, inflict wounds; Base / Market Price $1,800,000 (+1); Base Price $3,200,000, Market Price $6,400,000 (+2); Base Price $5,000,000, Market Price $15,000,000 (+3). Vehicular Enchanted and Imbued Upgrades With the prospect of enchanting or imbuing items comes the inevitable conclusion that someone will want to enchant or imbue their vehicle(s) with such power. Just as characters are limited in their ability to carry magic items, a vehicle can only bear so many functional magic items / upgrades. In the case of built-in items and upgrades, the maximum enchantment modifier that the vehicle can have is based on its Tech Scale (TS). Tech Scale 0 doesn’t allow mastercrafting so enchanting is impossible; Tech Scales 1-2 vehicles allow for up to +10 total enchantment modifier; Tech Scale 3-4 vehicles allow for up to +8; Tech Scale 5-6 vehicles allow for up to +6; Tech Scale 7-8 vehicles allow for up to +4; and Tech Scale 9 allows for up to a total of +2 in enchantment modifiers for vehicular magic items and upgrades. The limits are as follows: ===== PAGE 364 ===== • 1 ramplate or set of bumpers (built-in) • 1 steering wheel, control wheel, or sidestick controller (built-in) • 1 coat of paint or external adornment (built-in) • 1 set of tires or traction system • 1 pair of headlights (built-in) • 1 horn or siren (built-in) • 1 containment area (ashtray, glove compartment, trunk, etc.; built-in) 364 • 1 non-electronic pilot’s accessory (hung from the rear view mirror, on the dashboard, etc.) • 1 seat or set of seats • 1 engine or engine accessory (built-in) • 1 set of windows (including windshield and side windows; built-in) • 2 electronic accessories (sensor system, stereo, radio, vehicular alarm, etc.; built-in) Pricing Vehicular Magic Items There are two basic types of vehicular magic items; magic items that are independent of the vehicle and upon which the vehicle is not dependent for proper operation (fuzzy dice of luck, dashboard figurines, etc.), and magic upgrades that are built into the vehicle. In instances where the upgrade is built right into the vehicle, the additional cost to enchant or imbue and the XP cost required is based on Purchase DC’s. The magic upgrade gives a Purchase DC modifier, and the overall price is the Market Price. However, the Base Price for the magic upgrade is equal to the vehicle’s new Purchase DC price minus the original Purchase DC price. Keep in mind that the vehicle must be mastercrafted in order to be enchanted or imbued, and the additional Purchase DC for mastercrafted is added before any Purchase DC modifiers for magic upgrades. For example, a player in a TS 6 setting wants to upgrade their Nakazawa Delta-9 motorcycle (original Purchase DC 31, or original Market Price of 50,000 cr) with an Ablative Paint Job (Purchase DC modifier +2). The bike’s owner decides to have the bike mastercrafted to +2, incurring a Purchase DC modifier of +5. So the mastercrafted bike is Purchase DC 36 (200,000 cr) before any enchanting is done. Add in the Purchase DC for the Ablative Paint Job and the new Purchase DC is 38, 350,000 cr (or 3,500 gp). To get the Base Price of a built-in vehicle upgrade, take the difference of the enchanted / imbued vehicle’s price from the mastercrafted vehicle’s price (in this case 350,000 – 200,000 = 150,000 cr or 1,500 gp) and that is the Base Price of the magical effect to be built into the vehicle. So, in this case, an Ablative Paint Job on the +2 mastercrafted Nakazawa Delta-9 has a Base Price of 150,000 cr. The Special Supplies cost is ½ of the vehicle upgrade’s Base Price, while the XP cost is 1/20th of the Base Price if in gp, or 1/2000th of the Base Price if in cr. Thus the Special Supplies cost for the Ablative Paint Job in this instance is ½ of the Base Price of 150,000 cr, so 75,000 cr (or 750 gp), and the XP cost is 1/20th of the Base Cost in gp, or 1/2000th of the Base Cost in cr, making for an XP cost of 75 XP. Enchantment Modifiers for Vehicular Upgrades Tech Scale of Maximum Aggregate Mastercrafted Vehicle Examples of Vehicles Enchantment Modifier 1-2 Chariots, galleys, triremes, wagons +10 3-4 Carriages, steamboats, trains +8 5-6 Battleships, cars, planes, tanks +6 7-8 Mecha, power armor, starships +4 9 Any of the above, techno-magic +2 ===== PAGE 365 ===== A vehicle can only bear so many magic upgrades, depending on how technologically complex the vehicle is. Each built-in upgrade has an enchantment modifier, and a vehicle can only accommodate as much of an enchantment modifier as 1) its mastercrafting allows for, and 2) the Tech Scale of the vehicle being enchanted or imbued. A +1 mastercrafted item or vehicle can accommodate a maximum aggregate enchantment modifier of +3, so it can have either three +1 enchantment modifier upgrades, a +2 and a +1 enchantment modifier upgrade, or a single +3 enchantment modifier upgrade placed upon it. Similarly, a +2 mastercrafted item or vehicle can accommodate an aggregate enchantment modifier of +5, while a +3 mastercrafted item or vehicle can accommodate an aggregate enchantment modifier of +10. 365 For purposes of the enchantment modifier of built-in vehicle upgrades, the Purchase DC modifier is also the enchantment modifier. In the example given above, the +2 mastercrafted Nakazawa Delta-9 motorcycle (TS 6) can receive a maximum enchantment modifier of +5 based on being +2 mastercrafted even though the maximum enchantment modifier for a TS 6 item is +6 (it would have to be mastercrafted to +3 to allow for a +6 enchantment modifier). With an Ablative Paint Job, the motorcycle has an effective enchantment modifier of +2, the same as the Purchase DC modifier, and can accommodate up to +3 more (for a total of +5 enchantment modifier) in built-in magical vehicle upgrades. Vehicular Magic Item Descriptions The following section described several new vehicular magic items."
  },
  {
   "name": "Animated Tools",
@@ -33851,8 +33891,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 3600,
   "price_gp": 28000000,
-  "provenance": null,
-  "d": null
+  "provenance": "Moderate transmutation; CL 12th; Enchant Wondrous Item, animate objects; Base Price $7,200,000, Market Price $28,800,000.",
+  "d": "Two different sets of animated tools exist: the “mechanoset” is designed for mechanical devices, while the “electroset” is intended for electrical devices. When used like ordinary tools, animated tools operate as a deluxe tool kit of the appropriate type (+2 equipment bonus on Repair checks), although they have the same size and weight as a basic kit. On command, the tools animate and begin repairing a single damaged item of the appropriate type. The animated tools must be placed within 5 feet of the item to be repaired, and the user must remain within 30 feet for the duration of the repairs. When used in this manner, the animated tools act as though they have 10 ranks in the Repair skill (Repair +10). The animated tools have a hardness of 10 and 10 hit points (total). They cannot be commanded to attack."
  },
  {
   "name": "Tempus Fugit Watch",
@@ -33862,8 +33902,8 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "cl_kind": null,
   "xp_cost": 8100,
   "price_gp": 145800000,
-  "provenance": null,
-  "d": null
+  "provenance": "Strong psychoportation / transmutation; CL / ML 18th; Enchant Wondrous Item or Imbue Universal Item, temporal acceleration or time stop; Base Price $16,200,000, Market Price $145,800,000.",
+  "d": "The tempus fugit watch is an antique gold pocket watch with numerous hands that do not seem to conform to the standard array of hours, minutes, and seconds. It uses long-forgotten and extremely ===== PAGE 362 ===== powerful magic to stop time for a short while while enabling its wearer to move about freely. These watches are only found, as the secret of their manufacture has been lost. Once per day, the tempus fugit watch can make time cease to flow for everyone but the wearer. In reality, the wearer speeds up so greatly that all other creatures seem frozen, though they are moving at their regular speed. The wearer is free to act for 1d4+1 rounds of apparent time. While the time stop is in effect, other creatures are invulnerable to the wearer’s attacks and spells. A spell that affects an area and has a duration longer than the remaining duration of the time stop (such as cloudkill) have their normal effects on other creatures once the time-stopping effect ends. Normal and magical fire, cold, gas, and the like can still harm the wearer during the 362 time stop. The wearer cannot move or harm items held, carried, or worn by a creature stuck in normal time, but the wearer can affect any item that is not in another creature’s possession. The wearer is not detectable while the effect lasts. There is a 1% chance per use that the watch ceases to function after its last use, rendered irreparable."
  },
  {
   "name": "Amulet of Inescapable Location",
