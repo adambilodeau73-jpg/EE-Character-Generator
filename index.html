@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.9.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.9.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -38957,7 +38957,12 @@ async function saveCharacter(){
                        'superPPCurrent','ppCurrent','powersKnownList','mlXpCompensatedTo',
                        'preparedSlots','preparedToday','nullified','wealthScore','wealthBreakdown','funds','rangerCombatStyle',
                        'abilityUses','raging','fatigued','euphoric','classChoices','classAttrApplied','companions','rkcmDamaged',
-                       'skillSets']) {  // v8.66.0: Take-10 designations survive edit-saves // conditions handled above
+                       'skillSets',  // v8.66.0: Take-10 designations survive edit-saves // conditions handled above
+                       // v9.9.1 (§260): the v8.90+/v9.2 subsystems had re-walked into the
+                       // v8.5.4 wipe trap — an edit-save silently dropped every implant
+                       // and active gear Boon. (cybNacHpApplied deliberately NOT
+                       // preserved — the reconciler re-bakes onto the fresh maxHP.)
+                       'cybernetics','activeEffects']) {
         // (talentHpApplied deliberately NOT preserved — reconcileTalentHp
         // re-applies onto the assembly's fresh maxHP, like mutNacHpApplied.)
         if (chars[idx][k] !== undefined) char[k] = chars[idx][k];
@@ -45020,9 +45025,12 @@ function computeMutationEffects(c) {
 // the wiring — idempotent via the attrApplied flag. The sheet annotates the
 // bonus per attribute (supernatural tiers noted as suppressible).
 function reconcileAttributeMutations(c) {
-  if (!c || !c.mutations) return false;
+  // v9.9.1 (§260): the old guard bounced mutation-less characters before the
+  // cybernetic NAC bake could run — a pure-tech cyborg (Adam's Smart Hero)
+  // never reached it. Only a missing character bounces now.
+  if (!c) return false;
   let changed = false;
-  for (const m of c.mutations) {
+  for (const m of (c.mutations || [])) {
     if (m.kind !== 'attribute' || m.attrApplied || !m.attr) continue;
     const i = ATTR_KEY_IDX[m.attr];
     if (i === undefined) continue;
@@ -45047,6 +45055,26 @@ function reconcileAttributeMutations(c) {
       c.currentHP = Math.max(0, Math.min(c.maxHP, c.currentHP + delta));
     }
     c.mutNacHpApplied = expected;
+    changed = true;
+  }
+  // v9.9.1 (§260, Adam's Smart Hero report — subq armor hardness showed, its
+  // HP didn't): CYBERNETIC natural armor is an IMPLANT — permanent, so it
+  // bakes its ×5 HP exactly like mutation NAC (Adam's subcutaneous-body-armor
+  // ruling, the hard-baked door), on its own delta ledger c.cybNacHpApplied
+  // (NOT edit-preserved, same convention as mutNacHpApplied). Equipped-ITEM
+  // NAC still deliberately grants no HP (firm-wired door; removable).
+  const expectedCyb = (typeof getCyber === 'function' ? getCyber(c) : []).reduce((s, r) => {
+    const d = (typeof cyberDef === 'function') ? cyberDef(r.n) : null;
+    return s + ((d && d.nac) || 0) * 5;
+  }, 0);
+  const appliedCyb = c.cybNacHpApplied || 0;
+  if (expectedCyb !== appliedCyb && typeof c.maxHP === 'number' && isFinite(c.maxHP)) {
+    const deltaCyb = expectedCyb - appliedCyb;
+    c.maxHP = Math.max(1, c.maxHP + deltaCyb);
+    if (typeof c.currentHP === 'number' && isFinite(c.currentHP)) {
+      c.currentHP = Math.max(0, Math.min(c.maxHP, c.currentHP + deltaCyb));
+    }
+    c.cybNacHpApplied = expectedCyb;
     changed = true;
   }
   return changed;
