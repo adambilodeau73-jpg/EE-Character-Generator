@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.10.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.11.0</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -1222,6 +1222,9 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
           <option value="rod">Rods</option><option value="staff">Staffs</option>
           <option value="wand">Wands</option><option value="potion">Potions &amp; Oils</option>
           <option value="psicrown">Psicrowns</option><option value="universal_item">Universal Items</option>
+          <option value="scroll">Scrolls</option><option value="dorje">Dorjes</option>
+          <option value="power_stone">Power Stones</option><option value="cognizance_crystal">Cognizance Crystals</option>
+          <option value="tattoo">Imbued Tattoos</option>
           <option value="weapon_ability">Weapon Properties</option><option value="armor_shield_ability">Armor/Shield Properties</option>
           <option value="specific_weapon">Specific Weapons</option><option value="specific_armor">Specific Armors</option>
           <option value="specific_shield">Specific Shields</option><option value="modern">Modern Items</option>
@@ -7142,7 +7145,10 @@ const MAGIC_TYPE_LABELS = {
   weapon_ability:'Weapon Property', armor_shield_ability:'Armor/Shield Property',
   specific_weapon:'Specific Weapon', specific_armor:'Specific Armor',
   specific_shield:'Specific Shield', modern:'Modern', cursed:'Cursed',
-  artifact:'Artifact', tattoo:'Tattoo',
+  artifact:'Artifact', tattoo:'Imbued Tattoo',
+  // v9.11.0 (§265): the five ported sections (GMG pp.272-302).
+  cognizance_crystal:'Cognizance Crystal', dorje:'Dorje',
+  power_stone:'Power Stone', scroll:'Scroll',
 };
 // Property types are enchantment MODIFIERS applied to a weapon/armor (Price
 // +N bonus or gp surcharge) — browsable for reference, not addable as items.
@@ -7365,6 +7371,39 @@ async function addMagicFromBrowse(i) {
       if (!conv.mcOnly) added.enchant = { enh: conv.enh || 1, abilities: conv.abilities || [], imbued: false, overCap: false };
       save(); renderGear(); renderSheet();
       toast(`${m.name} added as an equippable ${conv.cat} (${conv.mcOnly ? 'special material, nonmagical' : '+' + (conv.enh || 1) + (conv.abilities && conv.abilities.length ? ' ' + conv.abilities.join(' ') : '')} ${conv.base}).`);
+    }
+    return;
+  }
+  // v9.11.0 (§265, Adam: "wiring to imbue them on the spot"): the spell/
+  // power VEHICLES — a dorje, power stone, scroll, or imbued tattoo is an
+  // empty vessel until its spell or power is chosen, so the add flow asks.
+  // The candidate list is SPELLS_DB filtered to the vehicle's level within
+  // its family (psionic classes for powers, casting classes for spells);
+  // the item records what it carries and takes the traditional name.
+  if (m.vehicle) {
+    const c0 = chars.find(x => x.id === curId); if (!c0) return;
+    const PSI_CLS = new Set(['Psi/Wld', 'War', 'Telepath', 'Nomad', 'Seer', 'Kineticist', 'Egoist', 'Shaper']);
+    const famLvl = (sp) => {
+      const ls = (sp.levels || []).filter(l => m.vehicle.kind === 'power' ? PSI_CLS.has(l.cls) : !PSI_CLS.has(l.cls));
+      return ls.length ? Math.min(...ls.map(l => l.lvl)) : null;
+    };
+    let names = (typeof SPELLS_DB !== 'undefined') ? SPELLS_DB.filter(sp => famLvl(sp) === m.vehicle.lvl).map(sp => sp.name) : [];
+    if (!names.length && typeof SPELLS_DB !== 'undefined') names = SPELLS_DB.filter(sp => (sp.levels || []).some(l => l.lvl === m.vehicle.lvl)).map(sp => sp.name);
+    names = [...new Set(names)].sort();
+    if (!names.length) { toast(`No ${m.vehicle.kind}s of that level found in the catalogue.`); return; }
+    const pick = await new Promise(res => openChoiceModal(
+      `${m.name} — which ${m.vehicle.kind} does it carry? (Imbued at creation; ${m.cl_kind || 'CL'} ${m.cl}, the minimum.)`, names, res));
+    if (!pick) return;
+    const prov = await promptProvenance(c0, `${m.vehicle.label} of ${pick}`, m.price_gp ? m.price_gp * 100 : null);
+    if (prov === null) return;
+    await addItemToChar('magic', m.name, magicItemDefaultSlot(m), { skipPurchase: true });
+    const added = (c0.items || []).filter(it => it.catalogue === 'magic' && it.ref === m.name).pop();
+    if (added) {
+      added.customName = `${m.vehicle.label} of ${pick}`;
+      added.imbued = { name: pick, lvl: m.vehicle.lvl, kind: m.vehicle.kind };
+      if (prov) added.provenance = prov;
+      save(); renderGear();
+      toast(`${added.customName} added (${m.vehicle.kind} carried: ${pick}, ${m.cl_kind || 'CL'} ${m.cl}).`);
     }
     return;
   }
@@ -34399,6 +34438,624 @@ const MAGIC_ITEMS_DB = /*<<JSON:MAGIC_ITEMS_DB>>*/ [
   "price_bonus": null,
   "provenance": "Strong evocation [evil]; CL 18th.",
   "d": "An evil (LE, NE, CE) divine spellcaster who possesses this item can cause a flaming crack to open at the feet of a good (LG, NG, CG) divine spellcaster who is up to 100 feet away. The intended victim is swallowed up forever and sent hurtling to the center of the earth. The wielder of the talisman must be evil, and if they are not exceptionally foul and perverse in the sights of their evil deity the good character gains a DC 19 Reflex save to leap away from the crack. Obviously, the target must be standing on solid ground for this item to function. A talisman of ultimate evil has 6 charges. If a neutral (LN, N, CN) divine spellcaster touches one of these stones, they take 6d6 points of damage. If a good divine spellcaster touches one, they take 8d6 points of damage. All other characters are unaffected by the device."
+ },
+ {
+  "aura": "Faint to strong psychokinesis",
+  "cl": 1,
+  "cl_kind": "ML",
+  "price_gp": 1000,
+  "price_bonus": null,
+  "provenance": "Faint to strong psychokinesis; ML equal to maximum power point storage (1); Imbue Cognizance Crystal; Market Price 1,000 gp.",
+  "d": "A core crystal and two or three smaller crystals arranged on strands of silver wire, giving off a faint glow (1 lb.; AC 7, 10 hp, hardness 8, break DC 16). Hold or carry it for 10 minutes to attune; thereafter spend its stored power points to manifest powers you know. It stores only up to its original maximum (always an odd number, never more than 17) and recharges on a 1-for-1 basis from your own power point reserve — the points stay banked in the crystal until used. You cannot replenish your personal power points from it, nor draw points from more than one source to manifest a single power.",
+  "xp_cost": 50,
+  "name": "Cognizance Crystal (1 PP)",
+  "type": "cognizance_crystal"
+ },
+ {
+  "aura": "Faint to strong psychokinesis",
+  "cl": 3,
+  "cl_kind": "ML",
+  "price_gp": 4000,
+  "price_bonus": null,
+  "provenance": "Faint to strong psychokinesis; ML equal to maximum power point storage (3); Imbue Cognizance Crystal; Market Price 4,000 gp.",
+  "d": "A core crystal and two or three smaller crystals arranged on strands of silver wire, giving off a faint glow (1 lb.; AC 7, 10 hp, hardness 8, break DC 16). Hold or carry it for 10 minutes to attune; thereafter spend its stored power points to manifest powers you know. It stores only up to its original maximum (always an odd number, never more than 17) and recharges on a 1-for-1 basis from your own power point reserve — the points stay banked in the crystal until used. You cannot replenish your personal power points from it, nor draw points from more than one source to manifest a single power.",
+  "xp_cost": 200,
+  "name": "Cognizance Crystal (3 PP)",
+  "type": "cognizance_crystal"
+ },
+ {
+  "aura": "Faint to strong psychokinesis",
+  "cl": 5,
+  "cl_kind": "ML",
+  "price_gp": 9000,
+  "price_bonus": null,
+  "provenance": "Faint to strong psychokinesis; ML equal to maximum power point storage (5); Imbue Cognizance Crystal; Market Price 9,000 gp.",
+  "d": "A core crystal and two or three smaller crystals arranged on strands of silver wire, giving off a faint glow (1 lb.; AC 7, 10 hp, hardness 8, break DC 16). Hold or carry it for 10 minutes to attune; thereafter spend its stored power points to manifest powers you know. It stores only up to its original maximum (always an odd number, never more than 17) and recharges on a 1-for-1 basis from your own power point reserve — the points stay banked in the crystal until used. You cannot replenish your personal power points from it, nor draw points from more than one source to manifest a single power.",
+  "xp_cost": 450,
+  "name": "Cognizance Crystal (5 PP)",
+  "type": "cognizance_crystal"
+ },
+ {
+  "aura": "Faint to strong psychokinesis",
+  "cl": 7,
+  "cl_kind": "ML",
+  "price_gp": 16000,
+  "price_bonus": null,
+  "provenance": "Faint to strong psychokinesis; ML equal to maximum power point storage (7); Imbue Cognizance Crystal; Market Price 16,000 gp.",
+  "d": "A core crystal and two or three smaller crystals arranged on strands of silver wire, giving off a faint glow (1 lb.; AC 7, 10 hp, hardness 8, break DC 16). Hold or carry it for 10 minutes to attune; thereafter spend its stored power points to manifest powers you know. It stores only up to its original maximum (always an odd number, never more than 17) and recharges on a 1-for-1 basis from your own power point reserve — the points stay banked in the crystal until used. You cannot replenish your personal power points from it, nor draw points from more than one source to manifest a single power.",
+  "xp_cost": 800,
+  "name": "Cognizance Crystal (7 PP)",
+  "type": "cognizance_crystal"
+ },
+ {
+  "aura": "Faint to strong psychokinesis",
+  "cl": 9,
+  "cl_kind": "ML",
+  "price_gp": 50000,
+  "price_bonus": null,
+  "provenance": "Faint to strong psychokinesis; ML equal to maximum power point storage (9); Imbue Cognizance Crystal; Market Price 50,000 gp.",
+  "d": "A core crystal and two or three smaller crystals arranged on strands of silver wire, giving off a faint glow (1 lb.; AC 7, 10 hp, hardness 8, break DC 16). Hold or carry it for 10 minutes to attune; thereafter spend its stored power points to manifest powers you know. It stores only up to its original maximum (always an odd number, never more than 17) and recharges on a 1-for-1 basis from your own power point reserve — the points stay banked in the crystal until used. You cannot replenish your personal power points from it, nor draw points from more than one source to manifest a single power.",
+  "xp_cost": 1250,
+  "name": "Cognizance Crystal (9 PP)",
+  "type": "cognizance_crystal"
+ },
+ {
+  "aura": "Faint to strong psychokinesis",
+  "cl": 11,
+  "cl_kind": "ML",
+  "price_gp": 72000,
+  "price_bonus": null,
+  "provenance": "Faint to strong psychokinesis; ML equal to maximum power point storage (11); Imbue Cognizance Crystal; Market Price 72,000 gp.",
+  "d": "A core crystal and two or three smaller crystals arranged on strands of silver wire, giving off a faint glow (1 lb.; AC 7, 10 hp, hardness 8, break DC 16). Hold or carry it for 10 minutes to attune; thereafter spend its stored power points to manifest powers you know. It stores only up to its original maximum (always an odd number, never more than 17) and recharges on a 1-for-1 basis from your own power point reserve — the points stay banked in the crystal until used. You cannot replenish your personal power points from it, nor draw points from more than one source to manifest a single power.",
+  "xp_cost": 1800,
+  "name": "Cognizance Crystal (11 PP)",
+  "type": "cognizance_crystal"
+ },
+ {
+  "aura": "Faint to strong psychokinesis",
+  "cl": 13,
+  "cl_kind": "ML",
+  "price_gp": 147000,
+  "price_bonus": null,
+  "provenance": "Faint to strong psychokinesis; ML equal to maximum power point storage (13); Imbue Cognizance Crystal; Market Price 147,000 gp.",
+  "d": "A core crystal and two or three smaller crystals arranged on strands of silver wire, giving off a faint glow (1 lb.; AC 7, 10 hp, hardness 8, break DC 16). Hold or carry it for 10 minutes to attune; thereafter spend its stored power points to manifest powers you know. It stores only up to its original maximum (always an odd number, never more than 17) and recharges on a 1-for-1 basis from your own power point reserve — the points stay banked in the crystal until used. You cannot replenish your personal power points from it, nor draw points from more than one source to manifest a single power.",
+  "xp_cost": 2450,
+  "name": "Cognizance Crystal (13 PP)",
+  "type": "cognizance_crystal"
+ },
+ {
+  "aura": "Faint to strong psychokinesis",
+  "cl": 15,
+  "cl_kind": "ML",
+  "price_gp": 256000,
+  "price_bonus": null,
+  "provenance": "Faint to strong psychokinesis; ML equal to maximum power point storage (15); Imbue Cognizance Crystal; Market Price 256,000 gp.",
+  "d": "A core crystal and two or three smaller crystals arranged on strands of silver wire, giving off a faint glow (1 lb.; AC 7, 10 hp, hardness 8, break DC 16). Hold or carry it for 10 minutes to attune; thereafter spend its stored power points to manifest powers you know. It stores only up to its original maximum (always an odd number, never more than 17) and recharges on a 1-for-1 basis from your own power point reserve — the points stay banked in the crystal until used. You cannot replenish your personal power points from it, nor draw points from more than one source to manifest a single power.",
+  "xp_cost": 3200,
+  "name": "Cognizance Crystal (15 PP)",
+  "type": "cognizance_crystal"
+ },
+ {
+  "aura": "Faint to strong psychokinesis",
+  "cl": 17,
+  "cl_kind": "ML",
+  "price_gp": 405000,
+  "price_bonus": null,
+  "provenance": "Faint to strong psychokinesis; ML equal to maximum power point storage (17); Imbue Cognizance Crystal; Market Price 405,000 gp.",
+  "d": "A core crystal and two or three smaller crystals arranged on strands of silver wire, giving off a faint glow (1 lb.; AC 7, 10 hp, hardness 8, break DC 16). Hold or carry it for 10 minutes to attune; thereafter spend its stored power points to manifest powers you know. It stores only up to its original maximum (always an odd number, never more than 17) and recharges on a 1-for-1 basis from your own power point reserve — the points stay banked in the crystal until used. You cannot replenish your personal power points from it, nor draw points from more than one source to manifest a single power.",
+  "xp_cost": 4050,
+  "name": "Cognizance Crystal (17 PP)",
+  "type": "cognizance_crystal"
+ },
+ {
+  "aura": null,
+  "cl": 1,
+  "cl_kind": "ML",
+  "price_gp": 750,
+  "price_bonus": null,
+  "provenance": "ML 1 (the minimum for a 1st-level power); Imbue Dorje; Market Price 750 gp (base price 750 gp × power level × manifester level).",
+  "d": "A slender crystal containing a single power — 8 to 10 inches long and about 1/2 inch thick (AC 7, 7 hp, hardness 8, break DC 18). A dorje holds 50 charges when created; each charge expended allows one use of its power, and a dorje that runs out is just a simple crystal. Power trigger activation: manifesting from a dorje is usually a standard action that does not provoke attacks of opportunity — hold it in hand, point it in the general direction of the target, and the power must be on your class list. Dorjes are created at the minimum manifester level required (augmentable powers are NOT augmented unless built in at creation, and a dorje’s ML can never exceed that minimum by more than five).",
+  "xp_cost": 37,
+  "name": "Dorje (1st-Level Power)",
+  "type": "dorje",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 1,
+   "label": "Dorje"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 3,
+  "cl_kind": "ML",
+  "price_gp": 4500,
+  "price_bonus": null,
+  "provenance": "ML 3 (the minimum for a 2nd-level power); Imbue Dorje; Market Price 4,500 gp (base price 750 gp × power level × manifester level).",
+  "d": "A slender crystal containing a single power — 8 to 10 inches long and about 1/2 inch thick (AC 7, 7 hp, hardness 8, break DC 18). A dorje holds 50 charges when created; each charge expended allows one use of its power, and a dorje that runs out is just a simple crystal. Power trigger activation: manifesting from a dorje is usually a standard action that does not provoke attacks of opportunity — hold it in hand, point it in the general direction of the target, and the power must be on your class list. Dorjes are created at the minimum manifester level required (augmentable powers are NOT augmented unless built in at creation, and a dorje’s ML can never exceed that minimum by more than five).",
+  "xp_cost": 225,
+  "name": "Dorje (2nd-Level Power)",
+  "type": "dorje",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 2,
+   "label": "Dorje"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 5,
+  "cl_kind": "ML",
+  "price_gp": 11250,
+  "price_bonus": null,
+  "provenance": "ML 5 (the minimum for a 3rd-level power); Imbue Dorje; Market Price 11,250 gp (base price 750 gp × power level × manifester level).",
+  "d": "A slender crystal containing a single power — 8 to 10 inches long and about 1/2 inch thick (AC 7, 7 hp, hardness 8, break DC 18). A dorje holds 50 charges when created; each charge expended allows one use of its power, and a dorje that runs out is just a simple crystal. Power trigger activation: manifesting from a dorje is usually a standard action that does not provoke attacks of opportunity — hold it in hand, point it in the general direction of the target, and the power must be on your class list. Dorjes are created at the minimum manifester level required (augmentable powers are NOT augmented unless built in at creation, and a dorje’s ML can never exceed that minimum by more than five).",
+  "xp_cost": 562,
+  "name": "Dorje (3rd-Level Power)",
+  "type": "dorje",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 3,
+   "label": "Dorje"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 7,
+  "cl_kind": "ML",
+  "price_gp": 42000,
+  "price_bonus": null,
+  "provenance": "ML 7 (the minimum for a 4th-level power); Imbue Dorje; Market Price 42,000 gp (base price 750 gp × power level × manifester level).",
+  "d": "A slender crystal containing a single power — 8 to 10 inches long and about 1/2 inch thick (AC 7, 7 hp, hardness 8, break DC 18). A dorje holds 50 charges when created; each charge expended allows one use of its power, and a dorje that runs out is just a simple crystal. Power trigger activation: manifesting from a dorje is usually a standard action that does not provoke attacks of opportunity — hold it in hand, point it in the general direction of the target, and the power must be on your class list. Dorjes are created at the minimum manifester level required (augmentable powers are NOT augmented unless built in at creation, and a dorje’s ML can never exceed that minimum by more than five).",
+  "xp_cost": 1050,
+  "name": "Dorje (4th-Level Power)",
+  "type": "dorje",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 4,
+   "label": "Dorje"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 9,
+  "cl_kind": "ML",
+  "price_gp": 67500,
+  "price_bonus": null,
+  "provenance": "ML 9 (the minimum for a 5th-level power); Imbue Dorje; Market Price 67,500 gp (base price 750 gp × power level × manifester level).",
+  "d": "A slender crystal containing a single power — 8 to 10 inches long and about 1/2 inch thick (AC 7, 7 hp, hardness 8, break DC 18). A dorje holds 50 charges when created; each charge expended allows one use of its power, and a dorje that runs out is just a simple crystal. Power trigger activation: manifesting from a dorje is usually a standard action that does not provoke attacks of opportunity — hold it in hand, point it in the general direction of the target, and the power must be on your class list. Dorjes are created at the minimum manifester level required (augmentable powers are NOT augmented unless built in at creation, and a dorje’s ML can never exceed that minimum by more than five).",
+  "xp_cost": 1687,
+  "name": "Dorje (5th-Level Power)",
+  "type": "dorje",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 5,
+   "label": "Dorje"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 11,
+  "cl_kind": "ML",
+  "price_gp": 148500,
+  "price_bonus": null,
+  "provenance": "ML 11 (the minimum for a 6th-level power); Imbue Dorje; Market Price 148,500 gp (base price 750 gp × power level × manifester level).",
+  "d": "A slender crystal containing a single power — 8 to 10 inches long and about 1/2 inch thick (AC 7, 7 hp, hardness 8, break DC 18). A dorje holds 50 charges when created; each charge expended allows one use of its power, and a dorje that runs out is just a simple crystal. Power trigger activation: manifesting from a dorje is usually a standard action that does not provoke attacks of opportunity — hold it in hand, point it in the general direction of the target, and the power must be on your class list. Dorjes are created at the minimum manifester level required (augmentable powers are NOT augmented unless built in at creation, and a dorje’s ML can never exceed that minimum by more than five).",
+  "xp_cost": 2450,
+  "name": "Dorje (6th-Level Power)",
+  "type": "dorje",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 6,
+   "label": "Dorje"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 13,
+  "cl_kind": "ML",
+  "price_gp": 273000,
+  "price_bonus": null,
+  "provenance": "ML 13 (the minimum for a 7th-level power); Imbue Dorje; Market Price 273,000 gp (base price 750 gp × power level × manifester level).",
+  "d": "A slender crystal containing a single power — 8 to 10 inches long and about 1/2 inch thick (AC 7, 7 hp, hardness 8, break DC 18). A dorje holds 50 charges when created; each charge expended allows one use of its power, and a dorje that runs out is just a simple crystal. Power trigger activation: manifesting from a dorje is usually a standard action that does not provoke attacks of opportunity — hold it in hand, point it in the general direction of the target, and the power must be on your class list. Dorjes are created at the minimum manifester level required (augmentable powers are NOT augmented unless built in at creation, and a dorje’s ML can never exceed that minimum by more than five).",
+  "xp_cost": 3417,
+  "name": "Dorje (7th-Level Power)",
+  "type": "dorje",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 7,
+   "label": "Dorje"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 15,
+  "cl_kind": "ML",
+  "price_gp": 450000,
+  "price_bonus": null,
+  "provenance": "ML 15 (the minimum for a 8th-level power); Imbue Dorje; Market Price 450,000 gp (base price 750 gp × power level × manifester level).",
+  "d": "A slender crystal containing a single power — 8 to 10 inches long and about 1/2 inch thick (AC 7, 7 hp, hardness 8, break DC 18). A dorje holds 50 charges when created; each charge expended allows one use of its power, and a dorje that runs out is just a simple crystal. Power trigger activation: manifesting from a dorje is usually a standard action that does not provoke attacks of opportunity — hold it in hand, point it in the general direction of the target, and the power must be on your class list. Dorjes are created at the minimum manifester level required (augmentable powers are NOT augmented unless built in at creation, and a dorje’s ML can never exceed that minimum by more than five).",
+  "xp_cost": 4500,
+  "name": "Dorje (8th-Level Power)",
+  "type": "dorje",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 8,
+   "label": "Dorje"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 17,
+  "cl_kind": "ML",
+  "price_gp": 688500,
+  "price_bonus": null,
+  "provenance": "ML 17 (the minimum for a 9th-level power); Imbue Dorje; Market Price 688,500 gp (base price 750 gp × power level × manifester level).",
+  "d": "A slender crystal containing a single power — 8 to 10 inches long and about 1/2 inch thick (AC 7, 7 hp, hardness 8, break DC 18). A dorje holds 50 charges when created; each charge expended allows one use of its power, and a dorje that runs out is just a simple crystal. Power trigger activation: manifesting from a dorje is usually a standard action that does not provoke attacks of opportunity — hold it in hand, point it in the general direction of the target, and the power must be on your class list. Dorjes are created at the minimum manifester level required (augmentable powers are NOT augmented unless built in at creation, and a dorje’s ML can never exceed that minimum by more than five).",
+  "xp_cost": 5737,
+  "name": "Dorje (9th-Level Power)",
+  "type": "dorje",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 9,
+   "label": "Dorje"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 1,
+  "cl_kind": "ML",
+  "price_gp": 25,
+  "price_bonus": null,
+  "provenance": "ML 1 (the minimum for a 1st-level power); Imbue Power Stone; Market Price 25 gp.",
+  "d": "A thumb-sized chunk of crystal with a barely detectable interior glow (AC 7, 5 hp, hardness 8, break DC 20). The stored power can be used only once, flushing the stone. The stone must first be ADDRESSED — a Psicraft check (DC 15 + power level), needed only once — then held and willed into manifestation (a standard action, subject to disruption like normal manifesting). The power must be on your class list and you must have the requisite key ability score; if your manifester level is below the stone’s, you must make a manifester level check (1d20 + your level vs DC = the stone’s ML + 1), and failure risks BRAINBURN: a psychic surge dealing 1d6 damage per stored power per round for 1d4 rounds.",
+  "xp_cost": 1,
+  "name": "Power Stone (1st-Level Power)",
+  "type": "power_stone",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 1,
+   "label": "Power Stone"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 3,
+  "cl_kind": "ML",
+  "price_gp": 150,
+  "price_bonus": null,
+  "provenance": "ML 3 (the minimum for a 2nd-level power); Imbue Power Stone; Market Price 150 gp.",
+  "d": "A thumb-sized chunk of crystal with a barely detectable interior glow (AC 7, 5 hp, hardness 8, break DC 20). The stored power can be used only once, flushing the stone. The stone must first be ADDRESSED — a Psicraft check (DC 15 + power level), needed only once — then held and willed into manifestation (a standard action, subject to disruption like normal manifesting). The power must be on your class list and you must have the requisite key ability score; if your manifester level is below the stone’s, you must make a manifester level check (1d20 + your level vs DC = the stone’s ML + 1), and failure risks BRAINBURN: a psychic surge dealing 1d6 damage per stored power per round for 1d4 rounds.",
+  "xp_cost": 7,
+  "name": "Power Stone (2nd-Level Power)",
+  "type": "power_stone",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 2,
+   "label": "Power Stone"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 5,
+  "cl_kind": "ML",
+  "price_gp": 375,
+  "price_bonus": null,
+  "provenance": "ML 5 (the minimum for a 3rd-level power); Imbue Power Stone; Market Price 375 gp.",
+  "d": "A thumb-sized chunk of crystal with a barely detectable interior glow (AC 7, 5 hp, hardness 8, break DC 20). The stored power can be used only once, flushing the stone. The stone must first be ADDRESSED — a Psicraft check (DC 15 + power level), needed only once — then held and willed into manifestation (a standard action, subject to disruption like normal manifesting). The power must be on your class list and you must have the requisite key ability score; if your manifester level is below the stone’s, you must make a manifester level check (1d20 + your level vs DC = the stone’s ML + 1), and failure risks BRAINBURN: a psychic surge dealing 1d6 damage per stored power per round for 1d4 rounds.",
+  "xp_cost": 18,
+  "name": "Power Stone (3rd-Level Power)",
+  "type": "power_stone",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 3,
+   "label": "Power Stone"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 7,
+  "cl_kind": "ML",
+  "price_gp": 700,
+  "price_bonus": null,
+  "provenance": "ML 7 (the minimum for a 4th-level power); Imbue Power Stone; Market Price 700 gp.",
+  "d": "A thumb-sized chunk of crystal with a barely detectable interior glow (AC 7, 5 hp, hardness 8, break DC 20). The stored power can be used only once, flushing the stone. The stone must first be ADDRESSED — a Psicraft check (DC 15 + power level), needed only once — then held and willed into manifestation (a standard action, subject to disruption like normal manifesting). The power must be on your class list and you must have the requisite key ability score; if your manifester level is below the stone’s, you must make a manifester level check (1d20 + your level vs DC = the stone’s ML + 1), and failure risks BRAINBURN: a psychic surge dealing 1d6 damage per stored power per round for 1d4 rounds.",
+  "xp_cost": 35,
+  "name": "Power Stone (4th-Level Power)",
+  "type": "power_stone",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 4,
+   "label": "Power Stone"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 9,
+  "cl_kind": "ML",
+  "price_gp": 1125,
+  "price_bonus": null,
+  "provenance": "ML 9 (the minimum for a 5th-level power); Imbue Power Stone; Market Price 1,125 gp.",
+  "d": "A thumb-sized chunk of crystal with a barely detectable interior glow (AC 7, 5 hp, hardness 8, break DC 20). The stored power can be used only once, flushing the stone. The stone must first be ADDRESSED — a Psicraft check (DC 15 + power level), needed only once — then held and willed into manifestation (a standard action, subject to disruption like normal manifesting). The power must be on your class list and you must have the requisite key ability score; if your manifester level is below the stone’s, you must make a manifester level check (1d20 + your level vs DC = the stone’s ML + 1), and failure risks BRAINBURN: a psychic surge dealing 1d6 damage per stored power per round for 1d4 rounds.",
+  "xp_cost": 56,
+  "name": "Power Stone (5th-Level Power)",
+  "type": "power_stone",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 5,
+   "label": "Power Stone"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 11,
+  "cl_kind": "ML",
+  "price_gp": 1650,
+  "price_bonus": null,
+  "provenance": "ML 11 (the minimum for a 6th-level power); Imbue Power Stone; Market Price 1,650 gp.",
+  "d": "A thumb-sized chunk of crystal with a barely detectable interior glow (AC 7, 5 hp, hardness 8, break DC 20). The stored power can be used only once, flushing the stone. The stone must first be ADDRESSED — a Psicraft check (DC 15 + power level), needed only once — then held and willed into manifestation (a standard action, subject to disruption like normal manifesting). The power must be on your class list and you must have the requisite key ability score; if your manifester level is below the stone’s, you must make a manifester level check (1d20 + your level vs DC = the stone’s ML + 1), and failure risks BRAINBURN: a psychic surge dealing 1d6 damage per stored power per round for 1d4 rounds.",
+  "xp_cost": 82,
+  "name": "Power Stone (6th-Level Power)",
+  "type": "power_stone",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 6,
+   "label": "Power Stone"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 13,
+  "cl_kind": "ML",
+  "price_gp": 2275,
+  "price_bonus": null,
+  "provenance": "ML 13 (the minimum for a 7th-level power); Imbue Power Stone; Market Price 2,275 gp.",
+  "d": "A thumb-sized chunk of crystal with a barely detectable interior glow (AC 7, 5 hp, hardness 8, break DC 20). The stored power can be used only once, flushing the stone. The stone must first be ADDRESSED — a Psicraft check (DC 15 + power level), needed only once — then held and willed into manifestation (a standard action, subject to disruption like normal manifesting). The power must be on your class list and you must have the requisite key ability score; if your manifester level is below the stone’s, you must make a manifester level check (1d20 + your level vs DC = the stone’s ML + 1), and failure risks BRAINBURN: a psychic surge dealing 1d6 damage per stored power per round for 1d4 rounds.",
+  "xp_cost": 113,
+  "name": "Power Stone (7th-Level Power)",
+  "type": "power_stone",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 7,
+   "label": "Power Stone"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 15,
+  "cl_kind": "ML",
+  "price_gp": 3000,
+  "price_bonus": null,
+  "provenance": "ML 15 (the minimum for a 8th-level power); Imbue Power Stone; Market Price 3,000 gp.",
+  "d": "A thumb-sized chunk of crystal with a barely detectable interior glow (AC 7, 5 hp, hardness 8, break DC 20). The stored power can be used only once, flushing the stone. The stone must first be ADDRESSED — a Psicraft check (DC 15 + power level), needed only once — then held and willed into manifestation (a standard action, subject to disruption like normal manifesting). The power must be on your class list and you must have the requisite key ability score; if your manifester level is below the stone’s, you must make a manifester level check (1d20 + your level vs DC = the stone’s ML + 1), and failure risks BRAINBURN: a psychic surge dealing 1d6 damage per stored power per round for 1d4 rounds.",
+  "xp_cost": 150,
+  "name": "Power Stone (8th-Level Power)",
+  "type": "power_stone",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 8,
+   "label": "Power Stone"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 17,
+  "cl_kind": "ML",
+  "price_gp": 3825,
+  "price_bonus": null,
+  "provenance": "ML 17 (the minimum for a 9th-level power); Imbue Power Stone; Market Price 3,825 gp.",
+  "d": "A thumb-sized chunk of crystal with a barely detectable interior glow (AC 7, 5 hp, hardness 8, break DC 20). The stored power can be used only once, flushing the stone. The stone must first be ADDRESSED — a Psicraft check (DC 15 + power level), needed only once — then held and willed into manifestation (a standard action, subject to disruption like normal manifesting). The power must be on your class list and you must have the requisite key ability score; if your manifester level is below the stone’s, you must make a manifester level check (1d20 + your level vs DC = the stone’s ML + 1), and failure risks BRAINBURN: a psychic surge dealing 1d6 damage per stored power per round for 1d4 rounds.",
+  "xp_cost": 191,
+  "name": "Power Stone (9th-Level Power)",
+  "type": "power_stone",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 9,
+   "label": "Power Stone"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 1,
+  "cl_kind": "CL",
+  "price_gp": 25,
+  "price_bonus": null,
+  "provenance": "CL 1 (the minimum for a 1st-level spell); Enchant Scroll; Market Price 25 gp.",
+  "d": "A spell stored in written form on a heavy sheet of fine vellum (AC 9, 1 hp, hardness 0, break DC 8); the writing vanishes when the spell is activated — one use. The writing must first be DECIPHERED (a read magic spell, or a Spellcraft check at DC 20 + spell level), needed only once. Activating the spell requires reading it from the scroll — no material components or focus (the scribe provided them) — and is subject to disruption just as casting a normally prepared spell would be.",
+  "xp_cost": 1,
+  "name": "Scroll (1st-Level Spell)",
+  "type": "scroll",
+  "vehicle": {
+   "kind": "spell",
+   "lvl": 1,
+   "label": "Scroll"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 3,
+  "cl_kind": "CL",
+  "price_gp": 150,
+  "price_bonus": null,
+  "provenance": "CL 3 (the minimum for a 2nd-level spell); Enchant Scroll; Market Price 150 gp.",
+  "d": "A spell stored in written form on a heavy sheet of fine vellum (AC 9, 1 hp, hardness 0, break DC 8); the writing vanishes when the spell is activated — one use. The writing must first be DECIPHERED (a read magic spell, or a Spellcraft check at DC 20 + spell level), needed only once. Activating the spell requires reading it from the scroll — no material components or focus (the scribe provided them) — and is subject to disruption just as casting a normally prepared spell would be.",
+  "xp_cost": 7,
+  "name": "Scroll (2nd-Level Spell)",
+  "type": "scroll",
+  "vehicle": {
+   "kind": "spell",
+   "lvl": 2,
+   "label": "Scroll"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 5,
+  "cl_kind": "CL",
+  "price_gp": 375,
+  "price_bonus": null,
+  "provenance": "CL 5 (the minimum for a 3rd-level spell); Enchant Scroll; Market Price 375 gp.",
+  "d": "A spell stored in written form on a heavy sheet of fine vellum (AC 9, 1 hp, hardness 0, break DC 8); the writing vanishes when the spell is activated — one use. The writing must first be DECIPHERED (a read magic spell, or a Spellcraft check at DC 20 + spell level), needed only once. Activating the spell requires reading it from the scroll — no material components or focus (the scribe provided them) — and is subject to disruption just as casting a normally prepared spell would be.",
+  "xp_cost": 18,
+  "name": "Scroll (3rd-Level Spell)",
+  "type": "scroll",
+  "vehicle": {
+   "kind": "spell",
+   "lvl": 3,
+   "label": "Scroll"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 7,
+  "cl_kind": "CL",
+  "price_gp": 700,
+  "price_bonus": null,
+  "provenance": "CL 7 (the minimum for a 4th-level spell); Enchant Scroll; Market Price 700 gp.",
+  "d": "A spell stored in written form on a heavy sheet of fine vellum (AC 9, 1 hp, hardness 0, break DC 8); the writing vanishes when the spell is activated — one use. The writing must first be DECIPHERED (a read magic spell, or a Spellcraft check at DC 20 + spell level), needed only once. Activating the spell requires reading it from the scroll — no material components or focus (the scribe provided them) — and is subject to disruption just as casting a normally prepared spell would be.",
+  "xp_cost": 35,
+  "name": "Scroll (4th-Level Spell)",
+  "type": "scroll",
+  "vehicle": {
+   "kind": "spell",
+   "lvl": 4,
+   "label": "Scroll"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 9,
+  "cl_kind": "CL",
+  "price_gp": 1125,
+  "price_bonus": null,
+  "provenance": "CL 9 (the minimum for a 5th-level spell); Enchant Scroll; Market Price 1,125 gp.",
+  "d": "A spell stored in written form on a heavy sheet of fine vellum (AC 9, 1 hp, hardness 0, break DC 8); the writing vanishes when the spell is activated — one use. The writing must first be DECIPHERED (a read magic spell, or a Spellcraft check at DC 20 + spell level), needed only once. Activating the spell requires reading it from the scroll — no material components or focus (the scribe provided them) — and is subject to disruption just as casting a normally prepared spell would be.",
+  "xp_cost": 56,
+  "name": "Scroll (5th-Level Spell)",
+  "type": "scroll",
+  "vehicle": {
+   "kind": "spell",
+   "lvl": 5,
+   "label": "Scroll"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 11,
+  "cl_kind": "CL",
+  "price_gp": 1650,
+  "price_bonus": null,
+  "provenance": "CL 11 (the minimum for a 6th-level spell); Enchant Scroll; Market Price 1,650 gp.",
+  "d": "A spell stored in written form on a heavy sheet of fine vellum (AC 9, 1 hp, hardness 0, break DC 8); the writing vanishes when the spell is activated — one use. The writing must first be DECIPHERED (a read magic spell, or a Spellcraft check at DC 20 + spell level), needed only once. Activating the spell requires reading it from the scroll — no material components or focus (the scribe provided them) — and is subject to disruption just as casting a normally prepared spell would be.",
+  "xp_cost": 82,
+  "name": "Scroll (6th-Level Spell)",
+  "type": "scroll",
+  "vehicle": {
+   "kind": "spell",
+   "lvl": 6,
+   "label": "Scroll"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 13,
+  "cl_kind": "CL",
+  "price_gp": 2275,
+  "price_bonus": null,
+  "provenance": "CL 13 (the minimum for a 7th-level spell); Enchant Scroll; Market Price 2,275 gp.",
+  "d": "A spell stored in written form on a heavy sheet of fine vellum (AC 9, 1 hp, hardness 0, break DC 8); the writing vanishes when the spell is activated — one use. The writing must first be DECIPHERED (a read magic spell, or a Spellcraft check at DC 20 + spell level), needed only once. Activating the spell requires reading it from the scroll — no material components or focus (the scribe provided them) — and is subject to disruption just as casting a normally prepared spell would be.",
+  "xp_cost": 113,
+  "name": "Scroll (7th-Level Spell)",
+  "type": "scroll",
+  "vehicle": {
+   "kind": "spell",
+   "lvl": 7,
+   "label": "Scroll"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 15,
+  "cl_kind": "CL",
+  "price_gp": 3000,
+  "price_bonus": null,
+  "provenance": "CL 15 (the minimum for a 8th-level spell); Enchant Scroll; Market Price 3,000 gp.",
+  "d": "A spell stored in written form on a heavy sheet of fine vellum (AC 9, 1 hp, hardness 0, break DC 8); the writing vanishes when the spell is activated — one use. The writing must first be DECIPHERED (a read magic spell, or a Spellcraft check at DC 20 + spell level), needed only once. Activating the spell requires reading it from the scroll — no material components or focus (the scribe provided them) — and is subject to disruption just as casting a normally prepared spell would be.",
+  "xp_cost": 150,
+  "name": "Scroll (8th-Level Spell)",
+  "type": "scroll",
+  "vehicle": {
+   "kind": "spell",
+   "lvl": 8,
+   "label": "Scroll"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 17,
+  "cl_kind": "CL",
+  "price_gp": 3825,
+  "price_bonus": null,
+  "provenance": "CL 17 (the minimum for a 9th-level spell); Enchant Scroll; Market Price 3,825 gp.",
+  "d": "A spell stored in written form on a heavy sheet of fine vellum (AC 9, 1 hp, hardness 0, break DC 8); the writing vanishes when the spell is activated — one use. The writing must first be DECIPHERED (a read magic spell, or a Spellcraft check at DC 20 + spell level), needed only once. Activating the spell requires reading it from the scroll — no material components or focus (the scribe provided them) — and is subject to disruption just as casting a normally prepared spell would be.",
+  "xp_cost": 191,
+  "name": "Scroll (9th-Level Spell)",
+  "type": "scroll",
+  "vehicle": {
+   "kind": "spell",
+   "lvl": 9,
+   "label": "Scroll"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 1,
+  "cl_kind": "ML",
+  "price_gp": 50,
+  "price_bonus": null,
+  "provenance": "ML 1 (the minimum for a 1st-level power); Imbue Tattoo; Market Price 50 gp.",
+  "d": "A colorful pattern of tiny interlacing lines scribed on the skin, covering no more than 5 inches of skin (larger designs add nothing). Tapping the tattoo — touching it and willing it, a standard action that provokes attacks of opportunity — manifests its single power on the wearer, and the tattoo fades away. Only powers of 3rd level or lower can be scribed. A creature can wear at most TWENTY imbued tattoos; attempting to add one more sets all of them off simultaneously. As a standard action, the wearer can will a tattoo to move elsewhere on their body, or onto the skin of any willing (or unconscious) living creature they touch.",
+  "xp_cost": 2,
+  "name": "Imbued Tattoo (1st-Level Power)",
+  "type": "tattoo",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 1,
+   "label": "Imbued Tattoo"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 3,
+  "cl_kind": "ML",
+  "price_gp": 300,
+  "price_bonus": null,
+  "provenance": "ML 3 (the minimum for a 2nd-level power); Imbue Tattoo; Market Price 300 gp.",
+  "d": "A colorful pattern of tiny interlacing lines scribed on the skin, covering no more than 5 inches of skin (larger designs add nothing). Tapping the tattoo — touching it and willing it, a standard action that provokes attacks of opportunity — manifests its single power on the wearer, and the tattoo fades away. Only powers of 3rd level or lower can be scribed. A creature can wear at most TWENTY imbued tattoos; attempting to add one more sets all of them off simultaneously. As a standard action, the wearer can will a tattoo to move elsewhere on their body, or onto the skin of any willing (or unconscious) living creature they touch.",
+  "xp_cost": 15,
+  "name": "Imbued Tattoo (2nd-Level Power)",
+  "type": "tattoo",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 2,
+   "label": "Imbued Tattoo"
+  }
+ },
+ {
+  "aura": null,
+  "cl": 5,
+  "cl_kind": "ML",
+  "price_gp": 750,
+  "price_bonus": null,
+  "provenance": "ML 5 (the minimum for a 3rd-level power); Imbue Tattoo; Market Price 750 gp.",
+  "d": "A colorful pattern of tiny interlacing lines scribed on the skin, covering no more than 5 inches of skin (larger designs add nothing). Tapping the tattoo — touching it and willing it, a standard action that provokes attacks of opportunity — manifests its single power on the wearer, and the tattoo fades away. Only powers of 3rd level or lower can be scribed. A creature can wear at most TWENTY imbued tattoos; attempting to add one more sets all of them off simultaneously. As a standard action, the wearer can will a tattoo to move elsewhere on their body, or onto the skin of any willing (or unconscious) living creature they touch.",
+  "xp_cost": 37,
+  "name": "Imbued Tattoo (3rd-Level Power)",
+  "type": "tattoo",
+  "vehicle": {
+   "kind": "power",
+   "lvl": 3,
+   "label": "Imbued Tattoo"
+  }
  }
 ] /*<<END:MAGIC_ITEMS_DB>>*/;
 
