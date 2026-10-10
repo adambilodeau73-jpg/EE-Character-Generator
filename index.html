@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.11.0</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.11.1</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -7598,7 +7598,13 @@ function offHandAvailable(c) { return !hasLostArm(c) || hasCyberArm(c); }
 function cyberMax(c) {
   // 1 + Con modifier (minimum 0); supernatural Con modifiers excluded —
   // c.attrs holds the baked PERMANENT score, which is the right base.
-  return Math.max(0, 1 + Math.floor((((c.attrs && c.attrs[2]) ?? 10) - 10) / 2));
+  // v9.11.1 (§266, Adam's Forge World Heritage report): + Cybertaker ×N
+  // (HH p.209: "maximum number of cybernetic attachments ... increases by
+  // 1", stackable). The feat sat in the catalogue since the Expert list
+  // landed but nothing ever read it — granted-by records count too, since
+  // they live in c.feats like any other take.
+  const cybertakers = (c && c.feats || []).filter(f => (f.name || f.n) === 'Cybertaker').length;
+  return Math.max(0, 1 + Math.floor((((c.attrs && c.attrs[2]) ?? 10) - 10) / 2)) + cybertakers;
 }
 function cyberCount(c) {
   // Plexus rule: up to FOUR Skill (or Feat) Implants ride one plexus as a
@@ -7719,7 +7725,8 @@ function renderCybernetics(c) {
   sumEl.innerHTML = `${count} of ${max} attachments` + (excess ? ` <span style="color:#e08080;font-weight:bold;">⚠ +${excess} negative level${excess > 1 ? 's' : ''}</span>` : '');
   const bits = [];
   // doctrine strip
-  bits.push(`<div style="font-size:11px;color:rgba(120,175,205,.75);margin-bottom:.5rem;">Maximum attachments = 1 + Con modifier (${max}; supernatural Con excluded — HH p.333). Each excess attachment = 1 negative level — the −1 on attack rolls, saves, grapple, and all skill checks is WIRED LIVE (v8.92.0) with provenance on each cell; the −1 on ability checks, −1 effective level on die rolls, and a caster/manifester's lost top-level spell/power stay at the table (choice-dependent). Removal without <i>Cybernetic Surgery</i>: 1d4 permanent Con drain. Implants cost −2 Purchase DC per Tech Scale above their own (scenario TS ${ts}).</div>`);
+  const _ctN = (c.feats || []).filter(f => (f.name || f.n) === 'Cybertaker').length;
+  bits.push(`<div style="font-size:11px;color:rgba(120,175,205,.75);margin-bottom:.5rem;">Maximum attachments = 1 + Con modifier${_ctN ? ` + Cybertaker ×${_ctN}` : ''} (${max}; supernatural Con excluded — HH p.333${_ctN ? '; Cybertaker p.209 stacks' : ''}). Each excess attachment = 1 negative level — the −1 on attack rolls, saves, grapple, and all skill checks is WIRED LIVE (v8.92.0) with provenance on each cell; the −1 on ability checks, −1 effective level on die rolls, and a caster/manifester's lost top-level spell/power stay at the table (choice-dependent). Removal without <i>Cybernetic Surgery</i>: 1d4 permanent Con drain. Implants cost −2 Purchase DC per Tech Scale above their own (scenario TS ${ts}).</div>`);
   if (owned.length && !hasAntiShock) bits.push(`<div style="font-size:11px;color:#d4b870;margin-bottom:.5rem;" title="HH p.333: a creature with one or more cybernetic attachments takes 50% more damage from any attack that deals electricity damage. An Anti-Shock Implant (TS 6) negates this.">⚡ Electricity vulnerability: +50% electricity damage (no Anti-Shock Implant)</div>`);
   if (owned.length && hasAntiShock) bits.push(`<div style="font-size:11px;color:rgba(120,200,140,.8);margin-bottom:.5rem;">⚡ Electricity vulnerability negated — Anti-Shock Implant.</div>`);
   if (hasLostArm(c)) {
