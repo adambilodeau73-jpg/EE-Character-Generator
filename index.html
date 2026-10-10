@@ -329,7 +329,7 @@ details.race-det>summary:hover{background:rgba(200,151,30,.19)}
 
 <header class="site-header">
   <div class="site-title">Epics &amp; Epochs</div>
-  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.11.1</div>
+  <div class="site-subtitle">Character Generator &amp; Tracker · Powered by the Epics &amp; Epochs (E&amp;E) System · v9.11.2</div>
 </header>
 
 <!-- v8.6.0 (Adam's ordering, 2026-09-01): build-progression tab order —
@@ -2604,7 +2604,7 @@ const CLASS_FEATURES = {
   ],
   'Heavy': [
     {lvl:1, book:'GMG', name:'Reflexive Knowledge Combat Module', page:172, desc:'The RKCM implant grants the class’s starting feats and +4 EQUIPMENT Dexterity (wired — lost while the RKCM is damaged, GM adjudicates). Each level past 1st, one RKCM feat becomes innate, freeing a slot for a new Expert/Fighter feat upload.', kind:'passive'},
-    {lvl:2, book:'GMG', name:'Cybertaker',      page:172, desc:'At 2/3/4/5: a new cybernetic attachment/implant that does NOT count against the Constitution limit.', kind:'meta'},
+    {lvl:2, book:'GMG', name:'Cybertaker',      page:172, desc:'At 2/3/4/5: the Cybertaker feat (HH p.209), granted automatically — +1 maximum attachments each, stacking with any taken copies ("a new implant that does not count against the limit" is the same arithmetic; Adam ruled the class ability IS the feat, 2026-10-09).', kind:'meta'},
     {lvl:3, book:'GMG', name:'Bonus Feat',      page:172, desc:'At 3rd, from the Expert or Fighter lists.', kind:'meta',
      effect:{type:'bonusFeats', formula:{milestones:[3]}, restriction:'Expert or Fighter feat list'}},
     {lvl:5, book:'GMG', name:'Dreadnaught',     page:172, desc:'Immune to fear (wired), +4 equipment on Fortitude saves (wired), and redundant systems IGNORE CRITICAL HITS.', kind:'passive'},
@@ -7700,6 +7700,21 @@ function syncCyberFeats(c) {
       c.feats = c.feats.filter(x => x !== f);
       changed = true;
     }
+  }
+  // v9.11.2 (§267, Adam's ruling 2026-10-09): the Heavy's 2nd/3rd/4th/5th-
+  // level "Cybertaker" class ability IS the Cybertaker feat (HH p.209) —
+  // one real feat record per class level past 1st, same materialize /
+  // self-heal / cascade rail as the implant grants. The records live in
+  // c.feats, so cyberMax (§266) counts them with no special-casing, and
+  // they stack with copies taken as feats. ("An implant that does not
+  // count against the limit" and "+1 to the limit" are the same number.)
+  {
+    const heavyLvl = migrateLegacyClasses(c).filter(e => e.name === 'Heavy').reduce((s, e) => s + (e.level || 0), 0);
+    const want = Math.min(4, Math.max(0, heavyLvl - 1));
+    const SRC = 'Heavy (Cybertaker class feature)';
+    const mine = (c.feats || []).filter(f => (f.name || f.n) === 'Cybertaker' && f.grantedBy === SRC);
+    for (let k = mine.length; k < want; k++) { c.feats = (c.feats || []).concat([{ name: 'Cybertaker', grantedBy: SRC }]); changed = true; }
+    for (let k = mine.length; k > want; k--) { const victim = (c.feats || []).filter(f => (f.name || f.n) === 'Cybertaker' && f.grantedBy === SRC).pop(); c.feats = c.feats.filter(x => x !== victim); changed = true; }
   }
   if (changed) { save(); if (typeof logAct === 'function') logAct('🦾 Cybernetic feat grants synced — implant-granted feats materialized (budget-exempt; removed implants cascade their feats away).'); }
   return changed;

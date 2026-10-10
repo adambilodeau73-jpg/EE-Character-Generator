@@ -70,6 +70,31 @@ await t('EXCESS-RECOMPUTES-OFF-THE-CAP', () => {
   return (before >= 1 && after === Math.max(0, before - 1)) || { before, after };
 });
 
+await t('HEAVY-LEVELS-GRANT-THE-FEAT', () => {
+  // §267: Heavy 3 = Cybertaker ×2 (levels 2 and 3), stacking with the
+  // Forge World Heritage grant still on the sheet from the excess test.
+  const c = chars.find(x => x.id === curId);
+  const base = cyberMax(c);  // Con 16 + the one granted copy = 5
+  c.classes.push({ name: 'Heavy', tier: 'prestige', level: 3 });
+  syncCyberFeats(c);
+  const after = cyberMax(c);
+  const heavies = (c.feats || []).filter(f => (f.name || f.n) === 'Cybertaker' && /Heavy \(Cybertaker/.test(f.grantedBy || '')).length;
+  return (heavies === 2 && after === base + 2) || { base, after, heavies };
+});
+
+await t('HEAVY-LEVEL-DOWN-CASCADES', () => {
+  const c = chars.find(x => x.id === curId);
+  const hv = c.classes.find(e => e.name === 'Heavy');
+  hv.level = 2;
+  syncCyberFeats(c);
+  const atTwo = (c.feats || []).filter(f => (f.name || f.n) === 'Cybertaker' && /Heavy \(Cybertaker/.test(f.grantedBy || '')).length;
+  c.classes = c.classes.filter(e => e.name !== 'Heavy');
+  syncCyberFeats(c);
+  const atZero = (c.feats || []).filter(f => (f.name || f.n) === 'Cybertaker' && /Heavy \(Cybertaker/.test(f.grantedBy || '')).length;
+  const heritageSurvives = (c.feats || []).some(f => (f.name || f.n) === 'Cybertaker' && /Forge World/.test(f.grantedBy || ''));
+  return (atTwo === 1 && atZero === 0 && heritageSurvives) || { atTwo, atZero, heritageSurvives };
+});
+
 await browser.close();
 server.close();
 const fails = results.filter(r => !r.pass);
