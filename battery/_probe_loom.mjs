@@ -96,12 +96,31 @@ await t('GLOSS-ON-EVERY-SKELETON', () => {
   return (bare.length === 0 && shown) || { bare, shown };
 });
 await t('TUTORIAL-PRESENT-AND-PERSISTS', () => {
-  const tut = document.getElementById('lo-tut');
+  const tut = document.getElementById('tut-loom');
   const hasCore = ['skeleton', 'Weave!', 'lock', 'twist', 'Subplots', 'genre skin', 'Three-Act'].every(k => tut.textContent.includes(k));
-  tut.open = false; tut.dispatchEvent(new Event('toggle'));
-  const stored = localStorage.getItem('gmf_ui_loomTut') === '0';
-  tut.open = true; tut.dispatchEvent(new Event('toggle'));
+  tut.open = false; tutToggle(tut);
+  const stored = localStorage.getItem('gmf_ui_tut_tut-loom') === '0';
+  tut.open = true; tutToggle(tut);
   return (hasCore && stored) || { hasCore, stored };
+});
+// v0.9.2 THE DOCENT PASS: every tab carries its ⓘ tutorial, none says "gentle"
+await t('TUTORIALS-EVERYWHERE', () => {
+  const tabs = ['bestiary', 'forge', 'ops', 'stage', 'library', 'academy', 'loom', 'adjudicator'];
+  const missing = tabs.filter(t2 => !document.getElementById('tut-' + t2));
+  const allCards = [...document.querySelectorAll('details.tut')];
+  const patronizing = allCards.filter(d => /gentle/i.test(d.querySelector('summary').textContent)).length;
+  const substantive = allCards.every(d => d.querySelector('.body').textContent.length > 300);
+  return (missing.length === 0 && allCards.length === 8 && patronizing === 0 && substantive)
+    || { missing, n: allCards.length, patronizing, substantive };
+});
+await t('TUT-PERSISTENCE-PER-TAB', () => {
+  const d = document.getElementById('tut-forge');
+  d.open = false; tutToggle(d);
+  const closed = localStorage.getItem('gmf_ui_tut_tut-forge') === '0';
+  initTuts();
+  const stayedClosed = d.open === false && document.getElementById('tut-stage').open === true;
+  d.open = true; tutToggle(d);
+  return (closed && stayedClosed) || { closed, stayedClosed };
 });
 await t('ACKNOWLEDGEMENT-PROFESSIONAL-FORM', () => {
   const c = LOOM.credit;
