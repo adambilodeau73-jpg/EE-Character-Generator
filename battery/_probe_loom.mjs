@@ -88,6 +88,27 @@ await t('VERSION-STAMPED-TWICE', () => {
   return (/v0\.\d+\.\d+/.test(sub) && /v0\.\d+\.\d+/.test(foot) && !/v0\.8\.0/.test(foot) && sub.includes('Loom'))
     || { sub: sub.slice(0, 60), foot: foot.slice(0, 60) };
 });
+// v0.9.1: glosses, the tutorial, and the acknowledgement in professional form
+await t('GLOSS-ON-EVERY-SKELETON', () => {
+  const bare = LOOM.skeletons.filter(s => !s.gloss || s.gloss.length < 80).map(s => s.id);
+  loPickSk(0);
+  const shown = document.getElementById('lo-out').innerHTML.includes('At the table:');
+  return (bare.length === 0 && shown) || { bare, shown };
+});
+await t('TUTORIAL-PRESENT-AND-PERSISTS', () => {
+  const tut = document.getElementById('lo-tut');
+  const hasCore = ['skeleton', 'Weave!', 'lock', 'twist', 'Subplots', 'genre skin', 'Three-Act'].every(k => tut.textContent.includes(k));
+  tut.open = false; tut.dispatchEvent(new Event('toggle'));
+  const stored = localStorage.getItem('gmf_ui_loomTut') === '0';
+  tut.open = true; tut.dispatchEvent(new Event('toggle'));
+  return (hasCore && stored) || { hasCore, stored };
+});
+await t('ACKNOWLEDGEMENT-PROFESSIONAL-FORM', () => {
+  const c = LOOM.credit;
+  return (c.includes('S. John Ross') && c.includes('Cumberland Games') && c.includes('1999')
+    && c.includes('ghalev.itch.io') && /not affiliated/i.test(c) && /no endorsement/i.test(c))
+    || { c: c.slice(0, 120) };
+});
 mark('CONSOLE-CLEAN', consoleErrors.length === 0, consoleErrors[0] || '');
 
 const passed = results.filter(r => r.pass).length;
