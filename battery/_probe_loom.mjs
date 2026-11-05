@@ -122,6 +122,91 @@ await t('TUT-PERSISTENCE-PER-TAB', () => {
   d.open = true; tutToggle(d);
   return (closed && stayedClosed) || { closed, stayedClosed };
 });
+// v0.9.4 FATE'S D20 (Adam's gavel 2026-11-05): dead d20 space reclaimed —
+// 18-19 Red Herring (façade + GM-only truth), nat 20 Close to Home (roster
+// hero; re-roll disregards only 20s, so a herring can nest ONCE). Seeded rng.
+await t('FATE-DATA-PRESENT', () => {
+  const f = LOOM.fate;
+  return (!!f && f.herring.n === 'Red Herring' && f.home.n === 'Close to Home'
+    && f.herring.d.length > 80 && f.home.d.length > 60 && f.homeHerring.length > 40)
+    || { keys: f ? Object.keys(f) : null };
+});
+await t('FATE-STRAIGHT', () => {
+  const q = [13.5 / 20]; // d20 = 14 → skeleton index 13
+  loFate(() => q.length ? q.shift() : 0.1);
+  const h = document.getElementById('lo-out').innerHTML;
+  return (LO.fate && LO.fate.kind === 'straight' && LO.fate.d20 === 14 && LO.sk === 13
+    && h.includes("Fate's d20: 14") && !h.includes('Beneath the weave'))
+    || { fate: LO.fate, sk: LO.sk };
+});
+await t('FATE-HERRING', () => {
+  // d20=18; façade sk d(17) from 0.2→3; axes/twist 0.1s; truth sk 0.5→8 ≠ 3
+  const q = [17.2 / 20, 0.2];
+  let phase = 0;
+  loFate(() => q.length ? q.shift() : (phase++ < 20 ? 0.1 : 0.5));
+  const F = LO.fate, h = document.getElementById('lo-out').innerHTML;
+  const tp = F && F.truth ? loPremiseOf(LOOM.skeletons[F.truth.sk], F.truth.picks) : '';
+  return (F && F.kind === 'herring' && F.d20 === 18 && F.truth && F.truth.sk !== LO.sk
+    && h.includes('Red Herring') && h.includes('Beneath the weave') && h.includes("GM's eyes only")
+    && tp.length > 20 && !/\{\w+\}/.test(tp))
+    || { kind: F && F.kind, truthSk: F && F.truth && F.truth.sk, sk: LO.sk };
+});
+await t('FATE-TRUTH-SURVIVES-WEAVE', () => {
+  const F = LO.fate, held = { sk: F.truth.sk, twist: F.truth.twist, p: JSON.stringify(F.truth.picks) };
+  for (let i = 0; i < 5; i++) loWeave();
+  return (LO.fate === F && F.truth.sk === held.sk && F.truth.twist === held.twist
+    && JSON.stringify(F.truth.picks) === held.p)
+    || { held, now: F.truth };
+});
+await t('FATE-FLIP-MOVES-BENEATH', () => {
+  document.getElementById('lo-flip').checked = true; loSet();
+  const h = document.getElementById('lo-out').innerHTML, txt = loText();
+  const inTruth = h.includes('the façade stays upright');
+  const gmBlock = txt.indexOf('[GM ONLY — BENEATH THE WEAVE]');
+  const flipAfterGm = gmBlock >= 0 && txt.indexOf('THE FLIP', gmBlock) > gmBlock;
+  const flipBeforeGm = txt.slice(0, gmBlock).includes('THE FLIP');
+  document.getElementById('lo-flip').checked = false; loSet();
+  return (inTruth && flipAfterGm && !flipBeforeGm) || { inTruth, flipAfterGm, flipBeforeGm };
+});
+await t('FATE-HOME-NO-ROSTER', () => {
+  const save = ROSTER.splice(0, ROSTER.length); // empty the roster
+  const q = [19.5 / 20, 2.5 / 19]; // d20=20; sub d(19)=3 → skeleton index 2
+  loFate(() => q.length ? q.shift() : 0.1);
+  const F = LO.fate, h = document.getElementById('lo-out').innerHTML;
+  ROSTER.push(...save);
+  return (F && F.kind === 'home' && !F.nested && F.pc === null && LO.sk === 2
+    && h.includes('Close to Home') && h.includes('roll among the players') && !h.includes('Beneath the weave'))
+    || { kind: F && F.kind, pc: F && F.pc, sk: LO.sk };
+});
+await t('FATE-HOME-NAMES-THE-HERO', () => {
+  const save = ROSTER.splice(0, ROSTER.length);
+  ROSTER.push({ name: 'Xander', ecl: 5 });
+  const q = [19.5 / 20, 0, 4.5 / 19]; // d20=20; pc d(1)=0 → Xander; sub=5
+  loFate(() => q.length ? q.shift() : 0.1);
+  const F = LO.fate, h = document.getElementById('lo-out').innerHTML, txt = loText();
+  ROSTER.splice(0, ROSTER.length); ROSTER.push(...save);
+  return (F && F.pc === 'Xander' && h.includes('<b>Xander</b>') && txt.includes('This one belongs to Xander'))
+    || { pc: F && F.pc };
+});
+await t('FATE-HOME-HERRING-NESTS-ONCE', () => {
+  const save = ROSTER.splice(0, ROSTER.length);
+  // d20=20; pc skipped (empty roster); sub d(19)=18 → herring; façade 0.2→3; truth 0.5→8
+  const q = [19.5 / 20, 17.5 / 19, 0.2];
+  let n = 0;
+  loFate(() => q.length ? q.shift() : (n++ < 20 ? 0.1 : 0.5));
+  const F = LO.fate, h = document.getElementById('lo-out').innerHTML, txt = loText();
+  ROSTER.push(...save);
+  return (F && F.kind === 'home' && F.nested === true && F.truth && F.truth.sk !== LO.sk
+    && h.includes('Close to Home') && h.includes('Red Herring') && h.includes('Rarest weave of all')
+    && txt.includes('CLOSE TO HOME') && txt.includes('[GM ONLY — BENEATH THE WEAVE]'))
+    || { kind: F && F.kind, nested: F && F.nested };
+});
+await t('FATE-CLEARS-ON-MANUAL-PICK', () => {
+  loPickSk(0);
+  const h = document.getElementById('lo-out').innerHTML;
+  return (LO.fate === null && !h.includes("Fate's d20") && !h.includes('Beneath the weave'))
+    || { fate: LO.fate };
+});
 await t('ACKNOWLEDGEMENT-PROFESSIONAL-FORM', () => {
   const c = LOOM.credit;
   return (c.includes('S. John Ross') && c.includes('Cumberland Games') && c.includes('1999')
