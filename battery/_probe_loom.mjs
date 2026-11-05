@@ -122,6 +122,33 @@ await t('TUT-PERSISTENCE-PER-TAB', () => {
   d.open = true; tutToggle(d);
   return (closed && stayedClosed) || { closed, stayedClosed };
 });
+// v0.9.5 THE REFINEMENT PASS (Adam's GMG-draft edits, 2026-11-05): axis
+// renames, twist taxonomy as objects {t,cat} (Misdirection gaveled over the
+// colliding "Red Herring"), Sting engine stays "the party is the lie".
+await t('TWIST-TAXONOMY', () => {
+  const counts = {};
+  for (const tw of LOOM.twists) counts[tw.cat] = (counts[tw.cat] || 0) + 1;
+  const ok = LOOM.twists.length === 16 && LOOM.twists.every(tw => tw.t && tw.cat)
+    && counts['Misdirection'] === 5 && counts['Complication'] === 5
+    && counts['Nemesis'] === 3 && counts['Crisis of Conscience'] === 3
+    && !counts['Red Herring'];
+  loPickSk(0); loDrawTwist();
+  const chip = document.getElementById('lo-out').innerHTML.includes(LOOM.twists[LO.twist].cat);
+  const txt = loText().includes(`Twist (${LOOM.twists[LO.twist].cat}):`);
+  loClearTwist();
+  return (ok && chip && txt) || { counts, chip, txt };
+});
+await t('REFINEMENT-PASS-LANDED', () => {
+  const ax = (sid, aid) => LOOM.skeletons.find(s => s.id === sid).axes.find(a => a.id === aid).name;
+  const renames = ax('game', 'corruption') === 'The Skew' && ax('squeeze', 'out') === 'The Response'
+    && ax('table', 'leverage') === 'The Angle' && ax('seven', 'means') === 'The Showdown'
+    && ax('deluge', 'role') === 'The Tribulation' && ax('deluge', 'truth') === 'The Realization'
+    && ax('reckoning', 'truth') === 'The Travesty';
+  const sting = LOOM.skeletons.find(s => s.id === 'sting').engine.includes('the party is the lie');
+  const purge = LOOM.skeletons.find(s => s.id === 'purge').engine.includes('reclaimed');
+  const civics = LOOM.skeletons.find(s => s.id === 'reckoning').gloss.includes('Knowledge (Civics)');
+  return (renames && sting && purge && civics) || { renames, sting, purge, civics };
+});
 // v0.9.4 FATE'S D20 (Adam's gavel 2026-11-05): dead d20 space reclaimed —
 // 18-19 Red Herring (façade + GM-only truth), nat 20 Close to Home (roster
 // hero; re-roll disregards only 20s, so a herring can nest ONCE). Seeded rng.
