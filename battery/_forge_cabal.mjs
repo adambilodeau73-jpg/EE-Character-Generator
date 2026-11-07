@@ -83,14 +83,26 @@ const out = await page.evaluate(() => {
     restampEscalatingCosts(c);
     refreshEclXp(c);
     reconcileGrantedFeats(c);
-    reconcileAttributeMutations(c);
+    reconcileAttributeMutations(c); // bake the attribute ladders FIRST — Con feeds Resilience below
+    // The form-save stamp recipe (the monstrous-import path's own): derived
+    // stats must exist on the record, or reconcileMutantSubtype's isFinite
+    // guards no-op silently (Adam's pushback, 2026-11-07 — the subtype's
+    // racial abilities were missing from the first forging).
+    const _st = computeStatsFromClasses(c.classes, c.attrs[5] || 10, effectiveHeroicLevelForAP(c), 0);
+    c.totalLvl = _st.totalLvl;
+    c.bab = _st.bab; c.def = _st.def; c.fort = _st.fort; c.ref = _st.ref; c.will = _st.will; c.rep = _st.rep;
+    c.apMax = _st.ap; c.ap = _st.ap;
     c.hpRolls = generateHpRolls(c.classes, 'hero');
     const conM = am(c.attrs[2]);
     const nat = (typeof computeNaturalAC === 'function') ? (computeNaturalAC(c).total || 0) : 0;
     c.maxHP = Math.max(1, computeMaxHPFromRolls(c.classes, c.hpRolls, conM) + nat * 5);
     c.hp = c.maxHP; c.currentHP = c.maxHP;
+    if (typeof reconcileTalentHp === 'function') reconcileTalentHp(c);   // Robust et al.
+    const preHP = c.maxHP, preBab = c.bab, preDef = c.def;
+    reconcileMutantSubtype(c); // HH p.29: Unnatural Prowess (+⌊ML/2⌋ BAB, +⌊ML/3⌋ Def, +2·ML skill pts) + Unnatural Resilience (+ML·(5+ConM) HP, +⌊ML/2⌋ saves)
+    say(`  ${c.name}: Mutant subtype baked — HP ${preHP}→${c.maxHP}, BAB ${preBab}→${c.bab}, Def ${preDef}→${c.def} (+${2 * getMPState(c).mutantLevel} skill pts unspent for the GM; saves +${Math.floor(getMPState(c).mutantLevel / 2)} via the Resilience lane)`);
     const st = spendState(c);
-    say(`  == ${c.name}: earned ${st.totalEarned} MP, spent ${st.totalSpent}, banked ${st.balance} · ML +${st.mutantLevel} · ECL ${c.ecl ?? '?'} · HP ${c.maxHP} · attrs [${c.attrs.join(',')}]`);
+    say(`  == ${c.name}: earned ${st.totalEarned} MP, spent ${st.totalSpent}, banked ${st.balance} · ML +${st.mutantLevel} · ECL ${c.ecl ?? '?'} · HP ${c.maxHP} · BAB +${c.bab} · Def +${c.def} · attrs [${c.attrs.join(',')}]`);
     if (st.totalEarned !== 40) fail(`${c.name}: earned ${st.totalEarned} ≠ 40`);
     if (st.balance !== 0) fail(`${c.name}: banked ${st.balance} ≠ 0 — adjust the shopping list`);
     if (st.mutantLevel !== 4) fail(`${c.name}: ML ${st.mutantLevel} ≠ 4`);
