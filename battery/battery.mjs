@@ -81,11 +81,16 @@ await t('MUT-TEMPLATE-FEAT', () => {
   c.feats = c.feats.filter(f => f.name !== 'Supernatural Mutation');
   return { pass: templ === true && getMPState(c).isMutantTemplated === false };
 });
-await t('MUT-TEMPLATE-10MP', () => {
+await t('MUT-TEMPLATE-ONTOLOGY-LINE', () => {
+  // v9.20.2 (§286, Adam's re-ruling 2026-11-07, superseding the 2026-10-03
+  // 10-MP line): subtype at MORE THAN 2 total MP — Slightly Different's
+  // exact 2 stays human; 3-9 MP = Mutant at RLM +0 ("a Mutant for purposes
+  // of rules adjudications specific to the Mutant subtype" — Adam's letter).
   const c = chars.find(x => x.name === 'Battery Workbench');
-  c.mpGrants = [{ amount: 9 }]; const at9 = getMPState(c).isMutantTemplated;
+  c.mpGrants = [{ amount: 2 }]; const at2 = getMPState(c).isMutantTemplated;
+  c.mpGrants = [{ amount: 3 }]; const st3 = getMPState(c);
   c.mpGrants = [{ amount: 10 }]; const at10 = getMPState(c).isMutantTemplated;
-  c.mpGrants = []; return { pass: at9 === false && at10 === true };
+  c.mpGrants = []; return { pass: at2 === false && st3.isMutantTemplated === true && st3.mutantLevel === 0 && at10 === true };
 });
 await t('MUT-CLASS-TRACKS-RLM', () => {
   const c = chars.find(x => x.name === 'Battery Workbench');

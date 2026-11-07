@@ -8,7 +8,7 @@
   "entries": [
     { "id": "BOOT-CLEAN", "source": "ghost doctrine (§190)", "rule": "A fresh boot of the generator produces zero console errors.", "status": "checked" },
     { "id": "MUT-TEMPLATE-FEAT", "source": "HH p.411/§220", "rule": "Taking the Supernatural Mutation feat confers the Mutant racial template (isMutantTemplated).", "status": "checked" },
-    { "id": "MUT-TEMPLATE-10MP", "source": "HH p.411/§220", "rule": "Reaching 10+ total MP confers the Mutant template; 9 or fewer does not (different, not Mutants).", "status": "checked" },
+    { "id": "MUT-TEMPLATE-ONTOLOGY-LINE", "source": "HH p.29+p.411/§286", "rule": "Mutant subtype at MORE THAN 2 total MP from any route (§286, 2026-11-07, supersedes the 10-MP line): Slightly Different’s exact 2 stays human; 3-9 MP = Mutant at RLM +0, a Mutant for subtype-specific adjudications only; the feat always templates", "status": "checked" },
     { "id": "MUT-CLASS-TRACKS-RLM", "source": "HH p.423/§220", "rule": "Classification tracks the Mutant RLM: floor(totalEarned/10) — Minor 0 / Moderate 1 / Major 2 / Mega 3+.", "status": "checked" },
     { "id": "TIER-CEILING-ONLY", "source": "§219", "rule": "A tier's spell_levels band gates only the CEILING: 0-level powers purchasable at every tier.", "status": "checked" },
     { "id": "BUFF-STAMP-SEMICOLON", "source": "FF/HH mp_note idiom/§226", "rule": "Catalog Buff tags use '; Buff'; the stamp recognizes them; 'includes X as Buff' partials never stamp.", "status": "checked" },
