@@ -126,8 +126,41 @@ await t('LOW-TS-SCENARIO-DEFAULTS-STEEL', () => {
   const mega = [...el.options].find(o => o.value === 'Megatanium');
   return (sel && sel.value === 'Steel' && !!mega && /⚑ GM/.test(mega.textContent)) || { v: sel && sel.value, mega: mega && mega.textContent };
 });
+await t('OWNED-ROW-REFORGE-CONTROL', () => {
+  // v9.21.1 (§291): the dossier carries a Re-forge select for catalog armor.
+  // Self-contained: the LOW-TS check re-booted the char, so rebuild at TS8.
+  __boot(8);
+  const c = chars[0];
+  const def = ARMOR_CATALOG.find(a => a.type === 'light' && !a.hb_substance && !a.hb_gadget);
+  c.items.push({ id: 'it_owned1', catalogue: 'armor', ref: def.name, slot: 'armor', alloy: 'Mythandium', gadgets: [] });
+  _itemOpen.add('it_owned1');
+  try { renderGear(); } catch (e) {}
+  const inv = document.getElementById('gear-inv-armor').innerHTML;
+  return (inv.includes('Re-forge:') && inv.includes("reforgeArmorItem('it_owned1'") && inv.includes('(current)')) || { hasLabel: inv.includes('Re-forge:'), hasHook: inv.includes('reforgeArmorItem'), hasCurrent: inv.includes('(current)') };
+});
+await t('REFORGE-OWNED-RESTAMPS', async () => {
+  // light Mythandium (TS8 row, hardness 10) → Duralloy (TS6 light row, 5).
+  // Wealth untracked → chargeUpgradeDifference silently free, no modal.
+  const c = chars[0];
+  const it = c.items.find(x => x.id === 'it_owned1');
+  try { await reforgeArmorItem(it.id, 'Duralloy'); } catch (e) {}
+  const g = armorItemIntegrity(it);
+  return (it.alloy === 'Duralloy' && g.hardness === 5 && g.substance === 'Duralloy') || { alloy: it.alloy, h: g.hardness };
+});
+await t('REFORGE-LEGACY-TO-STANDARD', async () => {
+  // an unstamped legacy item re-forged to the scenario standard: Δ0, stamped,
+  // hardness jumps to the standard row (TS8 medium = 15)
+  const c = chars[0];
+  const def = ARMOR_CATALOG.find(a => a.type === 'medium' && !a.hb_substance && !a.hb_gadget);
+  const it = { id: 'it_owned2', catalogue: 'armor', ref: def.name, slot: 'armor', gadgets: [] };
+  c.items.push(it);
+  const beforeH = armorItemIntegrity(it).hardness;
+  try { await reforgeArmorItem(it.id, 'Megatanium'); } catch (e) {}
+  const g = armorItemIntegrity(it);
+  return (it.alloy === 'Megatanium' && g.hardness === 15 && (def.tl === 8 || beforeH !== 15)) || { alloy: it.alloy, h: g.hardness, beforeH, tl: def.tl };
+});
 await t('VERSION-STAMPED', () => {
-  return (CG_VERSION === 'v9.21.0' && document.querySelector('.site-subtitle').textContent.includes('v9.21.0')) || { v: CG_VERSION };
+  return (CG_VERSION === 'v9.21.1' && document.querySelector('.site-subtitle').textContent.includes('v9.21.1')) || { v: CG_VERSION };
 });
 mark('CONSOLE-CLEAN', consoleErrors.length === 0, consoleErrors[0] || '');
 
